@@ -21,13 +21,14 @@ inline double normalCDF(double x, double mu=0, double sig=1){return erfc(-M_SQRT
 template <class T>
 ostream& operator<<(ostream& out, const vector<T>& vec){
     // print elements of a vector
-    if(vec.size()==0) out << "[ ]";
+    if(vec.size()==0) out << "[]";
     else{
-        out << "[ ";
-        for(auto p=vec.begin(); p!=vec.end()-1; p++) out << *p << ", ";
-        out << *(vec.end()-1) << " ]";
+        out << "[";
+        for(auto p=vec.begin(); p!=vec.end(); p++) out << *p << ((p==vec.end()-1)?"]":",");
     }
     return out;
 }
+
+// string printJSON(string jsonStr, string padding){}
 
 #endif
