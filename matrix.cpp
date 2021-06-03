@@ -18,6 +18,7 @@ public:
     template <int _rows> matrix(const T (&v)[_rows]);
     template <int _rows, int _cols> matrix(const T (&M)[_rows][_cols]);
     /**** accessors ****/
+    bool isEmpty() const;
     int getRows() const {return rows;}
     int getCols() const {return cols;}
     T getEntry(int row, int col) const {return m[row][col];}
@@ -32,7 +33,6 @@ public:
     matrix flatten() const;
     string print() const;
     string getAsJSONArray() const;
-    bool isEmpty() const;
     /**** mutators ****/
     matrix setZero();
     matrix setZero(int rows, int cols);
@@ -141,6 +141,11 @@ matrix<T>::matrix(const T (&M)[_rows][_cols]):rows(_rows),cols(_cols){
 /**** accessors ****/
 
 template <class T>
+bool matrix<T>::isEmpty() const {
+    return m.empty();
+}
+
+template <class T>
 T matrix<T>::getFirstEntry() const {
     assert(!isEmpty());
     return m[0][0];
@@ -209,11 +214,6 @@ string matrix<T>::getAsJSONArray() const {
     for(int row=0; row<rows; row++)
         oss << ((row==0)?"[":"") << m[row] << ((row==rows-1)?"]":",");
     return oss.str();
-}
-
-template <class T>
-bool matrix<T>::isEmpty() const {
-    return m.empty();
 }
 
 /**** mutators ****/
