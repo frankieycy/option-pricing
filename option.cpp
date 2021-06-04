@@ -4,6 +4,8 @@
 #include "matrix.cpp"
 using namespace std;
 
+/**** global variables ********************************************************/
+
 const set<string> OPTION_TYPES{
     "European", "American", "Digital", "Asian"
 };
@@ -16,6 +18,8 @@ const set<string> PATH_DEP_OPTIONS{
 const set<string> PUT_CALL{
     "Put", "Call"
 };
+
+/**** class declarations ******************************************************/
 
 class SimConfig{
 public:
@@ -134,7 +138,8 @@ public:
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
 
-/******************************************************************************/
+/**** class functions *********************************************************/
+//### Option class #############################################################
 
 Option::Option(string type, string putCall, double strike, double maturity){
     this->type = type;
@@ -229,7 +234,7 @@ matrix<double> Option::calcPayoffs(matrix<double> stockPriceVector, matrix<doubl
     return NULL_VECTOR;
 }
 
-/******************************************************************************/
+//### Stock class ##############################################################
 
 Stock::Stock(double currentPrice, double dividendYield, double driftRate, double volatility){
     this->currentPrice = currentPrice;
@@ -318,7 +323,7 @@ matrix<double> Stock::generatePriceTree(const SimConfig& config){
     return binomialPriceTree;
 }
 
-/******************************************************************************/
+//### Market class #############################################################
 
 Market::Market(double riskFreeRate, const Stock& stock){
     this->riskFreeRate = riskFreeRate;
@@ -349,7 +354,7 @@ Stock Market::setStock(const Stock& stock){
     return stock;
 }
 
-/******************************************************************************/
+//### Pricer class #############################################################
 
 Pricer::Pricer(const Option& option, const Market& market){
     this->option = option; this->option_orig = option;
@@ -475,7 +480,7 @@ matrix<double> Pricer::varyPriceWithVariable(string var, matrix<double> varVecto
     return optionPriceVector;
 }
 
-/******************************************************************************/
+//### operators ################################################################
 
 ostream& operator<<(ostream& out, const Option& option){
     out << option.getAsJSON();
