@@ -11,6 +11,6 @@ int main() {
     // cout << pricer.calcPrice("Binomial Tree",config) << endl;
     // cout << pricer.calcPrice("Monte Carlo",config,500) << endl;
     matrix<double> S0; S0.setRange(80,120);
-    cout << pricer.varyPriceWithVariable("currentPrice",S0) << endl;
+    cout << pricer.varyGreekWithVariable("currentPrice",S0,"Delta") << endl;
     return 0;
 }

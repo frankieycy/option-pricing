@@ -33,6 +33,7 @@ public:
     matrix getLastCol() const;
     matrix flatten() const;
     string print() const;
+    string getAsCsv() const; // TO DO
     string getAsJSONArray() const;
     /**** mutators ****/
     matrix setZero();
@@ -207,6 +208,12 @@ string matrix<T>::print() const {
     ostringstream oss;
     for(int row=0; row<rows; row++)
         oss << ((row==0)?"[":" ") << m[row] << ((row==rows-1)?"]":",") << ((row<rows-1)?"\n":"");
+    return oss.str();
+}
+
+template <class T>
+string matrix<T>::getAsCsv() const {
+    ostringstream oss;
     return oss.str();
 }
 

@@ -124,6 +124,9 @@ public:
     Option getOption() const {return option;}
     Market getMarket() const {return market;}
     string getAsJSON() const;
+    double getVariable(string var) const;
+    /**** mutators ****/
+    double setVariable(string var, double v);
     /**** main ****/
     Pricer restoreOriginal();
     double calcImpliedVolatility();
@@ -134,6 +137,14 @@ public:
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     matrix<double> varyPriceWithVariable(string var, matrix<double> varVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
+    double ClosedFormGreek(string var, int derivOrder=1);
+    double FiniteDifferenceGreek(string var, int derivOrder=1, string method="Closed Form",
+        const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
+    double calcGreek(string greekName, string greekMethod="Closed Form", string method="Closed Form",
+        const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
+    matrix<double> varyGreekWithVariable(string var, matrix<double> varVector,
+        string greekName, string greekMethod="Closed Form", string method="Closed Form",
+        const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
@@ -372,6 +383,47 @@ string Pricer::getAsJSON() const {
     return oss.str();
 }
 
+double Pricer::getVariable(string var) const {
+    double v = NAN;
+    if(var=="currentPrice"){
+        v = market.getStock().getCurrentPrice();
+    }else if(var=="dividendYield"){
+        v = market.getStock().getDividendYield();
+    }else if(var=="volatility"){
+        v = market.getStock().getVolatility();
+    }else if(var=="riskFreeRate"){
+        v = market.getRiskFreeRate();
+    }else if(var=="strike"){
+        v = option.getStrike();
+    }else if(var=="maturity"){
+        v = option.getMaturity();
+    }
+    return v;
+}
+
+double Pricer::setVariable(string var, double v){
+    if(var=="currentPrice"){
+        Stock tmpStock = market.getStock();
+        tmpStock.setCurrentPrice(v);
+        market.setStock(tmpStock);
+    }else if(var=="dividendYield"){
+        Stock tmpStock = market.getStock();
+        tmpStock.setDividendYield(v);
+        market.setStock(tmpStock);
+    }else if(var=="volatility"){
+        Stock tmpStock = market.getStock();
+        tmpStock.setVolatility(v);
+        market.setStock(tmpStock);
+    }else if(var=="riskFreeRate"){
+        market.setRiskFreeRate(v);
+    }else if(var=="strike"){
+        option.setStrike(v);
+    }else if(var=="maturity"){
+        option.setMaturity(v);
+    }
+    return v;
+}
+
 Pricer Pricer::restoreOriginal(){
     option = option_orig;
     market = market_orig;
@@ -454,30 +506,114 @@ matrix<double> Pricer::varyPriceWithVariable(string var, matrix<double> varVecto
     matrix<double> optionPriceVector(1,n);
     for(int i=0; i<n; i++){
         double v = varVector.getEntry(0,i);
-        if(var=="currentPrice"){
-            Stock tmpStock = market.getStock();
-            tmpStock.setCurrentPrice(v);
-            market.setStock(tmpStock);
-        }else if(var=="dividendYield"){
-            Stock tmpStock = market.getStock();
-            tmpStock.setDividendYield(v);
-            market.setStock(tmpStock);
-        }else if(var=="volatility"){
-            Stock tmpStock = market.getStock();
-            tmpStock.setVolatility(v);
-            market.setStock(tmpStock);
-        }else if(var=="riskFreeRate"){
-            market.setRiskFreeRate(v);
-        }else if(var=="strike"){
-            option.setStrike(v);
-        }else if(var=="maturity"){
-            option.setMaturity(v);
-        }
+        setVariable(var,v);
         price = calcPrice(method,config,numSim);
         optionPriceVector.setEntry(0,i,price);
     }
     restoreOriginal();
     return optionPriceVector;
+}
+
+double Pricer::ClosedFormGreek(string var, int derivOrder){
+    double greek = NAN;
+    if(option.getType()=="European"){
+        Stock stock = market.getStock();
+        double K   = option.getStrike();
+        double T   = option.getMaturity();
+        double r   = market.getRiskFreeRate();
+        double S0  = stock.getCurrentPrice();
+        double q   = stock.getDividendYield();
+        double sig = stock.getVolatility();
+        double sqrt_T = sqrt(T);
+        double d1  = (log(S0/K)+(r-q+sig*sig/2)*T)/(sig*sqrt_T);
+        double d2  = d1-sig*sqrt_T;
+        if(option.getPutCall()=="Call"){
+            if(var=="currentPrice" && derivOrder==1)
+                greek = normalCDF(d1);
+            else if(var=="currentPrice" && derivOrder==2)
+                greek = normalPDF(d1)/(S0*sig*sqrt_T);
+            else if(var=="volatility" && derivOrder==1)
+                greek = S0*normalPDF(d1)*sqrt_T;
+            else if(var=="riskFreeRate" && derivOrder==1)
+                greek = K*T*exp(-r*T)*normalCDF(d2);
+            else if(var=="time" && derivOrder==1)
+                greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)-r*K*exp(-r*T)*normalCDF(d2);
+        }else if(option.getPutCall()=="Put"){
+            if(var=="currentPrice" && derivOrder==1)
+                greek = normalCDF(d1)-1;
+            else if(var=="currentPrice" && derivOrder==2)
+                greek = normalPDF(d1)/(S0*sig*sqrt_T);
+            else if(var=="volatility" && derivOrder==1)
+                greek = S0*normalPDF(d1)*sqrt_T;
+            else if(var=="riskFreeRate" && derivOrder==1)
+                greek = -K*T*exp(-r*T)*normalCDF(-d2);
+            else if(var=="time" && derivOrder==1)
+                greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)+r*K*exp(-r*T)*normalCDF(-d2);
+        }
+    }
+    return greek;
+}
+
+double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
+    const SimConfig& config, int numSim, double eps){
+    double greek = NAN;
+    double v,dv,v_pos,v_neg,price_pos,price_neg;
+    v = getVariable(var);
+    dv = v*eps;
+    v_pos = v+dv;
+    v_neg = v-dv;
+    setVariable(var,v_pos);
+    price_pos = calcPrice(method,config,numSim);
+    setVariable(var,v_neg);
+    price_neg = calcPrice(method,config,numSim);
+    restoreOriginal();
+    switch(derivOrder){
+        case 1: greek = (price_pos-price_neg)/(2*dv); break;
+        case 2: greek = (price_pos-2*price+price_neg)/(dv*dv); break;
+    }
+    return greek;
+}
+
+double Pricer::calcGreek(string greekName, string greekMethod, string method,
+    const SimConfig& config, int numSim, double eps){
+    double greek = NAN;
+    string var; int derivOrder;
+    if(greekName=="Delta"){
+        var = "currentPrice";
+        derivOrder = 1;
+    }else if(greekName=="Gamma"){
+        var = "currentPrice";
+        derivOrder = 2;
+    }else if(greekName=="Vega"){
+        var = "volatility";
+        derivOrder = 1;
+    }else if(greekName=="Rho"){
+        var = "riskFreeRate";
+        derivOrder = 1;
+    }else if(greekName=="Theta"){
+        var = "time";
+        derivOrder = 1;
+    }
+    if(greekMethod=="Closed Form")
+        greek = ClosedFormGreek(var,derivOrder);
+    else if(greekMethod=="Finite Difference")
+        greek = FiniteDifferenceGreek(var,derivOrder,method,config,numSim,eps);
+    return greek;
+}
+
+matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVector, string greekName,
+    string greekMethod, string method, const SimConfig& config, int numSim, double eps){
+    int n = varVector.getCols();
+    double greek;
+    matrix<double> optionGreekVector(1,n);
+    for(int i=0; i<n; i++){
+        double v = varVector.getEntry(0,i);
+        setVariable(var,v);
+        greek = calcGreek(greekName,greekMethod,method,config,numSim,eps);
+        optionGreekVector.setEntry(0,i,greek);
+    }
+    restoreOriginal();
+    return optionGreekVector;
 }
 
 //### operators ################################################################
