@@ -34,9 +34,9 @@ public:
     matrix flatten() const;
     string print() const;
     string getAsCsv() const;
-    string getAsJsonArray() const;
-    void printToCsv() const; // TO DO
-    void printToJson() const; // TO DO
+    string getAsJson() const;
+    void printToCsvFile(string file) const; // TO DO
+    void printToJsonFile(string file) const; // TO DO
     /**** mutators ****/
     matrix setZero();
     matrix setZero(int rows, int cols);
@@ -49,7 +49,8 @@ public:
     matrix setRow(int row, const matrix<T>& vec);
     matrix setCol(int col, const matrix<T>& vec);
     matrix setEntry(int row, int col, T a);
-    matrix<double> setRange(double x0, double x1, int n=-1);
+    matrix<double> setRange(double x0, double x1, int n=-1, bool inc=false);
+    matrix apply(T (*f)(T));
     /**** matrix operations ****/
     T getMax();
     T getMin();
@@ -218,16 +219,32 @@ string matrix<T>::getAsCsv() const {
     ostringstream oss;
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            oss << m[row][col] << ((col==cols-1)?"":",") << ((row==rows-1)?"":"\n");
+            oss << m[row][col] << ((col<cols-1)?",":((row<rows-1)?"\n":""));
     return oss.str();
 }
 
 template <class T>
-string matrix<T>::getAsJsonArray() const {
+string matrix<T>::getAsJson() const {
     ostringstream oss;
     for(int row=0; row<rows; row++)
         oss << ((row==0)?"[":"") << m[row] << ((row==rows-1)?"]":",");
     return oss.str();
+}
+
+template <class T>
+void matrix<T>::printToCsvFile(string file) const {
+    ofstream f;
+    f.open(file);
+    f << getAsCsv();
+    f.close();
+}
+
+template <class T>
+void matrix<T>::printToJsonFile(string file) const {
+    ofstream f;
+    f.open(file);
+    f << getAsJson();
+    f.close();
 }
 
 /**** mutators ****/
@@ -294,15 +311,15 @@ matrix<T> matrix<T>::setNormalRand(double mu, double sig){
 
 template <class T>
 matrix<T> matrix<T>::setRow(int row, const matrix<T>& vec){
-    assert(vec.rows==1);
+    assert(vec.rows==1 && cols==vec.cols);
     for(int col=0; col<vec.cols; col++) m[row][col] = vec.m[0][col];
     return *this;
 }
 
 template <class T>
 matrix<T> matrix<T>::setCol(int col, const matrix<T>& vec){
-    assert(vec.cols==1);
-    for(int row=0; row<vec.cols; row++) m[row][col] = vec.m[row][0];
+    assert(vec.rows==1 && rows==vec.cols);
+    for(int row=0; row<vec.cols; row++) m[row][col] = vec.m[0][row];
     return *this;
 }
 
@@ -315,11 +332,20 @@ matrix<T> matrix<T>::setEntry(int row, int col, T a){
 }
 
 template <class T>
-matrix<double> matrix<T>::setRange(double x0, double x1, int n){
+matrix<double> matrix<T>::setRange(double x0, double x1, int n, bool inc){
     if(n<0) n = x1-x0;
     double dx = (x1-x0)/n;
+    if(inc) n += 1;
     *this = matrix<double>(1,n);
     for(int i=0; i<n; i++) (*this).setEntry(0,i,x0+i*dx);
+    return *this;
+}
+
+template <class T>
+matrix<T> matrix<T>::apply(T (*f)(T)){
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            m[row][col] = f(m[row][col]);
     return *this;
 }
 
@@ -426,7 +452,7 @@ matrix<T> matrix<T>::dot(const matrix<T>& M){
 
 template <class T>
 ostream& operator<<(ostream& out, const matrix<T>& M){
-    out << M.getAsJsonArray();
+    out << M.getAsJson();
     return out;
 }
 

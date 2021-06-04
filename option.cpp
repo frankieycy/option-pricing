@@ -4,6 +4,11 @@
 #include "matrix.cpp"
 using namespace std;
 
+#define GUI true
+#define LOG true
+
+inline void logMessage(string msg){if(LOG) cout << "[LOG] " << msg << endl;}
+
 /**** global variables ********************************************************/
 
 const set<string> OPTION_TYPES{
@@ -27,6 +32,8 @@ public:
     double endTime, stepSize;
     SimConfig(double t=0, int n=1):endTime(t),iters(n),stepSize(t/n){}
     bool isEmpty() const {return endTime==0;}
+    string getAsJson() const;
+    friend ostream& operator<<(ostream& out, const SimConfig& config);
 };
 
 const SimConfig NULL_CONFIG;
@@ -84,6 +91,8 @@ public:
     double setVolatility(double volatility);
     /**** main ****/
     bool checkParams() const;
+    double calcLognormalPrice(double z, double time);
+    matrix<double> calcLognormalPriceVector(matrix<double> z, double time);
     matrix<double> simulatePrice(const SimConfig& config, int numSim=1);
     matrix<double> generatePriceTree(const SimConfig& config);
     matrix<double> generatePriceMatrixFromTree();
@@ -123,6 +132,7 @@ public:
     /**** accessors ****/
     Option getOption() const {return option;}
     Market getMarket() const {return market;}
+    double getPrice() const {return price;}
     string getAsJson() const;
     double getVariable(string var) const;
     /**** mutators ****/
@@ -134,6 +144,7 @@ public:
     double BlackScholesPDESolver(); // TO DO
     double BinomialTreePricer(const SimConfig& config);
     double MonteCarloPricer(const SimConfig& config, int numSim);
+    double NumIntegrationPricer(double z=5, double dz=1e-3);
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     matrix<double> varyPriceWithVariable(string var, matrix<double> varVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
@@ -145,11 +156,25 @@ public:
     matrix<double> varyGreekWithVariable(string var, matrix<double> varVector,
         string greekName, string greekMethod="Closed Form", string method="Closed Form",
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
+    matrix<double> generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
+        string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
 
 /**** class functions *********************************************************/
+//### SimConfig class ##########################################################
+
+string SimConfig::getAsJson() const {
+    ostringstream oss;
+    oss << "{" <<
+    "\"iters\":"    << iters    << "," <<
+    "\"endTime\":"  << endTime  << "," <<
+    "\"stepSize\":" << stepSize <<
+    "}";
+    return oss.str();
+}
+
 //### Option class #############################################################
 
 Option::Option(string type, string putCall, double strike, double maturity){
@@ -178,10 +203,10 @@ bool Option::isPathDependent() const {
 string Option::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
-    "'type':'"      << type     << "'," <<
-    "'putCall':'"   << putCall  << "'," <<
-    "'strike':"     << strike   << ","  <<
-    "'maturity':"   << maturity <<
+    "\"type\":\""      << type     << "\"," <<
+    "\"putCall\":\""   << putCall  << "\"," <<
+    "\"strike\":"      << strike   << ","  <<
+    "\"maturity\":"    << maturity <<
     "}";
     return oss.str();
 }
@@ -265,10 +290,10 @@ Stock::Stock(const Stock& stock){
 string Stock::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
-    "'currentPrice':"   << currentPrice     << "," <<
-    "'dividendYield':"  << dividendYield    << "," <<
-    "'driftRate':"      << driftRate        << "," <<
-    "'volatility':"     << volatility       <<
+    "\"currentPrice\":"   << currentPrice     << "," <<
+    "\"dividendYield\":"  << dividendYield    << "," <<
+    "\"driftRate\":"      << driftRate        << "," <<
+    "\"volatility\":"     << volatility       <<
     "}";
     return oss.str();
 }
@@ -295,6 +320,20 @@ double Stock::setVolatility(double volatility){
 
 bool Stock::checkParams() const {
     return currentPrice>=0 && dividendYield>=0 && volatility>=0;
+}
+
+double Stock::calcLognormalPrice(double z, double time){
+    double S = currentPrice*exp(
+        (driftRate-volatility*volatility/2)*time+volatility*sqrt(time)*z
+    );
+    return S;
+}
+
+matrix<double> Stock::calcLognormalPriceVector(matrix<double> z, double time){
+    int n = z.getCols();
+    matrix<double> S(1,n);
+    for(int i=0; i<n; i++) S.setEntry(0,i,calcLognormalPrice(z.getEntry(0,i),time));
+    return S;
 }
 
 matrix<double> Stock::simulatePrice(const SimConfig& config, int numSim){
@@ -349,8 +388,8 @@ Market::Market(const Market& market){
 string Market::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
-    "'riskFreeRate':"   << riskFreeRate << "," <<
-    "'stock':"          << stock        <<
+    "\"riskFreeRate\":"   << riskFreeRate << "," <<
+    "\"stock\":"          << stock        <<
     "}";
     return oss.str();
 }
@@ -376,9 +415,8 @@ Pricer::Pricer(const Option& option, const Market& market){
 string Pricer::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
-    "'option':"     << option   << "," <<
-    "'market':"     << market   << "," <<
-    "'price':"      << price    <<
+    "\"option\":"     << option   << "," <<
+    "\"market\":"     << market   <<
     "}";
     return oss.str();
 }
@@ -437,6 +475,7 @@ double Pricer::calcImpliedVolatility(double optionMarketPrice){
 }
 
 double Pricer::BlackScholesClosedForm(){
+    logMessage("starting calculation BlackScholesClosedForm");
     if(option.getType()=="European"){
         double K   = getVariable("strike");
         double T   = getVariable("maturity");
@@ -451,10 +490,12 @@ double Pricer::BlackScholesClosedForm(){
         else if(option.getPutCall()=="Put")
             price = K*exp(-r*T)*normalCDF(-d2)-S0*exp(-q*T)*normalCDF(-d1);
     }
+    logMessage("ending calculation BlackScholesClosedForm, return: "+to_string(price));
     return price;
 }
 
 double Pricer::BinomialTreePricer(const SimConfig& config){
+    logMessage("starting calculation BinomialTreePricer on config "+to_string(config));
     Stock stock = market.getStock();
     double n = config.iters;
     double dt = config.stepSize;
@@ -481,10 +522,12 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
         // cout << optionBinomialTree.print() << endl;
         price = optionBinomialTree.getEntry(0,0);
     }
+    logMessage("ending calculation BinomialTreePricer, return: "+to_string(price));
     return price;
 }
 
 double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
+    logMessage("starting calculation MonteCarloPricer on config "+to_string(config)+", numSim "+to_string(numSim));
     Stock stock = market.getStock();
     double r = getVariable("riskFreeRate");
     double T = getVariable("maturity");
@@ -494,13 +537,43 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
         matrix<double> payoffs = option.calcPayoffs(NULL_VECTOR,stock.getSimPriceMatrix());
         price = exp(-r*T)*payoffs.mean();
     }
+    logMessage("ending calculation MonteCarloPricer, return: "+to_string(price));
+    return price;
+}
+
+double Pricer::NumIntegrationPricer(double z, double dz){
+    logMessage("starting calculation NumIntegrationPricer on z "+to_string(z)+", dz "+to_string(dz));
+    Stock stock = market.getStock();
+    double r = getVariable("riskFreeRate");
+    double T = getVariable("maturity");
+    stock.setDriftRate(r);
+    int n = static_cast<int>(z/dz);
+    matrix<double> z0; z0.setRange(-z,z,2*n);
+    matrix<double> S = stock.calcLognormalPriceVector(z0,T);
+    if(!option.canEarlyExercise() && !option.isPathDependent()){
+        matrix<double> payoffs = option.calcPayoffs(S);
+        matrix<double> probs = z0.apply(stdNormalPDF)*dz;
+        price = exp(-r*T)*(probs*payoffs).sum();
+    }
+    logMessage("ending calculation NumIntegrationPricer, return: "+to_string(price));
     return price;
 }
 
 double Pricer::calcPrice(string method, const SimConfig& config, int numSim){
-    if(method=="Closed Form") price = BlackScholesClosedForm();
-    else if(method=="Binomial Tree") price = BinomialTreePricer(config);
-    else if(method=="Monte Carlo") price = MonteCarloPricer(config, numSim);
+    if(GUI) cout << "calculating option price with " << method << " pricer";
+    if(method=="Closed Form"){
+        if(GUI) cout << endl;
+        price = BlackScholesClosedForm();
+    }else if(method=="Binomial Tree"){
+        if(GUI) cout << " on config " << config << endl;
+        price = BinomialTreePricer(config);
+    }else if(method=="Monte Carlo"){
+        if(GUI) cout << " on config " << config << ", numSim " << numSim << endl;
+        price = MonteCarloPricer(config, numSim);
+    }else if(method=="Num Integration"){
+        if(GUI) cout << endl;
+        price = NumIntegrationPricer();
+    }
     return price;
 }
 
@@ -519,6 +592,7 @@ matrix<double> Pricer::varyPriceWithVariable(string var, matrix<double> varVecto
 }
 
 double Pricer::ClosedFormGreek(string var, int derivOrder){
+    logMessage("starting calculation ClosedFormGreek on var "+var+", derivOrder "+to_string(derivOrder));
     double greek = NAN;
     if(option.getType()=="European"){
         double K   = getVariable("strike");
@@ -554,31 +628,37 @@ double Pricer::ClosedFormGreek(string var, int derivOrder){
                 greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)+r*K*exp(-r*T)*normalCDF(-d2);
         }
     }
+    logMessage("ending calculation ClosedFormGreek, return: "+to_string(greek));
     return greek;
 }
 
 double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
     const SimConfig& config, int numSim, double eps){
+    logMessage("starting calculation FiniteDifferenceGreek on var "+var+", derivOrder "+to_string(derivOrder)+
+        ", method "+method+", config "+to_string(config)+", numSim "+to_string(numSim)+", eps "+to_string(eps));
     double greek = NAN;
     double v,dv,v_pos,v_neg,price_pos,price_neg;
     v = getVariable(var);
     dv = v*eps;
     v_pos = v+dv;
     v_neg = v-dv;
+    price = calcPrice(method,config,numSim);
     setVariable(var,v_pos);
     price_pos = calcPrice(method,config,numSim);
     setVariable(var,v_neg);
     price_neg = calcPrice(method,config,numSim);
-    resetOriginal();
     switch(derivOrder){
         case 1: greek = (price_pos-price_neg)/(2*dv); break;
         case 2: greek = (price_pos-2*price+price_neg)/(dv*dv); break;
     }
+    resetOriginal();
+    logMessage("ending calculation FiniteDifferenceGreek, return: "+to_string(greek));
     return greek;
 }
 
 double Pricer::calcGreek(string greekName, string greekMethod, string method,
     const SimConfig& config, int numSim, double eps){
+    if(GUI) cout << "calculating option " << greekName << " with " << method << " calculator";
     double greek = NAN;
     string var; int derivOrder;
     if(greekName=="Delta"){
@@ -619,7 +699,29 @@ matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVecto
     return optionGreekVector;
 }
 
+matrix<double> Pricer::generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
+    string method, const SimConfig& config, int numSim){
+    if(GUI) cout << "generating option price surface with " << method << " pricer";
+    int m = optionTermVector.getCols();
+    int n = stockPriceVector.getCols();
+    matrix<double> priceSurface(m,n);
+    for(int i=0; i<m; i++){
+        double term = optionTermVector.getEntry(0,i);
+        setVariable("maturity",term);
+        priceSurface.setRow(i,
+            varyPriceWithVariable("currentPrice",stockPriceVector,method,config,numSim)
+        );
+    }
+    resetOriginal();
+    return priceSurface;
+}
+
 //### operators ################################################################
+
+ostream& operator<<(ostream& out, const SimConfig& config){
+    out << config.getAsJson();
+    return out;
+}
 
 ostream& operator<<(ostream& out, const Option& option){
     out << option.getAsJson();
