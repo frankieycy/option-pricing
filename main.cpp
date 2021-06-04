@@ -7,8 +7,10 @@ int main() {
     Market market       = Market(0.02,stock);
     Pricer pricer       = Pricer(option,market);
     SimConfig config    = SimConfig(1,100);
-    cout << pricer.BlackScholesClosedForm() << endl;
-    cout << pricer.BinomialTreePricer(config) << endl;
-    cout << pricer.MonteCarloPricer(config,500) << endl;
+    // cout << pricer.calcPrice("Closed Form") << endl;
+    // cout << pricer.calcPrice("Binomial Tree",config) << endl;
+    // cout << pricer.calcPrice("Monte Carlo",config,500) << endl;
+    matrix<double> S0; S0.setRange(80,120);
+    cout << pricer.varyPriceWithVariable("currentPrice",S0) << endl;
     return 0;
 }

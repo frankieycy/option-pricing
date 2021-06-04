@@ -21,6 +21,7 @@ public:
     bool isEmpty() const;
     int getRows() const {return rows;}
     int getCols() const {return cols;}
+    int getEntries() const {return rows*cols;}
     T getEntry(int row, int col) const {return m[row][col];}
     T getFirstEntry() const;
     T getLastEntry() const;
@@ -45,6 +46,7 @@ public:
     matrix setRow(int row, const matrix<T>& vec);
     matrix setCol(int col, const matrix<T>& vec);
     matrix setEntry(int row, int col, T a);
+    matrix<double> setRange(double x0, double x1, int n=-1);
     /**** matrix operations ****/
     T getMax();
     T getMin();
@@ -297,6 +299,15 @@ matrix<T> matrix<T>::setEntry(int row, int col, T a){
     assert(row>=0 && row<rows);
     assert(col>=0 && col<cols);
     m[row][col] = a;
+    return *this;
+}
+
+template <class T>
+matrix<double> matrix<T>::setRange(double x0, double x1, int n){
+    if(n<0) n = x1-x0;
+    double dx = (x1-x0)/n;
+    *this = matrix<double>(1,n);
+    for(int i=0; i<n; i++) (*this).setEntry(0,i,x0+i*dx);
     return *this;
 }
 
