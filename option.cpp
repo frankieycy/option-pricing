@@ -47,7 +47,7 @@ public:
     string getPutCall() const {return putCall;}
     double getStrike() const {return strike;}
     double getMaturity() const {return maturity;}
-    string getAsJSON() const;
+    string getAsJson() const;
     /**** mutators ****/
     double setStrike(double strike);
     double setMaturity(double maturity);
@@ -76,7 +76,7 @@ public:
     matrix<double> getSimTimeVector() const {return simTimeVector;}
     matrix<double> getSimPriceMatrix() const {return simPriceMatrix;}
     matrix<double> getBinomialPriceTree() const {return binomialPriceTree;}
-    string getAsJSON() const;
+    string getAsJson() const;
     /**** mutators ****/
     double setCurrentPrice(double currentPrice);
     double setDividendYield(double dividendYield);
@@ -103,7 +103,7 @@ public:
     /**** accessors ****/
     Stock getStock() const {return stock;}
     double getRiskFreeRate() const {return riskFreeRate;}
-    string getAsJSON() const;
+    string getAsJson() const;
     /**** mutators ****/
     double setRiskFreeRate(double riskFreeRate);
     Stock setStock(const Stock& stock);
@@ -123,15 +123,15 @@ public:
     /**** accessors ****/
     Option getOption() const {return option;}
     Market getMarket() const {return market;}
-    string getAsJSON() const;
+    string getAsJson() const;
     double getVariable(string var) const;
     /**** mutators ****/
     double setVariable(string var, double v);
+    Pricer resetOriginal();
     /**** main ****/
-    Pricer restoreOriginal();
-    double calcImpliedVolatility();
+    double calcImpliedVolatility(double optionMarketPrice); // TO DO
     double BlackScholesClosedForm();
-    double BlackScholesPDESolver();
+    double BlackScholesPDESolver(); // TO DO
     double BinomialTreePricer(const SimConfig& config);
     double MonteCarloPricer(const SimConfig& config, int numSim);
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
@@ -175,7 +175,7 @@ bool Option::isPathDependent() const {
     return PATH_DEP_OPTIONS.find(type)!=PATH_DEP_OPTIONS.end();
 }
 
-string Option::getAsJSON() const {
+string Option::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "'type':'"      << type     << "'," <<
@@ -262,7 +262,7 @@ Stock::Stock(const Stock& stock){
     this->volatility = stock.volatility;
 }
 
-string Stock::getAsJSON() const {
+string Stock::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "'currentPrice':"   << currentPrice     << "," <<
@@ -346,7 +346,7 @@ Market::Market(const Market& market){
     this->stock = market.stock;
 }
 
-string Market::getAsJSON() const {
+string Market::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "'riskFreeRate':"   << riskFreeRate << "," <<
@@ -373,7 +373,7 @@ Pricer::Pricer(const Option& option, const Market& market){
     this->price = NAN;
 }
 
-string Pricer::getAsJSON() const {
+string Pricer::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "'option':"     << option   << "," <<
@@ -424,22 +424,26 @@ double Pricer::setVariable(string var, double v){
     return v;
 }
 
-Pricer Pricer::restoreOriginal(){
+Pricer Pricer::resetOriginal(){
     option = option_orig;
     market = market_orig;
     price = NAN;
     return *this;
 }
 
+double Pricer::calcImpliedVolatility(double optionMarketPrice){
+    double impliedVol;
+    return impliedVol;
+}
+
 double Pricer::BlackScholesClosedForm(){
     if(option.getType()=="European"){
-        Stock stock = market.getStock();
-        double K   = option.getStrike();
-        double T   = option.getMaturity();
-        double r   = market.getRiskFreeRate();
-        double S0  = stock.getCurrentPrice();
-        double q   = stock.getDividendYield();
-        double sig = stock.getVolatility();
+        double K   = getVariable("strike");
+        double T   = getVariable("maturity");
+        double r   = getVariable("riskFreeRate");
+        double S0  = getVariable("currentPrice");
+        double q   = getVariable("dividendYield");
+        double sig = getVariable("volatility");
         double d1  = (log(S0/K)+(r-q+sig*sig/2)*T)/(sig*sqrt(T));
         double d2  = d1-sig*sqrt(T);
         if(option.getPutCall()=="Call")
@@ -455,9 +459,9 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
     double n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
-    double r = market.getRiskFreeRate();
-    double q = stock.getDividendYield();
-    double sig = stock.getVolatility();
+    double r = getVariable("riskFreeRate");
+    double q = getVariable("dividendYield");
+    double sig = getVariable("volatility");
     double u = exp(sig*sqrt_dt), d = 1/u;
     double qu = (exp((r-q)*dt)-d)/(u-d), qd = 1-qu;
     stock.setDriftRate(r);
@@ -482,8 +486,8 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
 
 double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
     Stock stock = market.getStock();
-    double r = market.getRiskFreeRate();
-    double T = option.getMaturity();
+    double r = getVariable("riskFreeRate");
+    double T = getVariable("maturity");
     stock.setDriftRate(r);
     stock.simulatePrice(config,numSim);
     if(!option.canEarlyExercise()){
@@ -510,20 +514,19 @@ matrix<double> Pricer::varyPriceWithVariable(string var, matrix<double> varVecto
         price = calcPrice(method,config,numSim);
         optionPriceVector.setEntry(0,i,price);
     }
-    restoreOriginal();
+    resetOriginal();
     return optionPriceVector;
 }
 
 double Pricer::ClosedFormGreek(string var, int derivOrder){
     double greek = NAN;
     if(option.getType()=="European"){
-        Stock stock = market.getStock();
-        double K   = option.getStrike();
-        double T   = option.getMaturity();
-        double r   = market.getRiskFreeRate();
-        double S0  = stock.getCurrentPrice();
-        double q   = stock.getDividendYield();
-        double sig = stock.getVolatility();
+        double K   = getVariable("strike");
+        double T   = getVariable("maturity");
+        double r   = getVariable("riskFreeRate");
+        double S0  = getVariable("currentPrice");
+        double q   = getVariable("dividendYield");
+        double sig = getVariable("volatility");
         double sqrt_T = sqrt(T);
         double d1  = (log(S0/K)+(r-q+sig*sig/2)*T)/(sig*sqrt_T);
         double d2  = d1-sig*sqrt_T;
@@ -566,7 +569,7 @@ double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
     price_pos = calcPrice(method,config,numSim);
     setVariable(var,v_neg);
     price_neg = calcPrice(method,config,numSim);
-    restoreOriginal();
+    resetOriginal();
     switch(derivOrder){
         case 1: greek = (price_pos-price_neg)/(2*dv); break;
         case 2: greek = (price_pos-2*price+price_neg)/(dv*dv); break;
@@ -612,29 +615,29 @@ matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVecto
         greek = calcGreek(greekName,greekMethod,method,config,numSim,eps);
         optionGreekVector.setEntry(0,i,greek);
     }
-    restoreOriginal();
+    resetOriginal();
     return optionGreekVector;
 }
 
 //### operators ################################################################
 
 ostream& operator<<(ostream& out, const Option& option){
-    out << option.getAsJSON();
+    out << option.getAsJson();
     return out;
 }
 
 ostream& operator<<(ostream& out, const Stock& stock){
-    out << stock.getAsJSON();
+    out << stock.getAsJson();
     return out;
 }
 
 ostream& operator<<(ostream& out, const Market& market){
-    out << market.getAsJSON();
+    out << market.getAsJson();
     return out;
 }
 
 ostream& operator<<(ostream& out, const Pricer& pricer){
-    out << pricer.getAsJSON();
+    out << pricer.getAsJson();
     return out;
 }
 

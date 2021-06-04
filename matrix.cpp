@@ -33,8 +33,10 @@ public:
     matrix getLastCol() const;
     matrix flatten() const;
     string print() const;
-    string getAsCsv() const; // TO DO
-    string getAsJSONArray() const;
+    string getAsCsv() const;
+    string getAsJsonArray() const;
+    void printToCsv() const; // TO DO
+    void printToJson() const; // TO DO
     /**** mutators ****/
     matrix setZero();
     matrix setZero(int rows, int cols);
@@ -214,11 +216,14 @@ string matrix<T>::print() const {
 template <class T>
 string matrix<T>::getAsCsv() const {
     ostringstream oss;
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            oss << m[row][col] << ((col==cols-1)?"":",") << ((row==rows-1)?"":"\n");
     return oss.str();
 }
 
 template <class T>
-string matrix<T>::getAsJSONArray() const {
+string matrix<T>::getAsJsonArray() const {
     ostringstream oss;
     for(int row=0; row<rows; row++)
         oss << ((row==0)?"[":"") << m[row] << ((row==rows-1)?"]":",");
@@ -421,7 +426,7 @@ matrix<T> matrix<T>::dot(const matrix<T>& M){
 
 template <class T>
 ostream& operator<<(ostream& out, const matrix<T>& M){
-    out << M.getAsJSONArray();
+    out << M.getAsJsonArray();
     return out;
 }
 
