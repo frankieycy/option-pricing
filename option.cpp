@@ -4,8 +4,8 @@
 #include "matrix.cpp"
 using namespace std;
 
-#define GUI true
-#define LOG true
+#define GUI false
+#define LOG false
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
@@ -40,22 +40,24 @@ const SimConfig NULL_CONFIG;
 
 class Option{
 private:
-    string type, putCall;
+    string name, type, putCall;
     double strike, maturity;
 public:
     /**** constructors ****/
     Option(){};
-    Option(string type, string putCall, double strike, double maturity);
+    Option(string type, string putCall, double strike, double maturity, string name="unnamed");
     Option(const Option& option);
     /**** accessors ****/
     bool canEarlyExercise() const;
     bool isPathDependent() const;
+    string getName() const {return name;}
     string getType() const {return type;}
     string getPutCall() const {return putCall;}
     double getStrike() const {return strike;}
     double getMaturity() const {return maturity;}
     string getAsJson() const;
     /**** mutators ****/
+    string setName(string name);
     double setStrike(double strike);
     double setMaturity(double maturity);
     /**** main ****/
@@ -68,14 +70,16 @@ public:
 
 class Stock{
 private:
+    string name;
     double currentPrice, dividendYield, driftRate, volatility;
     matrix<double> simTimeVector, simPriceMatrix, binomialPriceTree;
 public:
     /**** constructors ****/
     Stock(){};
-    Stock(double currentPrice, double dividendYield, double driftRate, double volatility);
+    Stock(double currentPrice, double dividendYield, double driftRate, double volatility, string name="unnamed");
     Stock(const Stock& stock);
     /**** accessors ****/
+    string getName() const {return name;}
     double getCurrentPrice() const {return currentPrice;}
     double getDividendYield() const {return dividendYield;}
     double getDriftRate() const {return driftRate;}
@@ -85,10 +89,13 @@ public:
     matrix<double> getBinomialPriceTree() const {return binomialPriceTree;}
     string getAsJson() const;
     /**** mutators ****/
+    string setName(string name);
     double setCurrentPrice(double currentPrice);
     double setDividendYield(double dividendYield);
     double setDriftRate(double driftRate);
     double setVolatility(double volatility);
+    double estDriftRateFromPrice(matrix<double> priceSeries, double dt, string method="simple");
+    double estVolatilityFromPrice(matrix<double> priceSeries, double dt, string method="simple");
     /**** main ****/
     bool checkParams() const;
     double calcLognormalPrice(double z, double time);
@@ -137,7 +144,10 @@ public:
     double getVariable(string var) const;
     /**** mutators ****/
     double setVariable(string var, double v);
+    string setStringVariable(string var, string v);
+    Pricer setVariablesFromFile(string file);
     Pricer resetOriginal();
+    Pricer saveAsOriginal();
     /**** main ****/
     double BlackScholesClosedForm();
     double BlackScholesPDESolver(); // TO DO
@@ -157,7 +167,9 @@ public:
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
     matrix<double> generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
+    bool satisfyPriceBounds(double optionMarketPrice);
     double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
+    void generateImpliedVolSurfaceFromFile(string input, string file, double vol0=5, double eps=1e-5);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
@@ -177,11 +189,12 @@ string SimConfig::getAsJson() const {
 
 //### Option class #############################################################
 
-Option::Option(string type, string putCall, double strike, double maturity){
+Option::Option(string type, string putCall, double strike, double maturity, string name){
     this->type = type;
     this->putCall = putCall;
     this->strike = strike;
     this->maturity = maturity;
+    this->name = name;
     assert(checkParams());
 }
 
@@ -190,6 +203,7 @@ Option::Option(const Option& option){
     this->putCall = option.putCall;
     this->strike = option.strike;
     this->maturity = option.maturity;
+    this->name = option.name;
 }
 
 bool Option::canEarlyExercise() const {
@@ -203,12 +217,18 @@ bool Option::isPathDependent() const {
 string Option::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
+    "\"name\":\""      << name     << "\"," <<
     "\"type\":\""      << type     << "\"," <<
     "\"putCall\":\""   << putCall  << "\"," <<
     "\"strike\":"      << strike   << ","  <<
     "\"maturity\":"    << maturity <<
     "}";
     return oss.str();
+}
+
+string Option::setName(string name){
+    this->name = name;
+    return name;
 }
 
 double Option::setStrike(double strike){
@@ -272,11 +292,12 @@ matrix<double> Option::calcPayoffs(matrix<double> stockPriceVector, matrix<doubl
 
 //### Stock class ##############################################################
 
-Stock::Stock(double currentPrice, double dividendYield, double driftRate, double volatility){
+Stock::Stock(double currentPrice, double dividendYield, double driftRate, double volatility, string name){
     this->currentPrice = currentPrice;
     this->dividendYield = dividendYield;
     this->driftRate = driftRate;
     this->volatility = volatility;
+    this->name = name;
     assert(checkParams());
 }
 
@@ -285,17 +306,24 @@ Stock::Stock(const Stock& stock){
     this->dividendYield = stock.dividendYield;
     this->driftRate = stock.driftRate;
     this->volatility = stock.volatility;
+    this->name = stock.name;
 }
 
 string Stock::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
+    "\"name\":\""         << name             << "\"," <<
     "\"currentPrice\":"   << currentPrice     << "," <<
     "\"dividendYield\":"  << dividendYield    << "," <<
     "\"driftRate\":"      << driftRate        << "," <<
     "\"volatility\":"     << volatility       <<
     "}";
     return oss.str();
+}
+
+string Stock::setName(string name){
+    this->name = name;
+    return name;
 }
 
 double Stock::setCurrentPrice(double currentPrice){
@@ -315,6 +343,28 @@ double Stock::setDriftRate(double driftRate){
 
 double Stock::setVolatility(double volatility){
     this->volatility = volatility;
+    return volatility;
+}
+
+double Stock::estDriftRateFromPrice(matrix<double> priceSeries, double dt, string method){
+    if(method=="simple"){
+        matrix<double> returnSeries;
+        returnSeries =
+            (priceSeries.submatrix(1,-1,"col")-priceSeries.submatrix(0,-2,"col"))
+            /priceSeries.submatrix(0,-2,"col");
+        driftRate = returnSeries.mean()/dt;
+    }
+    return driftRate;
+}
+
+double Stock::estVolatilityFromPrice(matrix<double> priceSeries, double dt, string method){
+    if(method=="simple"){
+        matrix<double> returnSeries;
+        returnSeries =
+            (priceSeries.submatrix(1,-1,"col")-priceSeries.submatrix(0,-2,"col"))
+            /priceSeries.submatrix(0,-2,"col");
+        volatility = sqrt(returnSeries.var()/dt);
+    }
     return volatility;
 }
 
@@ -462,10 +512,40 @@ double Pricer::setVariable(string var, double v){
     return v;
 }
 
+string Pricer::setStringVariable(string var, string v){
+    if(var=="stockName"){
+        Stock tmpStock = market.getStock();
+        tmpStock.setName(v);
+        market.setStock(tmpStock);
+    }else if(var=="optionName"){
+        option.setName(v);
+    }
+    return v;
+}
+
+Pricer Pricer::setVariablesFromFile(string file){
+    string var, val;
+    ifstream f(file);
+    while(getline(f,var,',')){
+        getline(f,val);
+        double v;
+        if(isDouble(val,v)) setVariable(var,v);
+        else setStringVariable(var,val);
+    }
+    f.close();
+    return *this;
+}
+
 Pricer Pricer::resetOriginal(){
     option = option_orig;
     market = market_orig;
     price = NAN;
+    return *this;
+}
+
+Pricer Pricer::saveAsOriginal(){
+    option_orig = option;
+    market_orig = market;
     return *this;
 }
 
@@ -713,6 +793,23 @@ matrix<double> Pricer::generatePriceSurface(matrix<double> stockPriceVector, mat
     return priceSurface;
 }
 
+bool Pricer::satisfyPriceBounds(double optionMarketPrice){
+    if(option.getType()=="European"){
+        double K   = getVariable("strike");
+        double T   = getVariable("maturity");
+        double r   = getVariable("riskFreeRate");
+        double S0  = getVariable("currentPrice");
+        double q   = getVariable("dividendYield");
+        if(option.getPutCall()=="Call")
+            return (optionMarketPrice<=S0*exp(-q*T)) &&
+                (optionMarketPrice>=max(S0*exp(-q*T)-K*exp(-r*T),0.));
+        else if(option.getPutCall()=="Put")
+            return (optionMarketPrice<=K*exp(-r*T)) &&
+                (optionMarketPrice>=max(K*exp(-r*T)-S0*exp(-q*T),0.));
+    }
+    return false;
+}
+
 double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, double eps){
     if(GUI) cout << "calculating option implied vol on optionMarketPrice " << optionMarketPrice << endl;
     double impliedVol = NAN;
@@ -721,17 +818,45 @@ double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, doub
     if(option.getType()=="European"){
         impliedVol0 = 0;
         impliedVol1 = vol0;
-        while(err>eps){
-            impliedVol = (impliedVol0+impliedVol1)/2;
-            setVariable("volatility",impliedVol);
-            price = calcPrice("Closed Form");
-            if(price>optionMarketPrice) impliedVol1 = impliedVol;
-            else if(price<optionMarketPrice) impliedVol0 = impliedVol;
-            err = abs(price-optionMarketPrice)/optionMarketPrice;
+        if(satisfyPriceBounds(optionMarketPrice)){
+            while(err>eps){
+                impliedVol = (impliedVol0+impliedVol1)/2;
+                setVariable("volatility",impliedVol);
+                price = calcPrice("Closed Form");
+                if(price>optionMarketPrice) impliedVol1 = impliedVol;
+                else if(price<optionMarketPrice) impliedVol0 = impliedVol;
+                err = abs(price-optionMarketPrice)/optionMarketPrice;
+            }
         }
     }
     resetOriginal();
     return impliedVol;
+}
+
+void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double vol0, double eps){
+    string name, type, putCall;
+    string strikeStr, maturityStr, optionMarketPriceStr;
+    double strike, maturity, optionMarketPrice;
+    double impliedVol;
+    ifstream fi(input);
+    ofstream fo; fo.open(file);
+    while(getline(fi,name,',')){
+        getline(fi,type,',');
+        getline(fi,putCall,',');
+        getline(fi,strikeStr,',');
+        getline(fi,maturityStr,',');
+        getline(fi,optionMarketPriceStr);
+        strike = stod(strikeStr);
+        maturity = stod(maturityStr);
+        optionMarketPrice = stod(optionMarketPriceStr);
+        option = Option(type,putCall,strike,maturity,name);
+        // cout << option << endl;
+        impliedVol = calcImpliedVolatility(optionMarketPrice,vol0,eps);
+        if(!isnan(impliedVol)) fo << strike << "," << maturity << "," << impliedVol << endl;
+    }
+    fi.close();
+    fo.close();
+    resetOriginal();
 }
 
 //### operators ################################################################

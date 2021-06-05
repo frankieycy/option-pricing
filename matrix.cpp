@@ -27,6 +27,8 @@ public:
     T getLastEntry() const;
     matrix getRow(int row) const;
     matrix getCol(int col) const;
+    matrix submatrix(int row0=0, int row1=-1, int col0=0, int col1=-1) const;
+    matrix submatrix(int i0, int i1, string mode) const;
     matrix getFirstRow() const;
     matrix getLastRow() const;
     matrix getFirstCol() const;
@@ -35,8 +37,8 @@ public:
     string print() const;
     string getAsCsv() const;
     string getAsJson() const;
-    void printToCsvFile(string file) const; // TO DO
-    void printToJsonFile(string file) const; // TO DO
+    void printToCsvFile(string file) const;
+    void printToJsonFile(string file) const;
     /**** mutators ****/
     matrix setZero();
     matrix setZero(int rows, int cols);
@@ -85,6 +87,7 @@ public:
     template <class t1, class t2> friend matrix<t1> operator*(const t2& a, const matrix<t1>& M);
     template <class t> friend matrix<t> operator*=(matrix<t>& M1, const matrix<t>& M2);
     template <class t1, class t2> friend matrix<t1> operator*=(matrix<t1>& M, const t2& a);
+    template <class t> friend matrix<t> operator/(const matrix<t>& M1, const matrix<t>& M2);
     template <class t1, class t2> friend matrix<t1> operator/(const matrix<t1>& M, const t2& a);
     template <class t1, class t2> friend matrix<t1> operator/=(matrix<t1>& M, const t2& a);
     template <class t1, class t2> friend matrix<t1> operator>(const matrix<t1>& M, const t2& a);
@@ -177,6 +180,25 @@ matrix<T> matrix<T>::getCol(int col) const {
     vector<T> v;
     for(int row=0; row<rows; row++) v.push_back(m[row][col]);
     return matrix(v);
+}
+
+template <class T>
+matrix<T> matrix<T>::submatrix(int row0, int row1, int col0, int col1) const {
+    if(row1<0) row1 += rows+1;
+    if(col1<0) col1 += cols+1;
+    matrix<T> A(row1-row0,col1-col0);
+    for(int row=row0; row<row1; row++)
+        for(int col=col0; col<col1; col++)
+            A.m[row][col] = m[row][col];
+    return A;
+}
+
+template <class T>
+matrix<T> matrix<T>::submatrix(int i0, int i1, string mode) const {
+    matrix<T> A;
+    if(mode=="row") A = submatrix(i0,i1,0,-1);
+    else if(mode=="col") A = submatrix(0,-1,i0,i1);
+    return A;
 }
 
 template <class T>
@@ -575,6 +597,16 @@ matrix<T> operator*=(matrix<T>& M1, const matrix<T>& M2){
 template <class T1, class T2>
 matrix<T1> operator*=(matrix<T1>& M, const T2& a){
     return (M = M*a);
+}
+
+template <class T>
+matrix<T> operator/(const matrix<T>& M1, const matrix<T>& M2){
+    assert(M1.rows==M2.rows && M1.cols==M2.cols);
+    matrix<T> A(M1.rows,M1.cols);
+    for(int row=0; row<A.rows; row++)
+        for(int col=0; col<A.cols; col++)
+            A.m[row][col] = M1.m[row][col]/M2.m[row][col];
+    return A;
 }
 
 template <class T1, class T2>

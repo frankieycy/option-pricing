@@ -43,6 +43,13 @@ string to_string(T obj){
     return oss.str();
 }
 
+bool isDouble(string str, double& v) {
+    char* end;
+    v = strtod(str.c_str(),&end);
+    if(end==str.c_str() || *end!='\0') return false;
+    return true;
+}
+
 string getCurrentTime(){
     time_t t = time(0);
     char time[100];

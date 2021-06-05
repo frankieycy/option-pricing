@@ -2,11 +2,11 @@
 using namespace std;
 
 int main() {
-    Option option       = Option("European","Call",100,1);
-    Stock  stock        = Stock(100,0,0.05,0.1);
-    Market market       = Market(0.02,stock);
-    Pricer pricer       = Pricer(option,market);
-    SimConfig config    = SimConfig(1,100);
+    // Option option       = Option("European","Call",100,1);
+    // Stock  stock        = Stock(100,0,0.05,0.1);
+    // Market market       = Market(0.02,stock);
+    // Pricer pricer       = Pricer(option,market);
+    // SimConfig config    = SimConfig(1,100);
     /**** price ***************************************************************/
     // pricer.calcPrice("Closed Form");
     // pricer.calcPrice("Binomial Tree",config);
@@ -21,5 +21,9 @@ int main() {
     // pricer.generatePriceSurface(S0,T).printToCsvFile("test_option.csv");
     /**** implied vol *********************************************************/
     // cout << pricer.calcImpliedVolatility(10) << endl;
+    /**** implied vol dashboard ***********************************************/
+    Pricer pricer;
+    pricer.setVariablesFromFile("pricer_var.csv"); pricer.saveAsOriginal();
+    pricer.generateImpliedVolSurfaceFromFile("option_data.csv","option_vol.csv");
     return 0;
 }
