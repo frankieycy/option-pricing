@@ -7,7 +7,7 @@ using namespace std;
 #define GUI true
 #define LOG true
 
-inline void logMessage(string msg){if(LOG) cout << "[LOG] " << msg << endl;}
+inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
 /**** global variables ********************************************************/
 
@@ -139,7 +139,6 @@ public:
     double setVariable(string var, double v);
     Pricer resetOriginal();
     /**** main ****/
-    double calcImpliedVolatility(double optionMarketPrice); // TO DO
     double BlackScholesClosedForm();
     double BlackScholesPDESolver(); // TO DO
     double BinomialTreePricer(const SimConfig& config);
@@ -158,6 +157,7 @@ public:
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
     matrix<double> generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
+    double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
@@ -469,11 +469,6 @@ Pricer Pricer::resetOriginal(){
     return *this;
 }
 
-double Pricer::calcImpliedVolatility(double optionMarketPrice){
-    double impliedVol;
-    return impliedVol;
-}
-
 double Pricer::BlackScholesClosedForm(){
     logMessage("starting calculation BlackScholesClosedForm");
     if(option.getType()=="European"){
@@ -490,7 +485,7 @@ double Pricer::BlackScholesClosedForm(){
         else if(option.getPutCall()=="Put")
             price = K*exp(-r*T)*normalCDF(-d2)-S0*exp(-q*T)*normalCDF(-d1);
     }
-    logMessage("ending calculation BlackScholesClosedForm, return: "+to_string(price));
+    logMessage("ending calculation BlackScholesClosedForm, return "+to_string(price));
     return price;
 }
 
@@ -522,7 +517,7 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
         // cout << optionBinomialTree.print() << endl;
         price = optionBinomialTree.getEntry(0,0);
     }
-    logMessage("ending calculation BinomialTreePricer, return: "+to_string(price));
+    logMessage("ending calculation BinomialTreePricer, return "+to_string(price));
     return price;
 }
 
@@ -531,13 +526,15 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
     Stock stock = market.getStock();
     double r = getVariable("riskFreeRate");
     double T = getVariable("maturity");
+    double err = NAN;
     stock.setDriftRate(r);
     stock.simulatePrice(config,numSim);
     if(!option.canEarlyExercise()){
         matrix<double> payoffs = option.calcPayoffs(NULL_VECTOR,stock.getSimPriceMatrix());
         price = exp(-r*T)*payoffs.mean();
+        err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
     }
-    logMessage("ending calculation MonteCarloPricer, return: "+to_string(price));
+    logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with errror "+to_string(err));
     return price;
 }
 
@@ -555,7 +552,7 @@ double Pricer::NumIntegrationPricer(double z, double dz){
         matrix<double> probs = z0.apply(stdNormalPDF)*dz;
         price = exp(-r*T)*(probs*payoffs).sum();
     }
-    logMessage("ending calculation NumIntegrationPricer, return: "+to_string(price));
+    logMessage("ending calculation NumIntegrationPricer, return "+to_string(price));
     return price;
 }
 
@@ -628,7 +625,7 @@ double Pricer::ClosedFormGreek(string var, int derivOrder){
                 greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)+r*K*exp(-r*T)*normalCDF(-d2);
         }
     }
-    logMessage("ending calculation ClosedFormGreek, return: "+to_string(greek));
+    logMessage("ending calculation ClosedFormGreek, return "+to_string(greek));
     return greek;
 }
 
@@ -652,13 +649,13 @@ double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
         case 2: greek = (price_pos-2*price+price_neg)/(dv*dv); break;
     }
     resetOriginal();
-    logMessage("ending calculation FiniteDifferenceGreek, return: "+to_string(greek));
+    logMessage("ending calculation FiniteDifferenceGreek, return "+to_string(greek));
     return greek;
 }
 
 double Pricer::calcGreek(string greekName, string greekMethod, string method,
     const SimConfig& config, int numSim, double eps){
-    if(GUI) cout << "calculating option " << greekName << " with " << method << " calculator";
+    if(GUI) cout << "calculating option " << greekName << " with " << method << " calculator" << endl;
     double greek = NAN;
     string var; int derivOrder;
     if(greekName=="Delta"){
@@ -701,7 +698,7 @@ matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVecto
 
 matrix<double> Pricer::generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
     string method, const SimConfig& config, int numSim){
-    if(GUI) cout << "generating option price surface with " << method << " pricer";
+    if(GUI) cout << "generating option price surface with " << method << " pricer" << endl;
     int m = optionTermVector.getCols();
     int n = stockPriceVector.getCols();
     matrix<double> priceSurface(m,n);
@@ -714,6 +711,27 @@ matrix<double> Pricer::generatePriceSurface(matrix<double> stockPriceVector, mat
     }
     resetOriginal();
     return priceSurface;
+}
+
+double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, double eps){
+    if(GUI) cout << "calculating option implied vol on optionMarketPrice " << optionMarketPrice << endl;
+    double impliedVol = NAN;
+    double impliedVol0, impliedVol1;
+    double err = 1;
+    if(option.getType()=="European"){
+        impliedVol0 = 0;
+        impliedVol1 = vol0;
+        while(err>eps){
+            impliedVol = (impliedVol0+impliedVol1)/2;
+            setVariable("volatility",impliedVol);
+            price = calcPrice("Closed Form");
+            if(price>optionMarketPrice) impliedVol1 = impliedVol;
+            else if(price<optionMarketPrice) impliedVol0 = impliedVol;
+            err = abs(price-optionMarketPrice)/optionMarketPrice;
+        }
+    }
+    resetOriginal();
+    return impliedVol;
 }
 
 //### operators ################################################################

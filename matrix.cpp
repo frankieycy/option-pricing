@@ -58,6 +58,8 @@ public:
     matrix minWith(T a);
     double sum();
     double mean();
+    double var(int k=1);
+    double stdev(int k=1);
     matrix sum(int axis);
     matrix mean(int axis);
     matrix inverse(); // TO DO
@@ -401,6 +403,17 @@ double matrix<T>::sum(){
 template <class T>
 double matrix<T>::mean(){
     return sum()/(rows*cols);
+}
+
+template <class T>
+double matrix<T>::var(int k){
+    double mu = mean();
+    return (((*this)-mu)*((*this)-mu)).sum()/(rows*cols-k);
+}
+
+template <class T>
+double matrix<T>::stdev(int k){
+    return sqrt(var(k));
 }
 
 template <class T>

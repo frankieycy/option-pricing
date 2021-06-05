@@ -1,3 +1,6 @@
 .DS_store
 main
 main.dSYM
+*.csv
+*.txt
+*.log

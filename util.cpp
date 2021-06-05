@@ -43,6 +43,13 @@ string to_string(T obj){
     return oss.str();
 }
 
+string getCurrentTime(){
+    time_t t = time(0);
+    char time[100];
+    strftime(time,100,"%Y%m%d %T",localtime(&t));
+    return time;
+}
+
 // string printJSON(string jsonStr, string padding){}
 
 #endif
