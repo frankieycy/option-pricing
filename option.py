@@ -1,28 +1,21 @@
-import re, os
+import re
 import math
 import subprocess
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
-from datetime import datetime
 from yahoo_fin import stock_info, options
+from util import *
 
 LOG = True
 
+onDate = getPrevBDay()
 stockList = stock_info.tickers_dow()
 
-# todayDate = datetime.today().strftime("%Y-%m-%d")
-todayDate = "2021-06-04"
 exeFolder = "exe/"
 dataFolder = "data/"
 plotFolder = "plot/"
-
-def makeDirectory(dir):
-    if not os.path.exists(dir): os.makedirs(dir)
-
-def getCurrentTime():
-    return datetime.today().strftime("%Y%m%d %T")
 
 def logMessage(msg):
     if LOG:
@@ -31,9 +24,6 @@ def logMessage(msg):
             for m in msg: logMsg += str(m)
         else: logMsg += str(msg)
         print(logMsg)
-
-def bDaysBetween(d1, d2):
-    return len(pd.bdate_range(d1,d2))
 
 def calcRiskFreeRate(discountRate, maturity):
     riskFreeRate = (-252/maturity)*np.log(1-maturity*discountRate/360)
@@ -51,7 +41,7 @@ def printOptionChainsToCsvFile(fileName, optionChains):
     file = open(fileName,"w")
     optionDates = optionChains.keys()
     for date in optionDates:
-        daysFromToday = bDaysBetween(todayDate,date)
+        daysFromToday = bDaysBetween(onDate,date)
         maturity = daysFromToday/252
         for putCall in optionChains[date]:
             if putCall == "calls": type = "Call"
@@ -67,8 +57,8 @@ def printOptionChainsToCsvFile(fileName, optionChains):
 def generateImpliedVolSurfaceInputFiles(stock, zeroBond="^IRX", zeroBondMaturity=85):
     logMessage(["starting generateImpliedVolSurfaceInputFiles on stock ",stock,
         ", zeroBond ",zeroBond," of zeroBondMaturity ",zeroBondMaturity," days"])
-    currentPrice = stock_info.get_data(stock,todayDate).iloc[0]["close"]
-    discountRate = stock_info.get_data(zeroBond,todayDate).iloc[0]["close"]
+    currentPrice = stock_info.get_data(stock,onDate).iloc[0]["close"]
+    discountRate = stock_info.get_data(zeroBond,onDate).iloc[0]["close"]
     try:
         dividendYield = stock_info.get_quote_table(stock)["Forward Dividend & Yield"]
         dividendYield = float(re.sub("[()%]","",dividendYield.split()[1]))/100
@@ -124,7 +114,7 @@ def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter"
     elif plot=="trisurf":
         surf = ax.plot_trisurf(strike,maturity,impVol,cmap='binary',linewidth=1)
         cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
-    ax.set_title("Option implied vol surface of "+stock+" on "+todayDate)
+    ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
     ax.set_xlabel("Strike")
     ax.set_ylabel("Maturity (Year)")
     ax.set_zlabel("Implied vol")
@@ -143,7 +133,7 @@ def callExecutable(name):
 
 def impliedVolSurfaceGenerator(stock):
     logMessage(["starting impliedVolSurfaceGenerator on stock ",stock,
-        ", todayDate ",todayDate])
+        ", onDate ",onDate])
     try:
         generateImpliedVolSurfaceInputFiles(stock)
         callExecutable("./"+
@@ -152,7 +142,7 @@ def impliedVolSurfaceGenerator(stock):
         plotImpliedVolSurface(stock,
             dataFolder+"option_vol.csv",
             plotFolder+"option_vol_"+
-                stock+"_"+todayDate+".png",
+                stock+"_"+onDate+".png",
             smooth=True,plot="trisurf")
     except Exception: pass
     logMessage("ending impliedVolSurfaceGenerator")
