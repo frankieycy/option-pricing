@@ -1,7 +1,11 @@
 .DS_store
 main
-main.dSYM
+*.dSYM
+exe*
+data*
+plot*
 test*
 *.csv
 *.txt
 *.log
+*.png

@@ -801,11 +801,11 @@ bool Pricer::satisfyPriceBounds(double optionMarketPrice){
         double S0  = getVariable("currentPrice");
         double q   = getVariable("dividendYield");
         if(option.getPutCall()=="Call")
-            return (optionMarketPrice<=S0*exp(-q*T)) &&
-                (optionMarketPrice>=max(S0*exp(-q*T)-K*exp(-r*T),0.));
+            return (optionMarketPrice<S0*exp(-q*T)) &&
+                (optionMarketPrice>max(S0*exp(-q*T)-K*exp(-r*T),0.));
         else if(option.getPutCall()=="Put")
-            return (optionMarketPrice<=K*exp(-r*T)) &&
-                (optionMarketPrice>=max(K*exp(-r*T)-S0*exp(-q*T),0.));
+            return (optionMarketPrice<K*exp(-r*T)) &&
+                (optionMarketPrice>max(K*exp(-r*T)-S0*exp(-q*T),0.));
     }
     return false;
 }
@@ -826,6 +826,7 @@ double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, doub
                 if(price>optionMarketPrice) impliedVol1 = impliedVol;
                 else if(price<optionMarketPrice) impliedVol0 = impliedVol;
                 err = abs(price-optionMarketPrice)/optionMarketPrice;
+                if(impliedVol==vol0) break;
             }
         }
     }
