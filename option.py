@@ -7,11 +7,13 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from yahoo_fin import stock_info, options
 from util import *
+plt.switch_backend('Agg')
 
 LOG = True
 
 onDate = getPrevBDay()
-stockList = stock_info.tickers_dow()
+stockList = ["IBM","JPM","DIS"]
+# stockList = stock_info.tickers_dow()
 
 exeFolder = "exe/"
 dataFolder = "data/"
