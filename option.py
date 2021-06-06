@@ -15,11 +15,11 @@ stockList = stock_info.tickers_dow()
 
 exeFolder = "exe/"
 dataFolder = "data/"
-plotFolder = "plot/"
+plotFolder = "assets/"
 
 def logMessage(msg):
     if LOG:
-        logMsg = getCurrentTime()+' [LOG] '
+        logMsg = getCurrentTime()+" [LOG] "
         if type(msg) is list:
             for m in msg: logMsg += str(m)
         else: logMsg += str(msg)
@@ -87,7 +87,7 @@ def generateImpliedVolSurfaceInputFiles(stock, zeroBond="^IRX", zeroBondMaturity
 def smoother(y, box_pts):
     y_smooth = y
     box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')
+    y_smooth = np.convolve(y, box, mode="same")
     return y_smooth
 
 def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter", angle=[20,80]):
@@ -110,9 +110,9 @@ def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter"
             box_pts = math.ceil(len(maturityIdx)/10)
             impVolSmooth.append(smoother(impVol[maturityIdx],box_pts))
         impVol = np.concatenate(impVolSmooth)
-    if plot=="scatter": ax.scatter3D(strike,maturity,impVol,c='k',marker='.')
+    if plot=="scatter": ax.scatter3D(strike,maturity,impVol,c="k",marker=".")
     elif plot=="trisurf":
-        surf = ax.plot_trisurf(strike,maturity,impVol,cmap='binary',linewidth=1)
+        surf = ax.plot_trisurf(strike,maturity,impVol,cmap="binary",linewidth=1)
         cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
     ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
     ax.set_xlabel("Strike")

@@ -5,8 +5,8 @@ exe*
 data*
 plot*
 test*
+assets*
 *.csv
 *.txt
 *.log
-*.png
 _*

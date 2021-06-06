@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 from pandas.tseries.offsets import BDay
 
+def isInDirectory(file, dir="./"):
+    return os.path.isfile(dir+file)
+
 def makeDirectory(dir):
     if not os.path.exists(dir): os.makedirs(dir)
 
