@@ -31,6 +31,9 @@ def calcRiskFreeRate(discountRate, maturity):
     riskFreeRate = (-252/maturity)*np.log(1-maturity*discountRate/360)
     return riskFreeRate
 
+def getDateFromContractName(name):
+    return name[-15:-9]
+
 def printPricerVariablesToCsvFile(fileName, pricerVariables):
     file = open(fileName,"w")
     for var in pricerVariables:
@@ -150,7 +153,7 @@ def impliedVolSurfaceGenerator(stock):
     logMessage("ending impliedVolSurfaceGenerator")
 
 def optionChainsWithGreeksGenerator(stock):
-    logMessage(["starting optionChainsWithGreeksGenerator on stock",stock,
+    logMessage(["starting optionChainsWithGreeksGenerator on stock ",stock,
         ", onDate ",onDate])
     dataCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Market Price']
     grkCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Implied Vol',
