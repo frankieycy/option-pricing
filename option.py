@@ -95,7 +95,7 @@ def smoother(y, box_pts):
 def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter", angle=[20,80]):
     logMessage(["starting plotImpliedVolSurface on stock ",stock,
         ", fileName ",fileName,", figName ",figName])
-    impVolSurface = np.loadtxt(fileName,delimiter=",")
+    impVolSurface = np.loadtxt(fileName,delimiter=",",usecols=(3,4,5))
     strike   = impVolSurface[:,0]
     maturity = impVolSurface[:,1]
     impVol   = impVolSurface[:,2]
@@ -149,9 +149,32 @@ def impliedVolSurfaceGenerator(stock):
     except Exception: pass
     logMessage("ending impliedVolSurfaceGenerator")
 
+def optionChainsWithGreeksGenerator(stock):
+    logMessage(["starting optionChainsWithGreeksGenerator on stock",stock,
+        ", onDate ",onDate])
+    dataCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Market Price']
+    grkCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Implied Vol',
+        'Delta','Gamma','Vega','Rho','Theta']
+    try:
+        callExecutable("./"+
+            exeFolder+"genGreeksFromImpVolFile")
+        data = pd.read_csv(dataFolder+"option_data.csv",header=None)
+        grk  = pd.read_csv(dataFolder+"option_grk.csv",header=None)
+        data.columns = dataCols
+        grk.columns = grkCols
+        data = data.set_index('Contract Name')
+        grk = grk.set_index('Contract Name')
+        for var in ['Implied Vol','Delta','Gamma','Vega','Rho','Theta']:
+            data[var] = grk[var]
+        data.to_csv(dataFolder+"option_chain"+"_"
+            +stock+"_"+onDate+".csv")
+    except Exception: pass
+    logMessage("ending optionChainsWithGreeksGenerator")
+
 def main():
     for stock in stockList:
         impliedVolSurfaceGenerator(stock)
+        optionChainsWithGreeksGenerator(stock)
 
 if __name__ == "__main__":
     main()

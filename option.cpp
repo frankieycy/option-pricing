@@ -170,6 +170,7 @@ public:
     bool satisfyPriceBounds(double optionMarketPrice);
     double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
     void generateImpliedVolSurfaceFromFile(string input, string file, double vol0=5, double eps=1e-5);
+    void generateGreeksFromImpliedVolFile(string input, string file);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
@@ -853,7 +854,41 @@ void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double
         option = Option(type,putCall,strike,maturity,name);
         // cout << option << endl;
         impliedVol = calcImpliedVolatility(optionMarketPrice,vol0,eps);
-        if(!isnan(impliedVol)) fo << strike << "," << maturity << "," << impliedVol << endl;
+        if(!isnan(impliedVol)) fo << name << "," << type << "," << putCall << "," <<
+            strike << "," << maturity << "," << impliedVol << endl;
+    }
+    fi.close();
+    fo.close();
+    resetOriginal();
+}
+
+void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
+    string name, type, putCall;
+    string strikeStr, maturityStr, impliedVolStr;
+    double strike, maturity, impliedVol;
+    double Delta, Gamma, Vega, Rho, Theta;
+    ifstream fi(input);
+    ofstream fo; fo.open(file);
+    while(getline(fi,name,',')){
+        getline(fi,type,',');
+        getline(fi,putCall,',');
+        getline(fi,strikeStr,',');
+        getline(fi,maturityStr,',');
+        getline(fi,impliedVolStr);
+        strike = stod(strikeStr);
+        maturity = stod(maturityStr);
+        impliedVol = stod(impliedVolStr);
+        setVariable("volatility",impliedVol);
+        option = Option(type,putCall,strike,maturity,name);
+        // cout << option << endl;
+        Delta = calcGreek("Delta");
+        Gamma = calcGreek("Gamma");
+        Vega = calcGreek("Vega");
+        Rho = calcGreek("Rho");
+        Theta = calcGreek("Theta");
+        fo << name << "," << type << "," << putCall << "," <<
+            strike << "," << maturity << "," << impliedVol << "," << Delta << "," <<
+            Gamma << "," << Vega << "," << Rho << "," << Theta << endl;
     }
     fi.close();
     fo.close();
