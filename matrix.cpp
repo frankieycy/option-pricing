@@ -37,7 +37,7 @@ public:
     string print() const;
     string getAsCsv() const;
     string getAsJson() const;
-    void printToCsvFile(string file) const;
+    void printToCsvFile(string file, string header="") const;
     void printToJsonFile(string file) const;
     /**** mutators ****/
     matrix setZero();
@@ -51,11 +51,15 @@ public:
     matrix setRow(int row, const matrix<T>& vec);
     matrix setCol(int col, const matrix<T>& vec);
     matrix setEntry(int row, int col, T a);
+    matrix setSubmatrix(int row0, int row1, int col0, int col1, const matrix<T>& M);
+    matrix setDiags(const vector<T>& vec, const vector<int>& diags); // TO DO
     matrix<double> setRange(double x0, double x1, int n=-1, bool inc=false);
     matrix apply(T (*f)(T));
     /**** matrix operations ****/
     T getMax();
     T getMin();
+    vector<int> maxIdx(); // TO DO
+    vector<int> minIdx(); // TO DO
     matrix maxWith(T a);
     matrix minWith(T a);
     double sum();
@@ -189,7 +193,7 @@ matrix<T> matrix<T>::submatrix(int row0, int row1, int col0, int col1) const {
     matrix<T> A(row1-row0,col1-col0);
     for(int row=row0; row<row1; row++)
         for(int col=col0; col<col1; col++)
-            A.m[row][col] = m[row][col];
+            A.m[row-row0][col-col0] = m[row][col];
     return A;
 }
 
@@ -256,9 +260,10 @@ string matrix<T>::getAsJson() const {
 }
 
 template <class T>
-void matrix<T>::printToCsvFile(string file) const {
+void matrix<T>::printToCsvFile(string file, string header) const {
     ofstream f;
     f.open(file);
+    if(!header.empty()) f << header << endl;
     f << getAsCsv();
     f.close();
 }
@@ -348,10 +353,26 @@ matrix<T> matrix<T>::setCol(int col, const matrix<T>& vec){
 }
 
 template <class T>
+matrix<T> matrix<T>::setSubmatrix(int row0, int row1, int col0, int col1, const matrix<T>& M){
+    if(row1<0) row1 += rows+1;
+    if(col1<0) col1 += cols+1;
+    for(int row=row0; row<row1; row++)
+        for(int col=col0; col<col1; col++)
+            m[row][col] = M.m[row-row0][col-col0];
+    return *this;
+}
+
+template <class T>
 matrix<T> matrix<T>::setEntry(int row, int col, T a){
     assert(row>=0 && row<rows);
     assert(col>=0 && col<cols);
     m[row][col] = a;
+    return *this;
+}
+
+template <class T>
+matrix<T> matrix<T>::setDiags(const vector<T>& vec, const vector<int>& diags){
+    assert(vec.size()==diags.size());
     return *this;
 }
 
@@ -393,6 +414,18 @@ T matrix<T>::getMin(){
         for(int col=0; col<cols; col++)
             a = min(a, m[row][col]);
     return a;
+}
+
+template <class T>
+vector<int> matrix<T>::maxIdx(){
+    vector<int> idx{0,0};
+    return idx;
+}
+
+template <class T>
+vector<int> matrix<T>::minIdx(){
+    vector<int> idx{0,0};
+    return idx;
 }
 
 template <class T>
@@ -460,6 +493,12 @@ matrix<T> matrix<T>::mean(int axis){
         for(int col=0; col<cols; col++) v.push_back(getCol(col).mean());
     }
     return matrix(v);
+}
+
+template <class T>
+matrix<T> matrix<T>::inverse(){
+    matrix<T> A(rows,cols);
+    return A;
 }
 
 template <class T>

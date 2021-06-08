@@ -150,11 +150,12 @@ public:
     Pricer saveAsOriginal();
     /**** main ****/
     double BlackScholesClosedForm();
-    double BlackScholesPDESolver(); // TO DO
     double BinomialTreePricer(const SimConfig& config);
     double MonteCarloPricer(const SimConfig& config, int numSim);
     double NumIntegrationPricer(double z=5, double dz=1e-3);
-    double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
+    double BlackScholesPDESolver(const SimConfig& config, int numSpace);
+    double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
+        int numSim=0, int numSpace=0);
     matrix<double> varyPriceWithVariable(string var, matrix<double> varVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     double ClosedFormGreek(string var, int derivOrder=1);
@@ -637,7 +638,58 @@ double Pricer::NumIntegrationPricer(double z, double dz){
     return price;
 }
 
-double Pricer::calcPrice(string method, const SimConfig& config, int numSim){
+double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace){
+    logMessage("starting calculation BlackScholesPDESolver on config "+to_string(config)+", numSpace "+to_string(numSpace));
+    Stock stock = market.getStock();
+    double K = getVariable("strike");
+    double T = getVariable("maturity");
+    double r = getVariable("riskFreeRate");
+    double S0 = getVariable("currentPrice");
+    double q = getVariable("dividendYield");
+    double sig = getVariable("volatility");
+    int n = config.iters;
+    int m = numSpace;
+    double dt = config.stepSize;
+    double x0 = log(K/3), x1 = log(3*K);
+    double dx = (x1-x0)/m, dx2 = dx*dx;
+    double a = 1+r*dt+sig*sig*dt/dx2;
+    double b = -(r-q-sig*sig/2)*dt/(2*dx)-sig*sig/2*dt/dx2;
+    double c = +(r-q-sig*sig/2)*dt/(2*dx)-sig*sig/2*dt/dx2;
+    matrix<double> priceMatrix(n+1,m+1);
+    matrix<double> timeGrids; timeGrids.setRange(0,T,n,true);
+    matrix<double> spaceGrids; spaceGrids.setRange(x0,x1,m,true);
+    matrix<double> D(m-1,m-1);
+    D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
+    D = D.inverse();
+    // cout << D.print() << endl;
+    if(option.getType()=="European"){
+        matrix<double> payoffs = option.calcPayoffs(spaceGrids.apply(exp));
+        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v;
+        if(option.getPutCall()=="Call"){
+            bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
+        }else if(option.getPutCall()=="Put"){
+            bdryCondition0 = K*(-r*(T-timeGrids)).apply(exp);
+        }
+        priceMatrix.setRow(n,payoffs);
+        priceMatrix.setCol(0,bdryCondition0);
+        priceMatrix.setCol(m,bdryCondition1);
+        v = priceMatrix.submatrix(n,n+1,1,m).transpose();
+        for(int i=n-1; i>=0; i--){
+            v.setEntry(0,0,v.getEntry(0,0)-a*priceMatrix.getEntry(i,0));
+            v.setEntry(m-2,0,v.getEntry(m-2,0)-c*priceMatrix.getEntry(i,m));
+            v = D.dot(v);
+            priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
+        }
+        // cout << priceMatrix.print() << endl;
+        double x = log(S0);
+        int idx = (x-spaceGrids).apply(abs).minIdx()[1];
+        price = priceMatrix.getEntry(0,idx);
+    }
+    logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
+    return price;
+}
+
+double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int numSpace){
     if(GUI) cout << "calculating option price with " << method << " pricer";
     if(method=="Closed Form"){
         if(GUI) cout << endl;
@@ -647,10 +699,13 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim){
         price = BinomialTreePricer(config);
     }else if(method=="Monte Carlo"){
         if(GUI) cout << " on config " << config << ", numSim " << numSim << endl;
-        price = MonteCarloPricer(config, numSim);
+        price = MonteCarloPricer(config,numSim);
     }else if(method=="Num Integration"){
         if(GUI) cout << endl;
         price = NumIntegrationPricer();
+    }else if(method=="PDE Solver"){
+        if(GUI) cout << " on config " << config << ", numSpace " << numSpace << endl;
+        price = BlackScholesPDESolver(config,numSpace);
     }
     return price;
 }
