@@ -45,32 +45,32 @@ public:
     matrix setOne();
     matrix setOne(int rows, int cols);
     matrix setIdentity();
-    matrix setIdentity(int rows, int cols);
+    matrix setIdentity(int rows);
     matrix setUniformRand(double min=0, double max=1);
     matrix setNormalRand(double mu=0, double sig=1);
     matrix setRow(int row, const matrix<T>& vec);
     matrix setCol(int col, const matrix<T>& vec);
     matrix setEntry(int row, int col, T a);
     matrix setSubmatrix(int row0, int row1, int col0, int col1, const matrix<T>& M);
-    matrix setDiags(const vector<T>& vec, const vector<int>& diags); // TO DO
+    matrix setDiags(const vector<T>& vec, const vector<int>& diags);
     matrix<double> setRange(double x0, double x1, int n=-1, bool inc=false);
     matrix apply(T (*f)(T));
     /**** matrix operations ****/
-    T getMax();
-    T getMin();
-    vector<int> maxIdx(); // TO DO
-    vector<int> minIdx(); // TO DO
-    matrix maxWith(T a);
-    matrix minWith(T a);
-    double sum();
-    double mean();
-    double var(int k=1);
-    double stdev(int k=1);
-    matrix sum(int axis);
-    matrix mean(int axis);
-    matrix inverse(); // TO DO
-    matrix transpose();
-    matrix dot(const matrix<T>& M);
+    T getMax() const;
+    T getMin() const;
+    vector<int> maxIdx() const;
+    vector<int> minIdx() const;
+    matrix maxWith(T a) const;
+    matrix minWith(T a) const;
+    double sum() const;
+    double mean() const;
+    double var(int k=1) const;
+    double stdev(int k=1) const;
+    matrix sum(int axis) const;
+    matrix mean(int axis) const;
+    matrix inverse() const; // TO DO
+    matrix transpose() const;
+    matrix dot(const matrix<T>& M) const;
     /**** operators ****/
     template <class t> friend ostream& operator<<(ostream& out, const matrix<t>& M);
     template <class t> friend bool operator==(const matrix<t>& M1, const matrix<t>& M2);
@@ -315,10 +315,10 @@ matrix<T> matrix<T>::setIdentity(){
 }
 
 template <class T>
-matrix<T> matrix<T>::setIdentity(int rows, int cols){
+matrix<T> matrix<T>::setIdentity(int rows){
     this->rows = rows;
-    this->cols = cols;
-    *this = matrix<T>(rows,cols).setIdentity();
+    this->cols = rows;
+    *this = matrix<T>(rows,rows).setIdentity();
     return *this;
 }
 
@@ -372,7 +372,14 @@ matrix<T> matrix<T>::setEntry(int row, int col, T a){
 
 template <class T>
 matrix<T> matrix<T>::setDiags(const vector<T>& vec, const vector<int>& diags){
+    assert(rows==cols);
     assert(vec.size()==diags.size());
+    for(int row=0; row<rows; row++)
+        for(int i=0; i<vec.size(); i++){
+            int col = row+diags[i];
+            col = min(max(col,0),cols-1);
+            m[row][col] = vec[i];
+        }
     return *this;
 }
 
@@ -397,7 +404,7 @@ matrix<T> matrix<T>::apply(T (*f)(T)){
 /**** matrix operations ****/
 
 template <class T>
-T matrix<T>::getMax(){
+T matrix<T>::getMax() const {
     assert(!isEmpty());
     T a = m[0][0];
     for(int row=0; row<rows; row++)
@@ -407,7 +414,7 @@ T matrix<T>::getMax(){
 }
 
 template <class T>
-T matrix<T>::getMin(){
+T matrix<T>::getMin() const {
     assert(!isEmpty());
     T a = m[0][0];
     for(int row=0; row<rows; row++)
@@ -417,19 +424,29 @@ T matrix<T>::getMin(){
 }
 
 template <class T>
-vector<int> matrix<T>::maxIdx(){
+vector<int> matrix<T>::maxIdx() const {
+    assert(!isEmpty());
+    T a = m[0][0];
     vector<int> idx{0,0};
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            if(m[row][col]>a) idx = {row,col};
     return idx;
 }
 
 template <class T>
-vector<int> matrix<T>::minIdx(){
+vector<int> matrix<T>::minIdx() const {
+    assert(!isEmpty());
+    T a = m[0][0];
     vector<int> idx{0,0};
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            if(m[row][col]<a) idx = {row,col};
     return idx;
 }
 
 template <class T>
-matrix<T> matrix<T>::maxWith(T a){
+matrix<T> matrix<T>::maxWith(T a) const {
     matrix<T> A(rows,cols);
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
@@ -438,7 +455,7 @@ matrix<T> matrix<T>::maxWith(T a){
 }
 
 template <class T>
-matrix<T> matrix<T>::minWith(T a){
+matrix<T> matrix<T>::minWith(T a) const {
     matrix<T> A(rows,cols);
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
@@ -447,7 +464,7 @@ matrix<T> matrix<T>::minWith(T a){
 }
 
 template <class T>
-double matrix<T>::sum(){
+double matrix<T>::sum() const {
     double a = 0;
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
@@ -456,23 +473,23 @@ double matrix<T>::sum(){
 }
 
 template <class T>
-double matrix<T>::mean(){
+double matrix<T>::mean() const {
     return sum()/(rows*cols);
 }
 
 template <class T>
-double matrix<T>::var(int k){
+double matrix<T>::var(int k) const {
     double mu = mean();
     return (((*this)-mu)*((*this)-mu)).sum()/(rows*cols-k);
 }
 
 template <class T>
-double matrix<T>::stdev(int k){
+double matrix<T>::stdev(int k) const {
     return sqrt(var(k));
 }
 
 template <class T>
-matrix<T> matrix<T>::sum(int axis){
+matrix<T> matrix<T>::sum(int axis) const {
     vector<T> v;
     switch(axis){
         case 1:
@@ -484,7 +501,7 @@ matrix<T> matrix<T>::sum(int axis){
 }
 
 template <class T>
-matrix<T> matrix<T>::mean(int axis){
+matrix<T> matrix<T>::mean(int axis) const {
     vector<T> v;
     switch(axis){
         case 1:
@@ -496,13 +513,14 @@ matrix<T> matrix<T>::mean(int axis){
 }
 
 template <class T>
-matrix<T> matrix<T>::inverse(){
+matrix<T> matrix<T>::inverse() const {
+    assert(rows==cols);
     matrix<T> A(rows,cols);
     return A;
 }
 
 template <class T>
-matrix<T> matrix<T>::transpose(){
+matrix<T> matrix<T>::transpose() const {
     matrix<T> A(cols,rows);
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
@@ -511,7 +529,7 @@ matrix<T> matrix<T>::transpose(){
 }
 
 template <class T>
-matrix<T> matrix<T>::dot(const matrix<T>& M){
+matrix<T> matrix<T>::dot(const matrix<T>& M) const {
     matrix<T> A(rows,M.cols);
     for(int row=0; row<rows; row++)
         for(int col=0; col<M.cols; col++){
