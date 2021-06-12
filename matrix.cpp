@@ -2,6 +2,9 @@
 #ifndef MATRIX
 #define MATRIX
 #include "util.cpp"
+#include <Eigen/Dense>
+using namespace Eigen;
+typedef Matrix<double,Dynamic,Dynamic,RowMajor> RowMatrixXd;
 
 template <class T=double> // bool int double
 class matrix{
@@ -54,8 +57,8 @@ public:
     matrix setSubmatrix(int row0, int row1, int col0, int col1, const matrix<T>& M);
     matrix setDiags(const vector<T>& vec, const vector<int>& diags);
     matrix<double> setRange(double x0, double x1, int n=-1, bool inc=false);
-    matrix apply(T (*f)(T));
     /**** matrix operations ****/
+    T trace() const;
     T getMax() const;
     T getMin() const;
     vector<int> maxIdx() const;
@@ -68,9 +71,10 @@ public:
     double stdev(int k=1) const;
     matrix sum(int axis) const;
     matrix mean(int axis) const;
-    matrix inverse() const; // TO DO
+    matrix<double> inverse() const;
     matrix transpose() const;
     matrix dot(const matrix<T>& M) const;
+    matrix apply(T (*f)(T)) const;
     /**** operators ****/
     template <class t> friend ostream& operator<<(ostream& out, const matrix<t>& M);
     template <class t> friend bool operator==(const matrix<t>& M1, const matrix<t>& M2);
@@ -393,15 +397,16 @@ matrix<double> matrix<T>::setRange(double x0, double x1, int n, bool inc){
     return *this;
 }
 
-template <class T>
-matrix<T> matrix<T>::apply(T (*f)(T)){
-    for(int row=0; row<rows; row++)
-        for(int col=0; col<cols; col++)
-            m[row][col] = f(m[row][col]);
-    return *this;
-}
-
 /**** matrix operations ****/
+
+template <class T>
+T matrix<T>::trace() const {
+    assert(rows==cols);
+    T a = 0;
+    for(int row=0; row<rows; row++)
+        a += m[row][row];
+    return a;
+}
 
 template <class T>
 T matrix<T>::getMax() const {
@@ -430,7 +435,10 @@ vector<int> matrix<T>::maxIdx() const {
     vector<int> idx{0,0};
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            if(m[row][col]>a) idx = {row,col};
+            if(m[row][col]>a) {
+                a = m[row][col];
+                idx = {row,col};
+            }
     return idx;
 }
 
@@ -441,7 +449,10 @@ vector<int> matrix<T>::minIdx() const {
     vector<int> idx{0,0};
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            if(m[row][col]<a) idx = {row,col};
+            if(m[row][col]<a) {
+                a = m[row][col];
+                idx = {row,col};
+            }
     return idx;
 }
 
@@ -513,11 +524,37 @@ matrix<T> matrix<T>::mean(int axis) const {
 }
 
 template <class T>
-matrix<T> matrix<T>::inverse() const {
+matrix<double> matrix<T>::matrix<T>::inverse() const {
     assert(rows==cols);
-    matrix<T> A(rows,cols);
+    int n = rows;
+    MatrixXd a(n,n);
+    for(int i=0; i<n; i++) a.row(i) = VectorXd::Map(&m[i][0],m[i].size());
+    a = a.inverse();
+    double b[n][n];
+    Map<RowMatrixXd>(&b[0][0],n,n) = a;
+    matrix<double> A(n,n);
+    vector<vector<double>> m_;
+    for(int i=0; i<n; i++) m_.push_back(vector<double>(b[i],b[i]+n));
+    A.m = m_;
     return A;
 }
+
+// template <class T>
+// matrix<double> matrix<T>::inverse() const {
+//     assert(rows==cols);
+//     int n = rows;
+//     double c[n];
+//     matrix<double> A, S[n+1], I, tmp;
+//     I.setIdentity(n);
+//     S[0].setIdentity(n);
+//     for(int k=1; k<n+1; k++){
+//         tmp = (*this).dot(S[k-1]);
+//         c[n-k] = -tmp.trace()/k;
+//         S[k] = tmp+c[n-k]*I;
+//     }
+//     A = -1/c[0]*S[n-1];
+//     return A;
+// }
 
 template <class T>
 matrix<T> matrix<T>::transpose() const {
@@ -537,6 +574,15 @@ matrix<T> matrix<T>::dot(const matrix<T>& M) const {
             for(int k=0; k<cols; k++) dot += m[row][k]*M.m[k][col];
             A.m[row][col] = dot;
         }
+    return A;
+}
+
+template <class T>
+matrix<T> matrix<T>::apply(T (*f)(T)) const {
+    matrix<T> A(rows,cols);
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            A.m[row][col] = f(m[row][col]);
     return A;
 }
 

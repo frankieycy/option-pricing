@@ -4,8 +4,8 @@
 #include "matrix.cpp"
 using namespace std;
 
-#define GUI false
-#define LOG false
+#define GUI true
+#define LOG true
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
@@ -153,7 +153,7 @@ public:
     double BinomialTreePricer(const SimConfig& config);
     double MonteCarloPricer(const SimConfig& config, int numSim);
     double NumIntegrationPricer(double z=5, double dz=1e-3);
-    double BlackScholesPDESolver(const SimConfig& config, int numSpace);
+    double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
     matrix<double> varyPriceWithVariable(string var, matrix<double> varVector,
@@ -638,7 +638,7 @@ double Pricer::NumIntegrationPricer(double z, double dz){
     return price;
 }
 
-double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace){
+double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, string method){
     logMessage("starting calculation BlackScholesPDESolver on config "+to_string(config)+", numSpace "+to_string(numSpace));
     Stock stock = market.getStock();
     double K = getVariable("strike");
@@ -652,9 +652,10 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace){
     double dt = config.stepSize;
     double x0 = log(K/3), x1 = log(3*K);
     double dx = (x1-x0)/m, dx2 = dx*dx;
-    double a = 1+r*dt+sig*sig*dt/dx2;
-    double b = -(r-q-sig*sig/2)*dt/(2*dx)-sig*sig/2*dt/dx2;
-    double c = +(r-q-sig*sig/2)*dt/(2*dx)-sig*sig/2*dt/dx2;
+    double sig2 = sig*sig;
+    double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
+    double b = 1+r*dt+sig2*dt/dx2;
+    double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
     matrix<double> priceMatrix(n+1,m+1);
     matrix<double> timeGrids; timeGrids.setRange(0,T,n,true);
     matrix<double> spaceGrids; spaceGrids.setRange(x0,x1,m,true);
@@ -664,7 +665,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace){
     // cout << D.print() << endl;
     if(option.getType()=="European"){
         matrix<double> payoffs = option.calcPayoffs(spaceGrids.apply(exp));
-        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v;
+        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, b(m-1,1);
         if(option.getPutCall()=="Call"){
             bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
         }else if(option.getPutCall()=="Put"){
@@ -673,13 +674,18 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace){
         priceMatrix.setRow(n,payoffs);
         priceMatrix.setCol(0,bdryCondition0);
         priceMatrix.setCol(m,bdryCondition1);
+        // cout << priceMatrix.print() << endl;
         v = priceMatrix.submatrix(n,n+1,1,m).transpose();
-        for(int i=n-1; i>=0; i--){
-            v.setEntry(0,0,v.getEntry(0,0)-a*priceMatrix.getEntry(i,0));
-            v.setEntry(m-2,0,v.getEntry(m-2,0)-c*priceMatrix.getEntry(i,m));
-            v = D.dot(v);
-            priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
-        }
+        if(method=="implicit"){
+            for(int i=n-1; i>=0; i--){
+                double b0 = a*priceMatrix.getEntry(i,0);
+                double b1 = c*priceMatrix.getEntry(i,m);
+                b.setEntry(0,0,b0);
+                b.setEntry(m-2,0,b1);
+                v = D.dot(v-b);
+                priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
+            }
+        }else if(method=="explicit"){}
         // cout << priceMatrix.print() << endl;
         double x = log(S0);
         int idx = (x-spaceGrids).apply(abs).minIdx()[1];

@@ -2,8 +2,8 @@
 
 * last update: 210608
 * an object-oriented option pricing library that
-    1. supports efficient valuation of vanilla & exotic contracts and Greeks calculation via numerical integration, Monte Carlo simulation and binomial tree, accomodating various price & interest rate stochastic processes
-    1. streamlines market data to construct implied vol surface with live visualization on Python dashboard (via app.py)
+    1. supports efficient valuation of vanilla & exotic contracts and Greeks calculation via binomial tree, numerical integration, PDE schemes and Monte Carlo simulation, accommodating various stock price and interest rate stochastic processes
+    1. streamlines market data to compute and construct implied vol surface with live tabulation as well as visualize Greeks vs strike price curves on an interactive Python dashboard using Dash and Plotly package
 
 ## To-do List
 
