@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from yahoo_fin import stock_info, options
 from util import *
-plt.switch_backend('Agg')
+plt.switch_backend("Agg")
 
 LOG = True
 
@@ -155,9 +155,9 @@ def impliedVolSurfaceGenerator(stock):
 def optionChainsWithGreeksGenerator(stock):
     logMessage(["starting optionChainsWithGreeksGenerator on stock ",stock,
         ", onDate ",onDate])
-    dataCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Market Price']
-    grkCols = ['Contract Name','Type','Put/Call','Strike','Maturity (Year)','Implied Vol',
-        'Delta','Gamma','Vega','Rho','Theta']
+    dataCols = ["Contract Name","Type","Put/Call","Strike","Maturity (Year)","Market Price"]
+    grkCols = ["Contract Name","Type","Put/Call","Strike","Maturity (Year)","Implied Vol",
+        "Delta","Gamma","Vega","Rho","Theta"]
     try:
         callExecutable("./"+
             exeFolder+"genGreeksFromImpVolFile")
@@ -165,9 +165,9 @@ def optionChainsWithGreeksGenerator(stock):
         grk  = pd.read_csv(dataFolder+"option_grk.csv",header=None)
         data.columns = dataCols
         grk.columns = grkCols
-        data = data.set_index('Contract Name')
-        grk = grk.set_index('Contract Name')
-        for var in ['Implied Vol','Delta','Gamma','Vega','Rho','Theta']:
+        data = data.set_index("Contract Name")
+        grk = grk.set_index("Contract Name")
+        for var in ["Implied Vol","Delta","Gamma","Vega","Rho","Theta"]:
             data[var] = grk[var]
         data.to_csv(dataFolder+"option_chain"+"_"
             +stock+"_"+onDate+".csv")

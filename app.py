@@ -31,7 +31,9 @@ app.layout = html.Div([
         ]),
         dcc.Checklist(id="output-options",
             options=[
-                {"label": "Display option chains", "value": "display-option-chains"}
+                {"label": "Display option chains", "value": "display-option-chains"},
+                {"label": "Display implied vol table", "value": "display-implied-vol-table"},
+                {"label": "Display Greeks curves", "value": "display-greeks-curves"},
             ],
             value=[]
         ),
@@ -39,6 +41,8 @@ app.layout = html.Div([
         html.Div(id="stock-output"),
         html.Div(id="calc-history"),
         html.Div(id="option-chains"),
+        html.Div(id="implied-vol-table"),
+        html.Div(id="greeks-curve-plots"),
         html.Div(id="imp-vol-plots"),
     ])
 ])
@@ -80,7 +84,9 @@ def updateOutputs(stockInput, outputOptions, maturityOptions):
         ", ".join(validStockList) if validStockList else "Null", onDate
     )])
     #### calc-history ##########################################################
-    if calcHistory: calcHistoryTable = generateTable(pd.concat(calcHistory))
+    if calcHistory:
+        calcHistoryDf = pd.concat(calcHistory)
+        calcHistoryTable = generateTable(calcHistoryDf)
     calcHistoryDiv = html.Div([
         "Pricer variable input history: ",
         calcHistoryTable if calcHistory else "Null",
