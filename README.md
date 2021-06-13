@@ -11,7 +11,7 @@
 * ok, organize library files into lib/
 * ok, printToCsvFile: support header
 * ok, Black-Scholes PDE solver (calc matrix of price surface)
-* pricer demo examples on a vanilla call (put in demo/)
+* ok, pricer demo examples on a vanilla call (put in demo/)
     1. generatePriceSurface
     1. Closed Form
     1. Binomial Tree
