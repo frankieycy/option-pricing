@@ -18,6 +18,7 @@
     1. Monte Carlo
     1. Num Integration
     1. PDE Solver
+* backtester object (called Backtester) for option hedging strategies
 * stochastic process object (called Process) and simulation
 * deterministic (non-constant) interest rate extension
 * deterministic (non-constant) volatility extension

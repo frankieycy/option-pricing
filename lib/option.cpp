@@ -38,6 +38,8 @@ public:
 
 const SimConfig NULL_CONFIG;
 
+class Process{}; // TO DO
+
 class Option{
 private:
     string name, type, putCall;
@@ -174,6 +176,14 @@ public:
     void generateGreeksFromImpliedVolFile(string input, string file);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
+};
+
+class Backtester{
+private:
+    string name;
+    Option option;
+    Market market;
+public:
 };
 
 /**** class functions *********************************************************/
@@ -653,19 +663,13 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
     double x0 = log(K/3), x1 = log(3*K);
     double dx = (x1-x0)/m, dx2 = dx*dx;
     double sig2 = sig*sig;
-    double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
-    double b = 1+r*dt+sig2*dt/dx2;
-    double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
     matrix<double> priceMatrix(n+1,m+1);
     matrix<double> timeGrids; timeGrids.setRange(0,T,n,true);
     matrix<double> spaceGrids; spaceGrids.setRange(x0,x1,m,true);
-    matrix<double> D(m-1,m-1);
-    D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
-    D = D.inverse();
     // cout << D.print() << endl;
     if(option.getType()=="European"){
         matrix<double> payoffs = option.calcPayoffs(spaceGrids.apply(exp));
-        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, b(m-1,1);
+        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, u(m-1,1);
         if(option.getPutCall()=="Call"){
             bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
         }else if(option.getPutCall()=="Put"){
@@ -677,15 +681,35 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
         // cout << priceMatrix.print() << endl;
         v = priceMatrix.submatrix(n,n+1,1,m).transpose();
         if(method=="implicit"){
+            double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
+            double b = 1+r*dt+sig2*dt/dx2;
+            double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
+            matrix<double> D(m-1,m-1);
+            D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
+            D = D.inverse();
             for(int i=n-1; i>=0; i--){
-                double b0 = a*priceMatrix.getEntry(i,0);
-                double b1 = c*priceMatrix.getEntry(i,m);
-                b.setEntry(0,0,b0);
-                b.setEntry(m-2,0,b1);
-                v = D.dot(v-b);
+                double u0 = a*priceMatrix.getEntry(i,0);
+                double u1 = c*priceMatrix.getEntry(i,m);
+                u.setEntry(0,0,u0);
+                u.setEntry(m-2,0,u1);
+                v = D.dot(v-u);
                 priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
             }
-        }else if(method=="explicit"){}
+        }else if(method=="explicit"){
+            double a = -(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
+            double b = 1-r*dt-sig2*dt/dx2;
+            double c = +(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
+            matrix<double> D(m-1,m-1);
+            D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
+            for(int i=n-1; i>=0; i--){
+                double u0 = a*priceMatrix.getEntry(i+1,0);
+                double u1 = c*priceMatrix.getEntry(i+1,m);
+                u.setEntry(0,0,u0);
+                u.setEntry(m-2,0,u1);
+                v = D.dot(v)+u;
+                priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
+            }
+        }
         // cout << priceMatrix.print() << endl;
         double x = log(S0);
         int idx = (x-spaceGrids).apply(abs).minIdx()[1];
