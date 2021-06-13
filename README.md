@@ -8,7 +8,7 @@
 ## To-do List
 
 * option.cpp commenting
-* organize library files into lib/
+* ok, organize library files into lib/
 * ok, printToCsvFile: support header
 * ok, Black-Scholes PDE solver (calc matrix of price surface)
 * pricer demo examples on a vanilla call (put in demo/)
