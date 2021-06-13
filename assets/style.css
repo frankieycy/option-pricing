@@ -1,0 +1,45 @@
+#container {
+    padding: 0 30px;
+    font-size: .8em;
+    line-height: 200%;
+}
+
+#title {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+#dense-th {
+    padding: 5px;
+    background-color: #EEEEEE;
+}
+
+#dense-td {
+    padding: 5px;
+    line-height: 0;
+}
+
+#option-chains-maturities {
+    padding-left: 10px;
+    line-height: 0;
+    font-size: .8em;
+}
+
+img {
+    width: 300px;
+    border-style: solid;
+    border-width: 1px;
+    border-color: #EEEEEE;
+}
+
+table {
+    font-size: 8px;
+    line-height: 10px;
+    border-style: solid;
+    border-width: 1px;
+    border-color: #EEEEEE;
+}
+
+tr:hover {
+    background-color: #EEEEEE;
+}

@@ -7,54 +7,25 @@ from option import *
 calcHistory = []
 optionChainsDfDict = {}
 
-containerStyle = {
-    "padding": "0 30px",
-    "font-size": ".8em",
-    "line-height": "200%"
-}
-
-imageStyle = {
-    "width": "300px",
-    "border-style": "solid",
-    "border-width": "1px",
-    "border-color": "#EEEEEE"
-}
-
-tableStyle = {
-    "font-size": "8px",
-    "line-height": "10px",
-    "border-style": "solid",
-    "border-width": "1px",
-    "border-color": "#EEEEEE"
-}
-
-denseRowStyle = {
-    "padding": "5px",
-    "line-height": "0"
-}
-
 def generateTable(df):
     return html.Table([
         html.Thead(
-            html.Tr([html.Th(col, style=denseRowStyle) for col in df.columns],
-                style={"background-color": "#EEEEEE"})
+            html.Tr([html.Th(col, id="dense-th") for col in df.columns])
         ),
         html.Tbody([
             html.Tr([
-                html.Td(df.iloc[i][col], style=denseRowStyle) for col in df.columns
+                html.Td(df.iloc[i][col], id="dense-td") for col in df.columns
             ]) for i in range(len(df))
         ])
-    ], style=tableStyle)
+    ])
 
-external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css"]
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css", "assets/style.css"]
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 app.layout = html.Div([
-    html.Div([
-        html.Div("Stock Option Dashboard", style={
-            "font-size": "1.2em", "font-weight": "bold"
-        }),
+    html.Div(id="container", children=[
+        html.Div("Stock Option Dashboard", id="title"),
         html.Div(["Stock input (csv format): ",
             dcc.Input(id="stock-input", value="", type="text", debounce=True)
         ]),
@@ -64,14 +35,12 @@ app.layout = html.Div([
             ],
             value=[]
         ),
-        dcc.Checklist(id="option-chains-maturities", value=[], style={
-            "padding-left": "10px", "line-height": "0", "font-size": ".8em"
-        }),
+        dcc.Checklist(id="option-chains-maturities", value=[]),
         html.Div(id="stock-output"),
         html.Div(id="calc-history"),
         html.Div(id="option-chains"),
         html.Div(id="imp-vol-plots"),
-    ], id="container", style=containerStyle)
+    ])
 ])
 
 @app.callback(
@@ -151,7 +120,7 @@ def updateOutputs(stockInput, outputOptions, maturityOptions):
         ([html.Br()] if optionChainsTableList else []))
     maturityList = [{"label":date+"-"+",".join(datesStocksDict[date]),"value":date} for date in datesList]
     #### imp-vol-plots #########################################################
-    impVolPlots = [html.Img(src=file, style=imageStyle) for file in impVolFileList]
+    impVolPlots = [html.Img(src=file) for file in impVolFileList]
     impVolPlotsDiv = html.Div(["Implied vol surface plots: "]+
         ([html.Br()] if impVolPlots else [])+
         (impVolPlots if impVolPlots else ["Null"]))
