@@ -1,5 +1,4 @@
 .DS_store
-main.cpp
 main
 *.dSYM
 exe*
