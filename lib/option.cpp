@@ -64,8 +64,8 @@ public:
     double setMaturity(double maturity);
     /**** main ****/
     bool checkParams() const;
-    double calcPayoff(double stockPrice=0, matrix<double> priceSeries=NULL_VECTOR);
-    matrix<double> calcPayoffs(matrix<double> stockPriceVector=NULL_VECTOR, matrix<double> priceMatrix=NULL_MATRIX);
+    double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR);
+    matrix calcPayoffs(matrix stockPriceVector=NULL_VECTOR, matrix priceMatrix=NULL_MATRIX);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Option& option);
 };
@@ -74,7 +74,7 @@ class Stock{
 private:
     string name;
     double currentPrice, dividendYield, driftRate, volatility;
-    matrix<double> simTimeVector, simPriceMatrix, binomialPriceTree;
+    matrix simTimeVector, simPriceMatrix, binomialPriceTree;
 public:
     /**** constructors ****/
     Stock(){};
@@ -86,9 +86,9 @@ public:
     double getDividendYield() const {return dividendYield;}
     double getDriftRate() const {return driftRate;}
     double getVolatility() const {return volatility;}
-    matrix<double> getSimTimeVector() const {return simTimeVector;}
-    matrix<double> getSimPriceMatrix() const {return simPriceMatrix;}
-    matrix<double> getBinomialPriceTree() const {return binomialPriceTree;}
+    matrix getSimTimeVector() const {return simTimeVector;}
+    matrix getSimPriceMatrix() const {return simPriceMatrix;}
+    matrix getBinomialPriceTree() const {return binomialPriceTree;}
     string getAsJson() const;
     /**** mutators ****/
     string setName(string name);
@@ -96,15 +96,15 @@ public:
     double setDividendYield(double dividendYield);
     double setDriftRate(double driftRate);
     double setVolatility(double volatility);
-    double estDriftRateFromPrice(matrix<double> priceSeries, double dt, string method="simple");
-    double estVolatilityFromPrice(matrix<double> priceSeries, double dt, string method="simple");
+    double estDriftRateFromPrice(matrix priceSeries, double dt, string method="simple");
+    double estVolatilityFromPrice(matrix priceSeries, double dt, string method="simple");
     /**** main ****/
     bool checkParams() const;
     double calcLognormalPrice(double z, double time);
-    matrix<double> calcLognormalPriceVector(matrix<double> z, double time);
-    matrix<double> simulatePrice(const SimConfig& config, int numSim=1);
-    matrix<double> generatePriceTree(const SimConfig& config);
-    matrix<double> generatePriceMatrixFromTree();
+    matrix calcLognormalPriceVector(matrix z, double time);
+    matrix simulatePrice(const SimConfig& config, int numSim=1);
+    matrix generatePriceTree(const SimConfig& config);
+    matrix generatePriceMatrixFromTree();
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Stock& stock);
 };
@@ -131,18 +131,18 @@ public:
 
 class Backtest{
 public:
-    matrix<double>
+    matrix
         simPriceMatrix,
         stratCashMatrix,
         stratNStockMatrix,
         stratModPriceMatrix,
         stratModValueMatrix;
     Backtest(
-        matrix<double> simPriceMatrix,
-        matrix<double> stratCashMatrix,
-        matrix<double> stratNStockMatrix,
-        matrix<double> stratModPriceMatrix,
-        matrix<double> stratModValueMatrix
+        matrix simPriceMatrix,
+        matrix stratCashMatrix,
+        matrix stratNStockMatrix,
+        matrix stratModPriceMatrix,
+        matrix stratModValueMatrix
     ):simPriceMatrix(simPriceMatrix),
       stratCashMatrix(stratCashMatrix),
       stratNStockMatrix(stratNStockMatrix),
@@ -179,17 +179,17 @@ public:
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
-    matrix<double> varyPriceWithVariable(string var, matrix<double> varVector,
+    matrix varyPriceWithVariable(string var, matrix varVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     double ClosedFormGreek(string var, int derivOrder=1);
     double FiniteDifferenceGreek(string var, int derivOrder=1, string method="Closed Form",
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
     double calcGreek(string greekName, string greekMethod="Closed Form", string method="Closed Form",
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
-    matrix<double> varyGreekWithVariable(string var, matrix<double> varVector,
+    matrix varyGreekWithVariable(string var, matrix varVector,
         string greekName, string greekMethod="Closed Form", string method="Closed Form",
         const SimConfig& config=NULL_CONFIG, int numSim=0, double eps=1e-5);
-    matrix<double> generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
+    matrix generatePriceSurface(matrix stockPriceVector, matrix optionTermVector,
         string method="Closed Form", const SimConfig& config=NULL_CONFIG, int numSim=0);
     bool satisfyPriceBounds(double optionMarketPrice);
     double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
@@ -275,7 +275,7 @@ bool Option::checkParams() const {
     strike>=0 && maturity>=0;
 }
 
-double Option::calcPayoff(double stockPrice, matrix<double> priceSeries){
+double Option::calcPayoff(double stockPrice, matrix priceSeries){
     double S;
     if(type=="European" || type=="American"){
         if(priceSeries.isEmpty()) S = stockPrice;
@@ -296,8 +296,8 @@ double Option::calcPayoff(double stockPrice, matrix<double> priceSeries){
     return NAN;
 }
 
-matrix<double> Option::calcPayoffs(matrix<double> stockPriceVector, matrix<double> priceMatrix){
-    matrix<double> S;
+matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix){
+    matrix S;
     if(type=="European" || type=="American"){
         if(priceMatrix.isEmpty()) S = stockPriceVector;
         else S = priceMatrix.getLastRow();
@@ -373,9 +373,9 @@ double Stock::setVolatility(double volatility){
     return volatility;
 }
 
-double Stock::estDriftRateFromPrice(matrix<double> priceSeries, double dt, string method){
+double Stock::estDriftRateFromPrice(matrix priceSeries, double dt, string method){
     if(method=="simple"){
-        matrix<double> returnSeries;
+        matrix returnSeries;
         returnSeries =
             (priceSeries.submatrix(1,-1,"col")-priceSeries.submatrix(0,-2,"col"))
             /priceSeries.submatrix(0,-2,"col");
@@ -384,9 +384,9 @@ double Stock::estDriftRateFromPrice(matrix<double> priceSeries, double dt, strin
     return driftRate;
 }
 
-double Stock::estVolatilityFromPrice(matrix<double> priceSeries, double dt, string method){
+double Stock::estVolatilityFromPrice(matrix priceSeries, double dt, string method){
     if(method=="simple"){
-        matrix<double> returnSeries;
+        matrix returnSeries;
         returnSeries =
             (priceSeries.submatrix(1,-1,"col")-priceSeries.submatrix(0,-2,"col"))
             /priceSeries.submatrix(0,-2,"col");
@@ -406,21 +406,21 @@ double Stock::calcLognormalPrice(double z, double time){
     return S;
 }
 
-matrix<double> Stock::calcLognormalPriceVector(matrix<double> z, double time){
+matrix Stock::calcLognormalPriceVector(matrix z, double time){
     int n = z.getCols();
-    matrix<double> S(1,n);
+    matrix S(1,n);
     for(int i=0; i<n; i++) S.setEntry(0,i,calcLognormalPrice(z.getEntry(0,i),time));
     return S;
 }
 
-matrix<double> Stock::simulatePrice(const SimConfig& config, int numSim){
+matrix Stock::simulatePrice(const SimConfig& config, int numSim){
     double n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
-    matrix<double> randomVector(1,numSim);
-    matrix<double> simPriceVector(1,numSim,currentPrice);
-    simTimeVector = matrix<double>(1,n+1);
-    simPriceMatrix = matrix<double>(n+1,numSim);
+    matrix randomVector(1,numSim);
+    matrix simPriceVector(1,numSim,currentPrice);
+    simTimeVector = matrix(1,n+1);
+    simPriceMatrix = matrix(n+1,numSim);
     simPriceMatrix.setRow(0,simPriceVector);
     simTimeVector.setEntry(0,0,0);
     for(int i=1; i<n+1; i++){
@@ -432,13 +432,13 @@ matrix<double> Stock::simulatePrice(const SimConfig& config, int numSim){
     return simPriceMatrix;
 }
 
-matrix<double> Stock::generatePriceTree(const SimConfig& config){
+matrix Stock::generatePriceTree(const SimConfig& config){
     double n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
     double u = exp(volatility*sqrt_dt), d = 1/u;
-    simTimeVector = matrix<double>(1,n);
-    binomialPriceTree = matrix<double>(n,n);
+    simTimeVector = matrix(1,n);
+    binomialPriceTree = matrix(n,n);
     binomialPriceTree.setEntry(0,0,currentPrice);
     simTimeVector.setEntry(0,0,0);
     for(int i=1; i<n; i++){
@@ -611,9 +611,9 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
     double qu = (exp((r-q)*dt)-d)/(u-d), qd = 1-qu;
     stock.setDriftRate(r);
     stock.generatePriceTree(config);
-    matrix<double> optionBinomialTree(n,n);
+    matrix optionBinomialTree(n,n);
     if(!option.isPathDependent()){
-        matrix<double> payoffs = option.calcPayoffs(stock.getBinomialPriceTree().getLastRow());
+        matrix payoffs = option.calcPayoffs(stock.getBinomialPriceTree().getLastRow());
         optionBinomialTree.setRow(n-1,payoffs);
         for(int i=n-2; i>=0; i--){
             for(int j=0; j<i+1; j++)
@@ -639,7 +639,7 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
     stock.setDriftRate(r);
     stock.simulatePrice(config,numSim);
     if(!option.canEarlyExercise()){
-        matrix<double> payoffs = option.calcPayoffs(NULL_VECTOR,stock.getSimPriceMatrix());
+        matrix payoffs = option.calcPayoffs(NULL_VECTOR,stock.getSimPriceMatrix());
         price = exp(-r*T)*payoffs.mean();
         err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
     }
@@ -654,11 +654,11 @@ double Pricer::NumIntegrationPricer(double z, double dz){
     double T = getVariable("maturity");
     stock.setDriftRate(r);
     int n = static_cast<int>(z/dz);
-    matrix<double> z0; z0.setRange(-z,z,2*n);
-    matrix<double> S = stock.calcLognormalPriceVector(z0,T);
+    matrix z0; z0.setRange(-z,z,2*n);
+    matrix S = stock.calcLognormalPriceVector(z0,T);
     if(!option.canEarlyExercise() && !option.isPathDependent()){
-        matrix<double> payoffs = option.calcPayoffs(S);
-        matrix<double> probs = z0.apply(stdNormalPDF)*dz;
+        matrix payoffs = option.calcPayoffs(S);
+        matrix probs = z0.apply(stdNormalPDF)*dz;
         price = exp(-r*T)*(probs*payoffs).sum();
     }
     logMessage("ending calculation NumIntegrationPricer, return "+to_string(price));
@@ -680,13 +680,13 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
     double x0 = log(K/3), x1 = log(3*K);
     double dx = (x1-x0)/m, dx2 = dx*dx;
     double sig2 = sig*sig;
-    matrix<double> priceMatrix(n+1,m+1);
-    matrix<double> timeGrids; timeGrids.setRange(0,T,n,true);
-    matrix<double> spaceGrids; spaceGrids.setRange(x0,x1,m,true);
+    matrix priceMatrix(n+1,m+1);
+    matrix timeGrids; timeGrids.setRange(0,T,n,true);
+    matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
     // cout << D.print() << endl;
     if(option.getType()=="European"){
-        matrix<double> payoffs = option.calcPayoffs(spaceGrids.apply(exp));
-        matrix<double> bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, u(m-1,1);
+        matrix payoffs = option.calcPayoffs(spaceGrids.apply(exp));
+        matrix bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, u(m-1,1);
         if(option.getPutCall()=="Call"){
             bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
         }else if(option.getPutCall()=="Put"){
@@ -701,7 +701,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
             double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
             double b = 1+r*dt+sig2*dt/dx2;
             double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
-            matrix<double> D(m-1,m-1);
+            matrix D(m-1,m-1);
             D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
             D = D.inverse();
             for(int i=n-1; i>=0; i--){
@@ -716,7 +716,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
             double a = -(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
             double b = 1-r*dt-sig2*dt/dx2;
             double c = +(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
-            matrix<double> D(m-1,m-1);
+            matrix D(m-1,m-1);
             D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
             for(int i=n-1; i>=0; i--){
                 double u0 = a*priceMatrix.getEntry(i+1,0);
@@ -757,10 +757,10 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int
     return price;
 }
 
-matrix<double> Pricer::varyPriceWithVariable(string var, matrix<double> varVector,
+matrix Pricer::varyPriceWithVariable(string var, matrix varVector,
     string method, const SimConfig& config, int numSim){
     int n = varVector.getCols();
-    matrix<double> optionPriceVector(1,n);
+    matrix optionPriceVector(1,n);
     for(int i=0; i<n; i++){
         double v = varVector.getEntry(0,i);
         setVariable(var,v);
@@ -864,11 +864,11 @@ double Pricer::calcGreek(string greekName, string greekMethod, string method,
     return greek;
 }
 
-matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVector, string greekName,
+matrix Pricer::varyGreekWithVariable(string var, matrix varVector, string greekName,
     string greekMethod, string method, const SimConfig& config, int numSim, double eps){
     int n = varVector.getCols();
     double greek;
-    matrix<double> optionGreekVector(1,n);
+    matrix optionGreekVector(1,n);
     for(int i=0; i<n; i++){
         double v = varVector.getEntry(0,i);
         setVariable(var,v);
@@ -879,12 +879,12 @@ matrix<double> Pricer::varyGreekWithVariable(string var, matrix<double> varVecto
     return optionGreekVector;
 }
 
-matrix<double> Pricer::generatePriceSurface(matrix<double> stockPriceVector, matrix<double> optionTermVector,
+matrix Pricer::generatePriceSurface(matrix stockPriceVector, matrix optionTermVector,
     string method, const SimConfig& config, int numSim){
     if(GUI) cout << "generating option price surface with " << method << " pricer" << endl;
     int m = optionTermVector.getCols();
     int n = stockPriceVector.getCols();
-    matrix<double> priceSurface(m,n);
+    matrix priceSurface(m,n);
     for(int i=0; i<m; i++){
         double term = optionTermVector.getEntry(0,i);
         setVariable("maturity",term);
@@ -1011,12 +1011,12 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     double dividendYieldFactor = exp(q*dt);
     stock.simulatePrice(config,numSim);
     int n = config.iters;
-    matrix<double>
+    matrix
         stratCashMatrix(n+1,numSim),
         stratNStockMatrix(n+1,numSim),
         stratModPriceMatrix(n+1,numSim),
         stratModValueMatrix(n+1,numSim);
-    matrix<double> simPriceMatrix = stock.getSimPriceMatrix();
+    matrix simPriceMatrix = stock.getSimPriceMatrix();
     if(strategy=="simple-delta"){
         for(int i=0; i<numSim; i++){
             option.setMaturity(T);

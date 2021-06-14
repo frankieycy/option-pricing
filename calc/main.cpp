@@ -15,11 +15,11 @@ int main() {
     // pricer.calcPrice("Num Integration");
     // pricer.calcPrice("PDE Solver",config,0,1000);
     /**** greeks **************************************************************/
-    // matrix<double> S0; S0.setRange(80,121);
+    // matrix S0; S0.setRange(80,121);
     // cout << pricer.varyGreekWithVariable("currentPrice",S0,"Delta") << endl;
     /**** price surface *******************************************************/
-    // matrix<double> S0; S0.setRange(80,121); S0.printToCsvFile("test_stock.csv");
-    // matrix<double> T; T.setRange(1,0,20,true); T.printToCsvFile("test_term.csv");
+    // matrix S0; S0.setRange(80,121); S0.printToCsvFile("test_stock.csv");
+    // matrix T; T.setRange(1,0,20,true); T.printToCsvFile("test_term.csv");
     // pricer.generatePriceSurface(S0,T).printToCsvFile("test_option.csv");
     /**** implied vol *********************************************************/
     // cout << pricer.calcImpliedVolatility(10) << endl;
