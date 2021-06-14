@@ -148,6 +148,7 @@ public:
       stratNStockMatrix(stratNStockMatrix),
       stratModPriceMatrix(stratModPriceMatrix),
       stratModValueMatrix(stratModValueMatrix){};
+    void printToCsvFiles(string name="backtest");
 };
 
 class Pricer{
@@ -479,6 +480,26 @@ double Market::setRiskFreeRate(double riskFreeRate){
 Stock Market::setStock(const Stock& stock){
     this->stock = stock;
     return stock;
+}
+
+//### Backtest class ###########################################################
+
+void Backtest::printToCsvFiles(string name){
+    simPriceMatrix.printToCsvFile(
+        name+"-simPrice.csv"
+    );
+    stratCashMatrix.printToCsvFile(
+        name+"-stratCash.csv"
+    );
+    stratNStockMatrix.printToCsvFile(
+        name+"-stratNStock.csv"
+    );
+    stratModPriceMatrix.printToCsvFile(
+        name+"-stratModPrice.csv"
+    );
+    stratModValueMatrix.printToCsvFile(
+        name+"-stratModValue.csv"
+    );
 }
 
 //### Pricer class #############################################################
@@ -1019,7 +1040,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     matrix simPriceMatrix = stock.getSimPriceMatrix();
     if(strategy=="simple-delta"){
         for(int i=0; i<numSim; i++){
-            option.setMaturity(T);
+            setVariable("currentPrice",S0);
+            setVariable("maturity",T);
             double modPrice = calcPrice("Closed Form");
             double nStock = calcGreek("Delta","Closed Form");
             double cash = modPrice;
@@ -1029,7 +1051,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 if(t%hedgeFreq==0){
                     double S = simPriceMatrix.getEntry(t,i);
                     double nStockPrev = nStock;
-                    option.setMaturity(T-t*dt);
+                    setVariable("currentPrice",S);
+                    setVariable("maturity",T-t*dt);
                     modPrice = calcPrice("Closed Form");
                     nStock = calcGreek("Delta","Closed Form");
                     cash = cash*riskFreeRateFactor
@@ -1044,6 +1067,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             }
             double S1 = simPriceMatrix.getEntry(n,i);
             double nStockPrev = nStock;
+            setVariable("currentPrice",S1);
+            setVariable("maturity",0);
             modPrice = option.calcPayoff(S1);
             nStock = 0;
             cash = cash*riskFreeRateFactor+nStockPrev*S1;

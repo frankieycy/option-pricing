@@ -15,13 +15,15 @@ int main() {
     pricer.calcPrice("Num Integration");
     pricer.calcPrice("PDE Solver",config,0,1000);
     /**** greeks **************************************************************/
-    matrix<double> S0; S0.setRange(80,121); S0.printToCsvFile("out-stock.csv");
+    matrix S0; S0.setRange(80,121); S0.printToCsvFile("out-stock.csv");
     pricer.varyGreekWithVariable("currentPrice",S0,"Delta").printToCsvFile("out-delta.csv");
     /**** price surface *******************************************************/
-    matrix<double> T; T.setRange(1,0,20,true); T.printToCsvFile("out-term.csv");
+    matrix T; T.setRange(1,0,20,true); T.printToCsvFile("out-term.csv");
     pricer.generatePriceSurface(S0,T).printToCsvFile("out-option.csv");
     /**** implied vol *********************************************************/
     double mktPrice = 10;
     cout << "mkt-implied vol: " << pricer.calcImpliedVolatility(mktPrice) << endl;
+    /**** strat backtest ******************************************************/
+    pricer.runBacktest(config,50,"simple-delta").printToCsvFiles();
     return 0;
 }
