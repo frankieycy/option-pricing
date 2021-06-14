@@ -74,6 +74,7 @@ public:
     matrix transpose() const;
     matrix dot(const matrix& M) const;
     matrix apply(double (*f)(double)) const;
+    matrix sample(int n, bool replace=true) const;
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const matrix& M);
     friend bool operator==(const matrix& M1, const matrix& M2);
@@ -509,6 +510,21 @@ matrix matrix::apply(double (*f)(double)) const {
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
             A.m[row][col] = f(m[row][col]);
+    return A;
+}
+
+matrix matrix::sample(int n, bool replace) const {
+    matrix A(1,n);
+    if(replace){
+        int i0,i1;
+        for(int i=0; i<n; i++){
+            i0 = floor(uniformRand(0,rows));
+            i1 = floor(uniformRand(0,cols));
+            A.setEntry(0,i,m[i0][i1]);
+        }
+    }else{
+        // TO DO
+    }
     return A;
 }
 

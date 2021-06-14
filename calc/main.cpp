@@ -6,7 +6,7 @@ int main() {
     Stock  stock        = Stock(100,0,0.05,0.1);
     Market market       = Market(0.02,stock);
     Pricer pricer       = Pricer(option,market);
-    SimConfig config    = SimConfig(1,100);
+    SimConfig config    = SimConfig(1,50);
     /**** price ***************************************************************/
     // pricer.calcPrice("Closed Form");
     // pricer.calcPrice("Binomial Tree",config);
@@ -27,6 +27,8 @@ int main() {
     // pricer.setVariablesFromFile("pricer_var.csv"); pricer.saveAsOriginal();
     // pricer.generateImpliedVolSurfaceFromFile("option_data.csv","option_vol.csv");
     /**** strat backtest ******************************************************/
-    pricer.runBacktest(config,50,"simple-delta").printToCsvFiles();
+    // pricer.runBacktest(config,50,"simple-delta",1).printToCsvFiles();
+    Option hOption = Option("European","Call",100,2);
+    pricer.runBacktest(config,50,"simple-delta-gamma",1,0,hOption).printToCsvFiles();
     return 0;
 }

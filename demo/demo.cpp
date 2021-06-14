@@ -24,6 +24,7 @@ int main() {
     double mktPrice = 10;
     cout << "mkt-implied vol: " << pricer.calcImpliedVolatility(mktPrice) << endl;
     /**** strat backtest ******************************************************/
-    pricer.runBacktest(config,50,"simple-delta").printToCsvFiles();
+    Option hOption = Option("European","Call",100,2);
+    pricer.runBacktest(config,50,"simple-delta-gamma",1,0,hOption).printToCsvFiles();
     return 0;
 }
