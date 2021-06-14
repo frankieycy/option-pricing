@@ -4,8 +4,8 @@
 #include "matrix.cpp"
 using namespace std;
 
-#define GUI true
-#define LOG true
+#define GUI false
+#define LOG false
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
@@ -129,6 +129,27 @@ public:
     friend ostream& operator<<(ostream& out, const Market& market);
 };
 
+class Backtest{
+public:
+    matrix<double>
+        simPriceMatrix,
+        stratCashMatrix,
+        stratNStockMatrix,
+        stratModPriceMatrix,
+        stratModValueMatrix;
+    Backtest(
+        matrix<double> simPriceMatrix,
+        matrix<double> stratCashMatrix,
+        matrix<double> stratNStockMatrix,
+        matrix<double> stratModPriceMatrix,
+        matrix<double> stratModValueMatrix
+    ):simPriceMatrix(simPriceMatrix),
+      stratCashMatrix(stratCashMatrix),
+      stratNStockMatrix(stratNStockMatrix),
+      stratModPriceMatrix(stratModPriceMatrix),
+      stratModValueMatrix(stratModValueMatrix){};
+};
+
 class Pricer{
 private:
     Option option, option_orig;
@@ -174,16 +195,10 @@ public:
     double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
     void generateImpliedVolSurfaceFromFile(string input, string file, double vol0=5, double eps=1e-5);
     void generateGreeksFromImpliedVolFile(string input, string file);
+    Backtest runBacktest(const SimConfig& config, int numSim=1,
+        string strategy="simple-delta", int hedgeFreq=1);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
-};
-
-class Backtester{
-private:
-    string name;
-    Option option;
-    Market market;
-public:
 };
 
 /**** class functions *********************************************************/
@@ -404,11 +419,11 @@ matrix<double> Stock::simulatePrice(const SimConfig& config, int numSim){
     double sqrt_dt = sqrt(dt);
     matrix<double> randomVector(1,numSim);
     matrix<double> simPriceVector(1,numSim,currentPrice);
-    simTimeVector = matrix<double>(1,n);
-    simPriceMatrix = matrix<double>(n,numSim);
+    simTimeVector = matrix<double>(1,n+1);
+    simPriceMatrix = matrix<double>(n+1,numSim);
     simPriceMatrix.setRow(0,simPriceVector);
     simTimeVector.setEntry(0,0,0);
-    for(int i=1; i<n; i++){
+    for(int i=1; i<n+1; i++){
         randomVector.setNormalRand();
         simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
         simPriceMatrix.setRow(i,simPriceVector);
@@ -487,6 +502,8 @@ double Pricer::getVariable(string var) const {
     double v = NAN;
     if(var=="currentPrice"){
         v = market.getStock().getCurrentPrice();
+    }else if(var=="driftRate"){
+        v = market.getStock().getDriftRate();
     }else if(var=="dividendYield"){
         v = market.getStock().getDividendYield();
     }else if(var=="volatility"){
@@ -978,6 +995,74 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
     fi.close();
     fo.close();
     resetOriginal();
+}
+
+Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
+    string strategy, int hedgeFreq){
+    Stock stock = market.getStock();
+    double K = getVariable("strike");
+    double T = getVariable("maturity");
+    double r = getVariable("riskFreeRate");
+    double S0 = getVariable("currentPrice");
+    double q = getVariable("dividendYield");
+    double sig = getVariable("volatility");
+    double dt = config.stepSize;
+    double riskFreeRateFactor = exp(r*dt);
+    double dividendYieldFactor = exp(q*dt);
+    stock.simulatePrice(config,numSim);
+    int n = config.iters;
+    matrix<double>
+        stratCashMatrix(n+1,numSim),
+        stratNStockMatrix(n+1,numSim),
+        stratModPriceMatrix(n+1,numSim),
+        stratModValueMatrix(n+1,numSim);
+    matrix<double> simPriceMatrix = stock.getSimPriceMatrix();
+    if(strategy=="simple-delta"){
+        for(int i=0; i<numSim; i++){
+            option.setMaturity(T);
+            double modPrice = calcPrice("Closed Form");
+            double nStock = calcGreek("Delta","Closed Form");
+            double cash = modPrice;
+            cash -= nStock*S0;
+            double value = cash+nStock*S0-modPrice;
+            for(int t=1; t<n; t++){
+                if(t%hedgeFreq==0){
+                    double S = simPriceMatrix.getEntry(t,i);
+                    double nStockPrev = nStock;
+                    option.setMaturity(T-t*dt);
+                    modPrice = calcPrice("Closed Form");
+                    nStock = calcGreek("Delta","Closed Form");
+                    cash = cash*riskFreeRateFactor
+                        +nStock*S*(dividendYieldFactor-1)
+                        -(nStock-nStockPrev)*S;
+                    value = cash+nStock*S-modPrice;
+                    stratCashMatrix.setEntry(t,i,cash);
+                    stratNStockMatrix.setEntry(t,i,nStock);
+                    stratModPriceMatrix.setEntry(t,i,modPrice);
+                    stratModValueMatrix.setEntry(t,i,value);
+                }
+            }
+            double S1 = simPriceMatrix.getEntry(n,i);
+            double nStockPrev = nStock;
+            modPrice = option.calcPayoff(S1);
+            nStock = 0;
+            cash = cash*riskFreeRateFactor+nStockPrev*S1;
+            value = cash-modPrice;
+            stratCashMatrix.setEntry(n,i,cash);
+            stratNStockMatrix.setEntry(n,i,nStock);
+            stratModPriceMatrix.setEntry(n,i,modPrice);
+            stratModValueMatrix.setEntry(n,i,value);
+        }
+        // cout << stratModValueMatrix.print() << endl;
+    }
+    Backtest results(
+        simPriceMatrix,
+        stratCashMatrix,
+        stratNStockMatrix,
+        stratModPriceMatrix,
+        stratModValueMatrix
+    );
+    return results;
 }
 
 //### operators ################################################################

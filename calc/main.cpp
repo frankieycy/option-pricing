@@ -7,12 +7,13 @@ int main() {
     Market market       = Market(0.02,stock);
     Pricer pricer       = Pricer(option,market);
     SimConfig config    = SimConfig(1,100);
+    pricer.runBacktest(config,10,"simple-delta");
     /**** price ***************************************************************/
-    pricer.calcPrice("Closed Form");
-    pricer.calcPrice("Binomial Tree",config);
-    pricer.calcPrice("Monte Carlo",config,1000);
-    pricer.calcPrice("Num Integration");
-    pricer.calcPrice("PDE Solver",config,0,1000);
+    // pricer.calcPrice("Closed Form");
+    // pricer.calcPrice("Binomial Tree",config);
+    // pricer.calcPrice("Monte Carlo",config,1000);
+    // pricer.calcPrice("Num Integration");
+    // pricer.calcPrice("PDE Solver",config,0,1000);
     /**** greeks **************************************************************/
     // matrix<double> S0; S0.setRange(80,121);
     // cout << pricer.varyGreekWithVariable("currentPrice",S0,"Delta") << endl;
