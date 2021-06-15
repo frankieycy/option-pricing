@@ -1,4 +1,4 @@
-#include "lib/option.cpp"
+#include "option.cpp"
 using namespace std;
 
 int main() {

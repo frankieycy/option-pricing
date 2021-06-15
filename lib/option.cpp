@@ -134,30 +134,13 @@ public:
 
 class Backtest{
 public:
-    matrix
-        simPriceMatrix,
-        stratCashMatrix,
-        stratNStockMatrix,
-        stratModPriceMatrix,
-        stratModValueMatrix,
-        stratNOptionMatrix,
-        stratHModPriceMatrix;
-    Backtest(
-        matrix simPriceMatrix,
-        matrix stratCashMatrix,
-        matrix stratNStockMatrix,
-        matrix stratModPriceMatrix,
-        matrix stratModValueMatrix,
-        matrix stratNOptionMatrix,
-        matrix stratHModPriceMatrix
-    ):simPriceMatrix(simPriceMatrix),
-      stratCashMatrix(stratCashMatrix),
-      stratNStockMatrix(stratNStockMatrix),
-      stratModPriceMatrix(stratModPriceMatrix),
-      stratModValueMatrix(stratModValueMatrix),
-      stratNOptionMatrix(stratNOptionMatrix),
-      stratHModPriceMatrix(stratHModPriceMatrix){};
-    void printToCsvFiles(string name="backtest");
+    vector<string> labels;
+    vector<matrix> results;
+    Backtest(vector<matrix> results);
+    void printToCsvFiles(
+        bool perSim=false,
+        string name="backtest"
+    );
 };
 
 class Pricer{
@@ -515,30 +498,52 @@ Stock Market::setStock(const Stock& stock){
 
 //### Backtest class ###########################################################
 
-void Backtest::printToCsvFiles(string name){
-    simPriceMatrix.printToCsvFile(
-        name+"-simPrice.csv"
-    );
-    stratCashMatrix.printToCsvFile(
-        name+"-stratCash.csv"
-    );
-    stratNStockMatrix.printToCsvFile(
-        name+"-stratNStock.csv"
-    );
-    stratModPriceMatrix.printToCsvFile(
-        name+"-stratModPrice.csv"
-    );
-    stratModValueMatrix.printToCsvFile(
-        name+"-stratModValue.csv"
-    );
-    if(!stratNOptionMatrix.isEmpty())
-    stratNOptionMatrix.printToCsvFile(
-        name+"-stratNOption.csv"
-    );
-    if(!stratHModPriceMatrix.isEmpty())
-    stratHModPriceMatrix.printToCsvFile(
-        name+"-stratHModPrice.csv"
-    );
+Backtest::Backtest(vector<matrix> results):results(results){
+    labels = {
+        "simPrice",
+        "stratCash",
+        "stratNStock",
+        "stratModPrice",
+        "stratModValue",
+        "stratNOption",
+        "stratHModPrice",
+        "stratGrkDelta",
+        "stratGrkGamma",
+        "stratGrkVega",
+        "stratGrkRho",
+        "stratGrkTheta"
+    };
+}
+
+void Backtest::printToCsvFiles(bool perSim, string name){
+    if(perSim){
+        int iters = results[0].getRows();
+        int numSim = results[0].getCols();
+        vector<int> idx;
+        vector<string> head;
+        for(int i=0; i<results.size(); i++)
+            if(!results[i].isEmpty()){
+                idx.push_back(i);
+                head.push_back(labels[i]);
+            }
+        string header = joinStr(head);
+        for(int i=0; i<numSim; i++){
+            matrix result(iters,idx.size());
+            for(int j=0; j<idx.size(); j++)
+                result.setCol(j,results[idx[j]].getCol(i));
+            result.printToCsvFile(
+                name+"-"+to_string(i)+".csv",
+                header
+            );
+        }
+    }else{
+        for(int i=0; i<results.size(); i++){
+            if(!results[i].isEmpty())
+                results[i].printToCsvFile(
+                    name+"-"+labels[i]+".csv"
+                );
+        }
+    }
 }
 
 //### Pricer class #############################################################
@@ -1082,7 +1087,12 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         stratModPriceMatrix(n+1,numSim),
         stratModValueMatrix(n+1,numSim),
         stratNOptionMatrix,
-        stratHModPriceMatrix;
+        stratHModPriceMatrix,
+        stratGrkDelta,
+        stratGrkGamma,
+        stratGrkVega,
+        stratGrkRho,
+        stratGrkTheta;
     matrix simPriceMatrix = stock.getSimPriceMatrix();
     if(strategy=="simple-delta" || strategy=="mkt-delta"){
         if(strategy=="mkt-delta"){
@@ -1218,17 +1228,23 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratHModPriceMatrix.setEntry(n,i,O1);
         }
     }
-    Backtest results(
+    vector<matrix> results{
         simPriceMatrix,
         stratCashMatrix,
         stratNStockMatrix,
         stratModPriceMatrix,
         stratModValueMatrix,
         stratNOptionMatrix,
-        stratHModPriceMatrix
-    );
+        stratHModPriceMatrix,
+        stratGrkDelta,
+        stratGrkGamma,
+        stratGrkVega,
+        stratGrkRho,
+        stratGrkTheta
+    };
+    Backtest backtest(results);
     logMessage("ending calculation runBacktest");
-    return results;
+    return backtest;
 }
 
 //### operators ################################################################

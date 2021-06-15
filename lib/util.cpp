@@ -57,6 +57,14 @@ string getCurrentTime(){
     return time;
 }
 
+string joinStr(vector<string> vec, string join=","){
+    string str = "";
+    if(vec.size()>0){
+        for(auto p=vec.begin(); p!=vec.end(); p++) str += *p+((p==vec.end()-1)?"":join);
+    }
+    return str;
+}
+
 // string printJSON(string jsonStr, string padding){}
 
 #endif
