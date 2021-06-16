@@ -6,7 +6,6 @@ int main() {
     Pricer pricer;
     pricer.setVariablesFromFile(
         dataFolder+"pricer_var.csv");
-    pricer.saveAsOriginal();
     pricer.generateImpliedVolSurfaceFromFile(
         dataFolder+"option_data.csv",
         dataFolder+"option_vol.csv");

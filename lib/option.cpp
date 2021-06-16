@@ -644,7 +644,6 @@ Pricer Pricer::setVariablesFromFile(string file){
 Pricer Pricer::resetOriginal(){
     option = option_orig;
     market = market_orig;
-    price = NAN;
     return *this;
 }
 
@@ -835,6 +834,7 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int
 
 matrix Pricer::varyPriceWithVariable(string var, matrix varVector,
     string method, const SimConfig& config, int numSim){
+    saveAsOriginal();
     int n = varVector.getCols();
     matrix optionPriceVector(1,n);
     for(int i=0; i<n; i++){
@@ -849,8 +849,11 @@ matrix Pricer::varyPriceWithVariable(string var, matrix varVector,
 
 double Pricer::ClosedFormGreek(string var, int derivOrder){
     logMessage("starting calculation ClosedFormGreek on var "+var+", derivOrder "+to_string(derivOrder));
+    saveAsOriginal();
     double greek = NAN;
     if(option.getType()=="European"){
+        if(getVariable("maturity")==0)
+            setVariable("maturity",1e-5);
         double K   = getVariable("strike");
         double T   = getVariable("maturity");
         double r   = getVariable("riskFreeRate");
@@ -884,6 +887,7 @@ double Pricer::ClosedFormGreek(string var, int derivOrder){
                 greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)+r*K*exp(-r*T)*normalCDF(-d2);
         }
     }
+    resetOriginal();
     logMessage("ending calculation ClosedFormGreek, return "+to_string(greek));
     return greek;
 }
@@ -892,6 +896,7 @@ double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
     const SimConfig& config, int numSim, double eps){
     logMessage("starting calculation FiniteDifferenceGreek on var "+var+", derivOrder "+to_string(derivOrder)+
         ", method "+method+", config "+to_string(config)+", numSim "+to_string(numSim)+", eps "+to_string(eps));
+    saveAsOriginal();
     double greek = NAN;
     double v,dv,v_pos,v_neg,price_pos,price_neg;
     v = getVariable(var);
@@ -942,6 +947,7 @@ double Pricer::calcGreek(string greekName, string greekMethod, string method,
 
 matrix Pricer::varyGreekWithVariable(string var, matrix varVector, string greekName,
     string greekMethod, string method, const SimConfig& config, int numSim, double eps){
+    saveAsOriginal();
     int n = varVector.getCols();
     double greek;
     matrix optionGreekVector(1,n);
@@ -958,6 +964,7 @@ matrix Pricer::varyGreekWithVariable(string var, matrix varVector, string greekN
 matrix Pricer::generatePriceSurface(matrix stockPriceVector, matrix optionTermVector,
     string method, const SimConfig& config, int numSim){
     if(GUI) cout << "generating option price surface with " << method << " pricer" << endl;
+    saveAsOriginal();
     int m = optionTermVector.getCols();
     int n = stockPriceVector.getCols();
     matrix priceSurface(m,n);
@@ -991,6 +998,7 @@ bool Pricer::satisfyPriceBounds(double optionMarketPrice){
 
 double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, double eps){
     if(GUI) cout << "calculating option implied vol on optionMarketPrice " << optionMarketPrice << endl;
+    saveAsOriginal();
     double impliedVol = NAN;
     double impliedVol0, impliedVol1;
     double err = 1;
@@ -1014,6 +1022,7 @@ double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, doub
 }
 
 void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double vol0, double eps){
+    saveAsOriginal();
     string name, type, putCall;
     string strikeStr, maturityStr, optionMarketPriceStr;
     double strike, maturity, optionMarketPrice;
@@ -1041,6 +1050,7 @@ void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double
 }
 
 void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
+    saveAsOriginal();
     string name, type, putCall;
     string strikeStr, maturityStr, impliedVolStr;
     double strike, maturity, impliedVol;
@@ -1085,9 +1095,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     double S0 = getVariable("currentPrice");
     double q = getVariable("dividendYield");
     double sig = getVariable("volatility");
+    double sig2 = sig*sig;
     double dt = config.stepSize;
     double riskFreeRateFactor = exp(r*dt);
     double dividendYieldFactor = exp(q*dt);
+    double Delta, Gamma, Vega, Rho, Theta;
     if(simPriceMethod=="bootstrap")
         stock.bootstrapPrice(stockPriceSeries,config,numSim);
     else stock.simulatePrice(config,numSim);
@@ -1115,7 +1127,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             setVariable("currentPrice",S0);
             setVariable("maturity",T);
             double modPrice = calcPrice("Closed Form");
-            double nStock = calcGreek("Delta","Closed Form");
+            double nStock = calcGreek("Delta");
             double cash = modPrice;
             cash -= nStock*S0;
             double value = cash+nStock*S0-modPrice;
@@ -1123,6 +1135,16 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(0,i,nStock);
             stratModPriceMatrix.setEntry(0,i,modPrice);
             stratModValueMatrix.setEntry(0,i,value);
+            Delta = calcGreek("Delta");
+            Gamma = calcGreek("Gamma");
+            Vega = calcGreek("Vega");
+            Rho = calcGreek("Rho");
+            Theta = calcGreek("Theta");
+            stratGrkDelta.setEntry(0,i,0);
+            stratGrkGamma.setEntry(0,i,-Gamma);
+            stratGrkVega.setEntry(0,i,-Vega);
+            stratGrkRho.setEntry(0,i,-Rho);
+            stratGrkTheta.setEntry(0,i,r*cash-Theta-sig2*S0*S0/2*Gamma);
             for(int t=1; t<n; t++){
                 double S = simPriceMatrix.getEntry(t,i);
                 double nStockPrev = nStock;
@@ -1130,7 +1152,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 setVariable("maturity",T-t*dt);
                 modPrice = calcPrice("Closed Form");
                 if(t%hedgeFreq==0){
-                    nStock = calcGreek("Delta","Closed Form");
+                    nStock = calcGreek("Delta");
                     cash = cash*riskFreeRateFactor
                         +nStock*S*(dividendYieldFactor-1)
                         -(nStock-nStockPrev)*S;
@@ -1143,6 +1165,16 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratNStockMatrix.setEntry(t,i,nStock);
                 stratModPriceMatrix.setEntry(t,i,modPrice);
                 stratModValueMatrix.setEntry(t,i,value);
+                Delta = calcGreek("Delta");
+                Gamma = calcGreek("Gamma");
+                Vega = calcGreek("Vega");
+                Rho = calcGreek("Rho");
+                Theta = calcGreek("Theta");
+                stratGrkDelta.setEntry(t,i,0);
+                stratGrkGamma.setEntry(t,i,-Gamma);
+                stratGrkVega.setEntry(t,i,-Vega);
+                stratGrkRho.setEntry(t,i,-Rho);
+                stratGrkTheta.setEntry(t,i,r*cash-Theta-sig2*S*S/2*Gamma);
             }
             double S1 = simPriceMatrix.getEntry(n,i);
             double nStockPrev = nStock;
@@ -1156,9 +1188,20 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(n,i,nStock);
             stratModPriceMatrix.setEntry(n,i,modPrice);
             stratModValueMatrix.setEntry(n,i,value);
+            Delta = calcGreek("Delta");
+            Gamma = calcGreek("Gamma");
+            Vega = calcGreek("Vega");
+            Rho = calcGreek("Rho");
+            Theta = calcGreek("Theta");
+            stratGrkDelta.setEntry(n,i,0);
+            stratGrkGamma.setEntry(n,i,-Gamma);
+            stratGrkVega.setEntry(n,i,-Vega);
+            stratGrkRho.setEntry(n,i,-Rho);
+            stratGrkTheta.setEntry(n,i,r*cash-Theta-sig2*S1*S1/2*Gamma);
         }
         // cout << stratModValueMatrix.print() << endl;
     }else if(strategy=="simple-delta-gamma" || strategy=="mkt-delta-gamma"){
+        double hDelta, hGamma, hVega, hRho, hTheta;
         stratNOptions.push_back(matrix(n+1,numSim));
         stratHModPrices.push_back(matrix(n+1,numSim));
         Option hOption = hOptions[0];
@@ -1176,10 +1219,10 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer.setVariable("currentPrice",S0);
             hPricer.setVariable("maturity",Th);
             double modPrice = calcPrice("Closed Form");
-            double nOption = calcGreek("Gamma","Closed Form")
-                /hPricer.calcGreek("Gamma","Closed Form");
-            double nStock = calcGreek("Delta","Closed Form")
-                -nOption*hPricer.calcGreek("Delta","Closed Form");
+            double nOption = calcGreek("Gamma")
+                /hPricer.calcGreek("Gamma");
+            double nStock = calcGreek("Delta")
+                -nOption*hPricer.calcGreek("Delta");
             double cash = modPrice;
             cash -= nStock*S0+nOption*O0;
             double value = cash+nStock*S0+nOption*O0-modPrice;
@@ -1187,6 +1230,16 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(0,i,nStock);
             stratModPriceMatrix.setEntry(0,i,modPrice);
             stratModValueMatrix.setEntry(0,i,value);
+            Delta = calcGreek("Delta"); hDelta = hPricer.calcGreek("Delta");
+            Gamma = calcGreek("Gamma"); hGamma = hPricer.calcGreek("Gamma");
+            Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
+            Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
+            Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
+            stratGrkDelta.setEntry(0,i,0);
+            stratGrkGamma.setEntry(0,i,0);
+            stratGrkVega.setEntry(0,i,nOption*hVega-Vega);
+            stratGrkRho.setEntry(0,i,nOption*hRho-Rho);
+            stratGrkTheta.setEntry(0,i,r*cash-Theta+nOption*hTheta);
             stratNOptions[0].setEntry(0,i,nOption);
             stratHModPrices[0].setEntry(0,i,O0);
             for(int t=1; t<n; t++){
@@ -1200,10 +1253,10 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 double O = hPricer.calcPrice("Closed Form");
                 modPrice = calcPrice("Closed Form");
                 if(t%hedgeFreq==0){
-                    nOption = calcGreek("Gamma","Closed Form")
-                        /hPricer.calcGreek("Gamma","Closed Form");
-                    nStock = calcGreek("Delta","Closed Form")
-                        -nOption*hPricer.calcGreek("Delta","Closed Form");
+                    nOption = calcGreek("Gamma")
+                        /hPricer.calcGreek("Gamma");
+                    nStock = calcGreek("Delta")
+                        -nOption*hPricer.calcGreek("Delta");
                     cash = cash*riskFreeRateFactor
                         +nStock*S*(dividendYieldFactor-1)
                         -(nStock-nStockPrev)*S
@@ -1217,6 +1270,16 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratNStockMatrix.setEntry(t,i,nStock);
                 stratModPriceMatrix.setEntry(t,i,modPrice);
                 stratModValueMatrix.setEntry(t,i,value);
+                Delta = calcGreek("Delta"); hDelta = hPricer.calcGreek("Delta");
+                Gamma = calcGreek("Gamma"); hGamma = hPricer.calcGreek("Gamma");
+                Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
+                Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
+                Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
+                stratGrkDelta.setEntry(t,i,0);
+                stratGrkGamma.setEntry(t,i,0);
+                stratGrkVega.setEntry(t,i,nOption*hVega-Vega);
+                stratGrkRho.setEntry(t,i,nOption*hRho-Rho);
+                stratGrkTheta.setEntry(t,i,r*cash-Theta+nOption*hTheta);
                 stratNOptions[0].setEntry(t,i,nOption);
                 stratHModPrices[0].setEntry(t,i,O);
             }
@@ -1237,6 +1300,16 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(n,i,nStock);
             stratModPriceMatrix.setEntry(n,i,modPrice);
             stratModValueMatrix.setEntry(n,i,value);
+            Delta = calcGreek("Delta"); hDelta = hPricer.calcGreek("Delta");
+            Gamma = calcGreek("Gamma"); hGamma = hPricer.calcGreek("Gamma");
+            Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
+            Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
+            Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
+            stratGrkDelta.setEntry(n,i,0);
+            stratGrkGamma.setEntry(n,i,0);
+            stratGrkVega.setEntry(n,i,nOption*hVega-Vega);
+            stratGrkRho.setEntry(n,i,nOption*hRho-Rho);
+            stratGrkTheta.setEntry(n,i,r*cash-Theta+nOption*hTheta);
             stratNOptions[0].setEntry(n,i,nOption);
             stratHModPrices[0].setEntry(n,i,O1);
         }

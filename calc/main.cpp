@@ -24,7 +24,7 @@ int main() {
     // cout << pricer.calcImpliedVolatility(10) << endl;
     /**** implied vol dashboard ***********************************************/
     // Pricer pricer;
-    // pricer.setVariablesFromFile("pricer_var.csv"); pricer.saveAsOriginal();
+    // pricer.setVariablesFromFile("pricer_var.csv");
     // pricer.generateImpliedVolSurfaceFromFile("option_data.csv","option_vol.csv");
     /**** strat backtest ******************************************************/
     // pricer.runBacktest(config,50,"simple-delta",1).printToCsvFiles();

@@ -6,7 +6,6 @@ int main() {
     Pricer pricer;
     pricer.setVariablesFromFile(
         dataFolder+"pricer_var.csv");
-    pricer.saveAsOriginal();
     pricer.generateGreeksFromImpliedVolFile(
         dataFolder+"option_vol.csv",
         dataFolder+"option_grk.csv");
