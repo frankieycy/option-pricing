@@ -70,8 +70,6 @@ public:
     friend ostream& operator<<(ostream& out, const Option& option);
 };
 
-const Option NULL_OPTION;
-
 class Stock{
 private:
     string name;
@@ -136,7 +134,12 @@ class Backtest{
 public:
     vector<string> labels;
     vector<matrix> results;
-    Backtest(vector<matrix> results);
+    vector<string> hLabels;
+    vector<vector<matrix>> hResults;
+    Backtest(
+        vector<matrix> results,
+        vector<vector<matrix>> hResults
+    );
     void printToCsvFiles(
         bool perSim=false,
         string name="backtest"
@@ -189,7 +192,7 @@ public:
     void generateImpliedVolSurfaceFromFile(string input, string file, double vol0=5, double eps=1e-5);
     void generateGreeksFromImpliedVolFile(string input, string file);
     Backtest runBacktest(const SimConfig& config, int numSim=1,
-        string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0, Option hOption=NULL_OPTION,
+        string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0, vector<Option> hOptions={},
         string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
@@ -498,51 +501,59 @@ Stock Market::setStock(const Stock& stock){
 
 //### Backtest class ###########################################################
 
-Backtest::Backtest(vector<matrix> results):results(results){
+Backtest::Backtest(vector<matrix> results, vector<vector<matrix>> hResults):
+    results(results),hResults(hResults){
     labels = {
         "simPrice",
         "stratCash",
         "stratNStock",
         "stratModPrice",
         "stratModValue",
-        "stratNOption",
-        "stratHModPrice",
         "stratGrkDelta",
         "stratGrkGamma",
         "stratGrkVega",
         "stratGrkRho",
         "stratGrkTheta"
     };
+    hLabels = {
+        "stratNOption",
+        "stratHModPrice"
+    };
 }
 
 void Backtest::printToCsvFiles(bool perSim, string name){
+    int a = results.size();
+    int b = hResults.size();
+    int n = hResults[0].size();
     if(perSim){
         int iters = results[0].getRows();
         int numSim = results[0].getCols();
-        vector<int> idx;
-        vector<string> head;
-        for(int i=0; i<results.size(); i++)
-            if(!results[i].isEmpty()){
-                idx.push_back(i);
-                head.push_back(labels[i]);
-            }
-        string header = joinStr(head);
-        for(int i=0; i<numSim; i++){
-            matrix result(iters,idx.size());
-            for(int j=0; j<idx.size(); j++)
-                result.setCol(j,results[idx[j]].getCol(i));
+        string header = joinStr(labels);
+        for(int i=0; i<b; i++)
+            for(int j=0; j<n; j++)
+                header += ","+hLabels[i]+"-"+to_string(j);
+        for(int k=0; k<numSim; k++){
+            matrix result(iters,a+b*n);
+            for(int i=0; i<a; i++)
+                result.setCol(i,results[i].getCol(k));
+            for(int i=0; i<b; i++)
+                for(int j=0; j<n; j++)
+                    result.setCol(a+i*n+j,hResults[i][j].getCol(k));
             result.printToCsvFile(
-                name+"-"+to_string(i)+".csv",
+                name+"-"+to_string(k)+".csv",
                 header
             );
         }
     }else{
-        for(int i=0; i<results.size(); i++){
-            if(!results[i].isEmpty())
-                results[i].printToCsvFile(
-                    name+"-"+labels[i]+".csv"
+        for(int i=0; i<a; i++)
+            results[i].printToCsvFile(
+                name+"-"+labels[i]+".csv"
+            );
+        for(int i=0; i<b; i++)
+            for(int j=0; j<n; j++)
+                hResults[i][j].printToCsvFile(
+                    name+"-"+hLabels[i]+"-"+to_string(j)+".csv"
                 );
-        }
     }
 }
 
@@ -1063,7 +1074,7 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
 }
 
 Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
-    string strategy, int hedgeFreq, double mktPrice, Option hOption,
+    string strategy, int hedgeFreq, double mktPrice, vector<Option> hOptions,
     string simPriceMethod, matrix stockPriceSeries){
     logMessage("starting calculation runBacktest on config "+to_string(config)+
         ", numSim "+to_string(numSim)+", strategy "+strategy+", hedgeFreq "+to_string(hedgeFreq));
@@ -1086,13 +1097,14 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         stratNStockMatrix(n+1,numSim),
         stratModPriceMatrix(n+1,numSim),
         stratModValueMatrix(n+1,numSim),
-        stratNOptionMatrix,
-        stratHModPriceMatrix,
-        stratGrkDelta,
-        stratGrkGamma,
-        stratGrkVega,
-        stratGrkRho,
-        stratGrkTheta;
+        stratGrkDelta(n+1,numSim),
+        stratGrkGamma(n+1,numSim),
+        stratGrkVega(n+1,numSim),
+        stratGrkRho(n+1,numSim),
+        stratGrkTheta(n+1,numSim);
+    vector<matrix>
+        stratNOptions,
+        stratHModPrices;
     matrix simPriceMatrix = stock.getSimPriceMatrix();
     if(strategy=="simple-delta" || strategy=="mkt-delta"){
         if(strategy=="mkt-delta"){
@@ -1147,8 +1159,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         }
         // cout << stratModValueMatrix.print() << endl;
     }else if(strategy=="simple-delta-gamma" || strategy=="mkt-delta-gamma"){
-        stratNOptionMatrix = matrix(n+1,numSim);
-        stratHModPriceMatrix = matrix(n+1,numSim);
+        stratNOptions.push_back(matrix(n+1,numSim));
+        stratHModPrices.push_back(matrix(n+1,numSim));
+        Option hOption = hOptions[0];
         Pricer hPricer(hOption,market);
         double Th = hPricer.getVariable("maturity");
         double O0 = hPricer.calcPrice("Closed Form");
@@ -1174,8 +1187,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(0,i,nStock);
             stratModPriceMatrix.setEntry(0,i,modPrice);
             stratModValueMatrix.setEntry(0,i,value);
-            stratNOptionMatrix.setEntry(0,i,nOption);
-            stratHModPriceMatrix.setEntry(0,i,O0);
+            stratNOptions[0].setEntry(0,i,nOption);
+            stratHModPrices[0].setEntry(0,i,O0);
             for(int t=1; t<n; t++){
                 double S = simPriceMatrix.getEntry(t,i);
                 double nStockPrev = nStock;
@@ -1204,8 +1217,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratNStockMatrix.setEntry(t,i,nStock);
                 stratModPriceMatrix.setEntry(t,i,modPrice);
                 stratModValueMatrix.setEntry(t,i,value);
-                stratNOptionMatrix.setEntry(t,i,nOption);
-                stratHModPriceMatrix.setEntry(t,i,O);
+                stratNOptions[0].setEntry(t,i,nOption);
+                stratHModPrices[0].setEntry(t,i,O);
             }
             double S1 = simPriceMatrix.getEntry(n,i);
             double nStockPrev = nStock;
@@ -1224,25 +1237,27 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(n,i,nStock);
             stratModPriceMatrix.setEntry(n,i,modPrice);
             stratModValueMatrix.setEntry(n,i,value);
-            stratNOptionMatrix.setEntry(n,i,nOption);
-            stratHModPriceMatrix.setEntry(n,i,O1);
+            stratNOptions[0].setEntry(n,i,nOption);
+            stratHModPrices[0].setEntry(n,i,O1);
         }
-    }
+    }else if(strategy=="delta-gamma-theta"){}
     vector<matrix> results{
         simPriceMatrix,
         stratCashMatrix,
         stratNStockMatrix,
         stratModPriceMatrix,
         stratModValueMatrix,
-        stratNOptionMatrix,
-        stratHModPriceMatrix,
         stratGrkDelta,
         stratGrkGamma,
         stratGrkVega,
         stratGrkRho,
         stratGrkTheta
     };
-    Backtest backtest(results);
+    vector<vector<matrix>> hResults{
+        stratNOptions,
+        stratHModPrices
+    };
+    Backtest backtest(results,hResults);
     logMessage("ending calculation runBacktest");
     return backtest;
 }

@@ -29,6 +29,6 @@ int main() {
     /**** strat backtest ******************************************************/
     // pricer.runBacktest(config,50,"simple-delta",1).printToCsvFiles();
     Option hOption = Option("European","Call",100,2);
-    pricer.runBacktest(config,50,"simple-delta-gamma",1,0,hOption).printToCsvFiles();
+    pricer.runBacktest(config,3,"simple-delta-gamma",1,0,{hOption}).printToCsvFiles(true);
     return 0;
 }
