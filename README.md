@@ -14,6 +14,7 @@
 * ok, Black-Scholes PDE solver (calc matrix of price surface)
 * ok, pricer demo examples on a vanilla call (put in demo/)
 * ok, backtest functions in Pricer for option hedging strategies
+* ok, implement DGT-neutral strategy
 * vol surface modeling
 * vol arb research on DGT-neutral strategy
 * stochastic process object (called Process) and simulation

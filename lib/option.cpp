@@ -1140,11 +1140,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             Vega = calcGreek("Vega");
             Rho = calcGreek("Rho");
             Theta = calcGreek("Theta");
-            stratGrkDelta.setEntry(0,i,0);
+            stratGrkDelta.setEntry(0,i,nStock-Delta);
             stratGrkGamma.setEntry(0,i,-Gamma);
             stratGrkVega.setEntry(0,i,-Vega);
             stratGrkRho.setEntry(0,i,-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash-Theta-sig2*S0*S0/2*Gamma);
+            stratGrkTheta.setEntry(0,i,r*cash+q*S0-Theta-sig2*S0*S0/2*Gamma);
             for(int t=1; t<n; t++){
                 double S = simPriceMatrix.getEntry(t,i);
                 double nStockPrev = nStock;
@@ -1170,11 +1170,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 Vega = calcGreek("Vega");
                 Rho = calcGreek("Rho");
                 Theta = calcGreek("Theta");
-                stratGrkDelta.setEntry(t,i,0);
+                stratGrkDelta.setEntry(t,i,nStock-Delta);
                 stratGrkGamma.setEntry(t,i,-Gamma);
                 stratGrkVega.setEntry(t,i,-Vega);
                 stratGrkRho.setEntry(t,i,-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash-Theta-sig2*S*S/2*Gamma);
+                stratGrkTheta.setEntry(t,i,r*cash+q*S-Theta-sig2*S*S/2*Gamma);
             }
             double S1 = simPriceMatrix.getEntry(n,i);
             double nStockPrev = nStock;
@@ -1188,16 +1188,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(n,i,nStock);
             stratModPriceMatrix.setEntry(n,i,modPrice);
             stratModValueMatrix.setEntry(n,i,value);
-            Delta = calcGreek("Delta");
-            Gamma = calcGreek("Gamma");
-            Vega = calcGreek("Vega");
-            Rho = calcGreek("Rho");
-            Theta = calcGreek("Theta");
             stratGrkDelta.setEntry(n,i,0);
-            stratGrkGamma.setEntry(n,i,-Gamma);
-            stratGrkVega.setEntry(n,i,-Vega);
-            stratGrkRho.setEntry(n,i,-Rho);
-            stratGrkTheta.setEntry(n,i,r*cash-Theta-sig2*S1*S1/2*Gamma);
+            stratGrkGamma.setEntry(n,i,0);
+            stratGrkVega.setEntry(n,i,0);
+            stratGrkRho.setEntry(n,i,0);
+            stratGrkTheta.setEntry(n,i,r*cash);
         }
         // cout << stratModValueMatrix.print() << endl;
     }else if(strategy=="simple-delta-gamma" || strategy=="mkt-delta-gamma"){
@@ -1235,11 +1230,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
             Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
             Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
-            stratGrkDelta.setEntry(0,i,0);
-            stratGrkGamma.setEntry(0,i,0);
+            stratGrkDelta.setEntry(0,i,nStock+nOption*hDelta-Delta);
+            stratGrkGamma.setEntry(0,i,nOption*hGamma-Gamma);
             stratGrkVega.setEntry(0,i,nOption*hVega-Vega);
             stratGrkRho.setEntry(0,i,nOption*hRho-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash-Theta+nOption*hTheta);
+            stratGrkTheta.setEntry(0,i,r*cash+q*S0-Theta+nOption*hTheta);
             stratNOptions[0].setEntry(0,i,nOption);
             stratHModPrices[0].setEntry(0,i,O0);
             for(int t=1; t<n; t++){
@@ -1275,11 +1270,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
                 Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
                 Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
-                stratGrkDelta.setEntry(t,i,0);
-                stratGrkGamma.setEntry(t,i,0);
+                stratGrkDelta.setEntry(t,i,nStock+nOption*hDelta-Delta);
+                stratGrkGamma.setEntry(t,i,nOption*hGamma-Gamma);
                 stratGrkVega.setEntry(t,i,nOption*hVega-Vega);
                 stratGrkRho.setEntry(t,i,nOption*hRho-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash-Theta+nOption*hTheta);
+                stratGrkTheta.setEntry(t,i,r*cash+q*S-Theta+nOption*hTheta);
                 stratNOptions[0].setEntry(t,i,nOption);
                 stratHModPrices[0].setEntry(t,i,O);
             }
@@ -1300,20 +1295,159 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNStockMatrix.setEntry(n,i,nStock);
             stratModPriceMatrix.setEntry(n,i,modPrice);
             stratModValueMatrix.setEntry(n,i,value);
-            Delta = calcGreek("Delta"); hDelta = hPricer.calcGreek("Delta");
-            Gamma = calcGreek("Gamma"); hGamma = hPricer.calcGreek("Gamma");
-            Vega = calcGreek("Vega"); hVega = hPricer.calcGreek("Vega");
-            Rho = calcGreek("Rho"); hRho = hPricer.calcGreek("Rho");
-            Theta = calcGreek("Theta"); hTheta = hPricer.calcGreek("Theta");
             stratGrkDelta.setEntry(n,i,0);
             stratGrkGamma.setEntry(n,i,0);
-            stratGrkVega.setEntry(n,i,nOption*hVega-Vega);
-            stratGrkRho.setEntry(n,i,nOption*hRho-Rho);
-            stratGrkTheta.setEntry(n,i,r*cash-Theta+nOption*hTheta);
+            stratGrkVega.setEntry(n,i,0);
+            stratGrkRho.setEntry(n,i,0);
+            stratGrkTheta.setEntry(n,i,r*cash);
             stratNOptions[0].setEntry(n,i,nOption);
             stratHModPrices[0].setEntry(n,i,O1);
         }
-    }else if(strategy=="delta-gamma-theta"){}
+    }else if(strategy=="simple-delta-gamma-theta" || strategy=="mkt-delta-gamma-theta"){
+        double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
+        double hDelta1, hGamma1, hVega1, hRho1, hTheta1;
+        for(int i=0; i<2; i++){
+            stratNOptions.push_back(matrix(n+1,numSim));
+            stratHModPrices.push_back(matrix(n+1,numSim));
+        }
+        Option hOption0 = hOptions[0], hOption1 = hOptions[1];
+        Pricer hPricer0(hOption0,market), hPricer1(hOption1,market);
+        double Th0 = hPricer0.getVariable("maturity");
+        double Th1 = hPricer1.getVariable("maturity");
+        double O00 = hPricer0.calcPrice("Closed Form");
+        double O10 = hPricer1.calcPrice("Closed Form");
+        if(strategy=="mkt-delta-gamma-theta"){
+            sig = calcImpliedVolatility(mktPrice);
+            setVariable("volatility",sig);
+            hPricer0.setVariable("volatility",sig);
+            hPricer1.setVariable("volatility",sig);
+        }
+        for(int i=0; i<numSim; i++){
+            setVariable("currentPrice",S0);
+            setVariable("maturity",T);
+            hPricer0.setVariable("currentPrice",S0);
+            hPricer0.setVariable("maturity",Th0);
+            hPricer1.setVariable("currentPrice",S0);
+            hPricer1.setVariable("maturity",Th1);
+            double modPrice = calcPrice("Closed Form");
+            double tmpM[2][2]
+                = {{hPricer0.calcGreek("Theta"),hPricer1.calcGreek("Theta")},
+                    hPricer0.calcGreek("Gamma"),hPricer1.calcGreek("Gamma")};
+            double tmpV[2] = {calcGreek("Theta"),calcGreek("Gamma")};
+            matrix nOptions = matrix(tmpM).inverse().dot(matrix(tmpV).transpose());
+            double nOption0 = nOptions.getEntry(0,0),
+                   nOption1 = nOptions.getEntry(1,0);
+            double nStock = calcGreek("Delta")
+                -nOption0*hPricer0.calcGreek("Delta")
+                -nOption1*hPricer1.calcGreek("Delta");
+            double cash = modPrice;
+            cash -= nStock*S0+nOption0*O00+nOption1*O10;
+            double value = cash+nStock*S0+nOption0*O00+nOption1*O10-modPrice;
+            stratCashMatrix.setEntry(0,i,cash);
+            stratNStockMatrix.setEntry(0,i,nStock);
+            stratModPriceMatrix.setEntry(0,i,modPrice);
+            stratModValueMatrix.setEntry(0,i,value);
+            Delta = calcGreek("Delta"); hDelta0 = hPricer0.calcGreek("Delta"); hDelta1 = hPricer1.calcGreek("Delta");
+            Gamma = calcGreek("Gamma"); hGamma0 = hPricer0.calcGreek("Gamma"); hGamma1 = hPricer1.calcGreek("Gamma");
+            Vega = calcGreek("Vega"); hVega0 = hPricer0.calcGreek("Vega"); hVega1 = hPricer1.calcGreek("Vega");
+            Rho = calcGreek("Rho"); hRho0 = hPricer0.calcGreek("Rho"); hRho1 = hPricer1.calcGreek("Rho");
+            Theta = calcGreek("Theta"); hTheta0 = hPricer0.calcGreek("Theta"); hTheta1 = hPricer1.calcGreek("Theta");
+            stratGrkDelta.setEntry(0,i,nStock+nOption0*hDelta0+nOption1*hDelta1-Delta);
+            stratGrkGamma.setEntry(0,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
+            stratGrkVega.setEntry(0,i,nOption0*hVega0+nOption1*hVega1-Vega);
+            stratGrkRho.setEntry(0,i,nOption0*hRho0+nOption1*hRho1-Rho);
+            stratGrkTheta.setEntry(0,i,r*cash+q*S0);
+            stratNOptions[0].setEntry(0,i,nOption0);
+            stratNOptions[1].setEntry(0,i,nOption1);
+            stratHModPrices[0].setEntry(0,i,O00);
+            stratHModPrices[1].setEntry(0,i,O10);
+            for(int t=1; t<n; t++){
+                double S = simPriceMatrix.getEntry(t,i);
+                double nStockPrev = nStock;
+                double nOptionPrev0 = nOption0;
+                double nOptionPrev1 = nOption1;
+                setVariable("currentPrice",S);
+                setVariable("maturity",T-t*dt);
+                hPricer0.setVariable("currentPrice",S);
+                hPricer0.setVariable("maturity",Th0-t*dt);
+                hPricer1.setVariable("currentPrice",S);
+                hPricer1.setVariable("maturity",Th1-t*dt);
+                double O0 = hPricer0.calcPrice("Closed Form");
+                double O1 = hPricer1.calcPrice("Closed Form");
+                modPrice = calcPrice("Closed Form");
+                if(t%hedgeFreq==0){
+                    double tmpM[2][2]
+                        = {{hPricer0.calcGreek("Theta"),hPricer1.calcGreek("Theta")},
+                            hPricer0.calcGreek("Gamma"),hPricer1.calcGreek("Gamma")};
+                    double tmpV[2] = {calcGreek("Theta"),calcGreek("Gamma")};
+                    nOptions = matrix(tmpM).inverse().dot(matrix(tmpV).transpose());
+                    nOption0 = nOptions.getEntry(0,0),
+                    nOption1 = nOptions.getEntry(1,0);
+                    nStock = calcGreek("Delta")
+                        -nOption0*hPricer0.calcGreek("Delta")
+                        -nOption1*hPricer1.calcGreek("Delta");
+                    cash = cash*riskFreeRateFactor
+                        +nStock*S*(dividendYieldFactor-1)
+                        -(nStock-nStockPrev)*S
+                        -(nOption0-nOptionPrev0)*O0
+                        -(nOption1-nOptionPrev1)*O1;
+                }else{
+                    cash = cash*riskFreeRateFactor
+                        +nStockPrev*S*(dividendYieldFactor-1);
+                }
+                value = cash+nStock*S+nOption0*O0+nOption1*O1-modPrice;
+                stratCashMatrix.setEntry(t,i,cash);
+                stratNStockMatrix.setEntry(t,i,nStock);
+                stratModPriceMatrix.setEntry(t,i,modPrice);
+                stratModValueMatrix.setEntry(t,i,value);
+                Delta = calcGreek("Delta"); hDelta0 = hPricer0.calcGreek("Delta"); hDelta1 = hPricer1.calcGreek("Delta");
+                Gamma = calcGreek("Gamma"); hGamma0 = hPricer0.calcGreek("Gamma"); hGamma1 = hPricer1.calcGreek("Gamma");
+                Vega = calcGreek("Vega"); hVega0 = hPricer0.calcGreek("Vega"); hVega1 = hPricer1.calcGreek("Vega");
+                Rho = calcGreek("Rho"); hRho0 = hPricer0.calcGreek("Rho"); hRho1 = hPricer1.calcGreek("Rho");
+                Theta = calcGreek("Theta"); hTheta0 = hPricer0.calcGreek("Theta"); hTheta1 = hPricer1.calcGreek("Theta");
+                stratGrkDelta.setEntry(t,i,nStock+nOption0*hDelta0+nOption1*hDelta1-Delta);
+                stratGrkGamma.setEntry(t,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
+                stratGrkVega.setEntry(t,i,nOption0*hVega0+nOption1*hVega1-Vega);
+                stratGrkRho.setEntry(t,i,nOption0*hRho0+nOption1*hRho1-Rho);
+                stratGrkTheta.setEntry(t,i,r*cash+q*S);
+                stratNOptions[0].setEntry(t,i,nOption0);
+                stratNOptions[1].setEntry(t,i,nOption1);
+                stratHModPrices[0].setEntry(t,i,O0);
+                stratHModPrices[1].setEntry(t,i,O1);
+            }
+            double S1 = simPriceMatrix.getEntry(n,i);
+            double nStockPrev = nStock;
+            double nOptionPrev0 = nOption0;
+            double nOptionPrev1 = nOption1;
+            setVariable("currentPrice",S1);
+            setVariable("maturity",0);
+            hPricer0.setVariable("currentPrice",S1);
+            hPricer0.setVariable("maturity",Th0-n*dt);
+            hPricer1.setVariable("currentPrice",S1);
+            hPricer1.setVariable("maturity",Th1-n*dt);
+            double O01 = hPricer0.calcPrice("Closed Form");
+            double O11 = hPricer1.calcPrice("Closed Form");
+            modPrice = option.calcPayoff(S1);
+            nStock = 0;
+            nOption0 = 0;
+            nOption1 = 0;
+            cash = cash*riskFreeRateFactor+nStockPrev*S1+nOptionPrev0*O01+nOptionPrev1*O11;
+            value = cash-modPrice;
+            stratCashMatrix.setEntry(n,i,cash);
+            stratNStockMatrix.setEntry(n,i,nStock);
+            stratModPriceMatrix.setEntry(n,i,modPrice);
+            stratModValueMatrix.setEntry(n,i,value);
+            stratGrkDelta.setEntry(n,i,0);
+            stratGrkGamma.setEntry(n,i,0);
+            stratGrkVega.setEntry(n,i,0);
+            stratGrkRho.setEntry(n,i,0);
+            stratGrkTheta.setEntry(n,i,r*cash);
+            stratNOptions[0].setEntry(n,i,nOption0);
+            stratNOptions[1].setEntry(n,i,nOption1);
+            stratHModPrices[0].setEntry(n,i,O01);
+            stratHModPrices[1].setEntry(n,i,O11);
+        }
+    }
     vector<matrix> results{
         simPriceMatrix,
         stratCashMatrix,

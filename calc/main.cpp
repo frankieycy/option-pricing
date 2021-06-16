@@ -28,7 +28,10 @@ int main() {
     // pricer.generateImpliedVolSurfaceFromFile("option_data.csv","option_vol.csv");
     /**** strat backtest ******************************************************/
     // pricer.runBacktest(config,50,"simple-delta",1).printToCsvFiles();
-    Option hOption = Option("European","Call",100,2);
-    pricer.runBacktest(config,3,"simple-delta-gamma",1,0,{hOption}).printToCsvFiles(true);
+    // Option hOption = Option("European","Call",100,2);
+    // pricer.runBacktest(config,3,"simple-delta-gamma",1,0,{hOption}).printToCsvFiles(true);
+    Option hOption0 = Option("European","Call",110,2);
+    Option hOption1 = Option("European","Call",90,2);
+    pricer.runBacktest(config,3,"simple-delta-gamma-theta",1,0,{hOption0,hOption1}).printToCsvFiles(true);
     return 0;
 }

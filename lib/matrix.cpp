@@ -17,7 +17,7 @@ public:
     matrix(int rows, int cols, double a=0);
     matrix(const vector<double>& v);
     matrix(const vector<vector<double>>& M);
-    template <int _rows> matrix(const double (&v)[_rows]);
+    template <int _cols> matrix(const double (&v)[_cols]);
     template <int _rows, int _cols> matrix(const double (&M)[_rows][_cols]);
     /**** accessors ****/
     bool isEmpty() const;
@@ -129,9 +129,11 @@ matrix::matrix(const vector<vector<double>>& M):rows(M.size()),cols(M[0].size())
     m = M;
 }
 
-template <int _rows>
-matrix::matrix(const double (&v)[_rows]):rows(1),cols(_rows){
-    m.push_back(vector<double>(v));
+template <int _cols>
+matrix::matrix(const double (&v)[_cols]):rows(1),cols(_cols){
+    vector<double> vec;
+    for(int col=0; col<cols; col++) vec.push_back(v[col]);
+    m.push_back(vec);
 }
 
 // template <int _rows>
@@ -142,9 +144,9 @@ matrix::matrix(const double (&v)[_rows]):rows(1),cols(_rows){
 template <int _rows, int _cols>
 matrix::matrix(const double (&M)[_rows][_cols]):rows(_rows),cols(_cols){
     for(int row=0; row<rows; row++){
-        vector<double> v;
-        for(int col=0; col<cols; col++) v.push_back(M[row][col]);
-        m.push_back(v);
+        vector<double> vec;
+        for(int col=0; col<cols; col++) vec.push_back(M[row][col]);
+        m.push_back(vec);
     }
 }
 
