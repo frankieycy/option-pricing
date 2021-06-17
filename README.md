@@ -4,7 +4,8 @@
 * an object-oriented option pricing library that
     1. supports efficient valuation of vanilla & exotic contracts and Greeks calculation via binomial tree, numerical integration, PDE schemes and Monte Carlo simulation, accommodating various stock price and interest rate stochastic processes
     1. streamlines market data to compute and construct implied vol surface with live tabulation as well as visualize Greeks vs strike price curves on an interactive Python dashboard using Dash and Plotly package
-    1. offers backtest engines for realistic simulation of dynamic delta/gamma/theta-neutral option hedging strategies riding on market-calibrated underlying price dynamics and modellable vol surface accounting for transaction cost
+    1. offers backtest engines for realistic simulation of dynamic delta/gamma/theta-neutral option hedging strategies riding on market-calibrated underlying price dynamics and modellable/interpolated vol surface accounting for transaction cost
+    1. provides access to live market quotes by wrappers around broker API to identify opportunities with proprietary vol arbitrage-based trading signals on at-the-money options to speculate on vol surface curvature by a dynamic net-vega position
 
 ## To-do List
 
