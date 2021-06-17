@@ -195,7 +195,8 @@ public:
         const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
         double lambdaT, double eps=1e-5);
     Backtest runBacktest(const SimConfig& config, int numSim=1,
-        string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0, vector<Option> hOptions={},
+        string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0,
+        vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
         string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
@@ -780,7 +781,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
             double b = 1+r*dt+sig2*dt/dx2;
             double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
             matrix D(m-1,m-1);
-            D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
+            D.setDiags({a,b,c},{-1,0,1});
             D = D.inverse();
             for(int i=n-1; i>=0; i--){
                 double u0 = a*priceMatrix.getEntry(i,0);
@@ -795,7 +796,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
             double b = 1-r*dt-sig2*dt/dx2;
             double c = +(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
             matrix D(m-1,m-1);
-            D.setDiags(vector<double>{a,b,c},vector<int>{-1,0,1});
+            D.setDiags({a,b,c},{-1,0,1});
             for(int i=n-1; i>=0; i--){
                 double u0 = a*priceMatrix.getEntry(i+1,0);
                 double u1 = c*priceMatrix.getEntry(i+1,m);
@@ -1129,26 +1130,26 @@ vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSp
         for(int i=1; i<n; i++)
             for(int j=1; j<m; j++){
                 double avg =
-                   ((impVolSurfacePrev.getEntry(i-1,j)+
-                     impVolSurfacePrev.getEntry(i+1,j))/dt2+
-                    (impVolSurfacePrev.getEntry(i,j-1)+
-                     impVolSurfacePrev.getEntry(i,j+1))/dx2)
-                    /(2/dt2+2/dx2);
+                    (impVolSurfacePrev.getEntry(i-1,j)+
+                     impVolSurfacePrev.getEntry(i+1,j)+
+                     impVolSurfacePrev.getEntry(i,j-1)+
+                     impVolSurfacePrev.getEntry(i,j+1))/4;
                 impVolSurface.setEntry(i,j,avg);
             }
         err = (impVolSurface-impVolSurfacePrev).sum()/impVolSurfacePrev.sum();
     }
     // cout << impVolSurface.print() << endl;
-    vector<matrix> results{
-        timeGrids,
+    vector<matrix> impVolSurfaceSet{
         spaceGrids,
+        timeGrids,
         impVolSurface
     };
-    return results;
+    return impVolSurfaceSet;
 }
 
 Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
-    string strategy, int hedgeFreq, double mktPrice, vector<Option> hOptions,
+    string strategy, int hedgeFreq, double mktPrice,
+    vector<Option> hOptions, vector<matrix> impVolSurfaceSet,
     string simPriceMethod, matrix stockPriceSeries){
     logMessage("starting calculation runBacktest on config "+to_string(config)+
         ", numSim "+to_string(numSim)+", strategy "+strategy+", hedgeFreq "+to_string(hedgeFreq));
@@ -1164,6 +1165,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     double riskFreeRateFactor = exp(r*dt);
     double dividendYieldFactor = exp(q*dt);
     double Delta, Gamma, Vega, Rho, Theta;
+    bool flatImpVolSurface = impVolSurfaceSet.size()==0;
     if(simPriceMethod=="bootstrap")
         stock.bootstrapPrice(stockPriceSeries,config,numSim);
     else stock.simulatePrice(config,numSim);
@@ -1489,6 +1491,174 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer0.setVariable("maturity",Th0-n*dt);
             hPricer1.setVariable("currentPrice",S1);
             hPricer1.setVariable("maturity",Th1-n*dt);
+            double O01 = hPricer0.calcPrice("Closed Form");
+            double O11 = hPricer1.calcPrice("Closed Form");
+            modPrice = option.calcPayoff(S1);
+            nStock = 0;
+            nOption0 = 0;
+            nOption1 = 0;
+            cash = cash*riskFreeRateFactor+nStockPrev*S1+nOptionPrev0*O01+nOptionPrev1*O11;
+            value = cash-modPrice;
+            stratCashMatrix.setEntry(n,i,cash);
+            stratNStockMatrix.setEntry(n,i,nStock);
+            stratModPriceMatrix.setEntry(n,i,modPrice);
+            stratModValueMatrix.setEntry(n,i,value);
+            stratGrkDelta.setEntry(n,i,0);
+            stratGrkGamma.setEntry(n,i,0);
+            stratGrkVega.setEntry(n,i,0);
+            stratGrkRho.setEntry(n,i,0);
+            stratGrkTheta.setEntry(n,i,r*cash);
+            stratNOptions[0].setEntry(n,i,nOption0);
+            stratNOptions[1].setEntry(n,i,nOption1);
+            stratHModPrices[0].setEntry(n,i,O01);
+            stratHModPrices[1].setEntry(n,i,O11);
+        }
+    }else if(strategy=="vol-delta-gamma-theta"){
+        double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
+        double hDelta1, hGamma1, hVega1, hRho1, hTheta1;
+        for(int i=0; i<2; i++){
+            stratNOptions.push_back(matrix(n+1,numSim));
+            stratHModPrices.push_back(matrix(n+1,numSim));
+        }
+        Option hOption0 = hOptions[0], hOption1 = hOptions[1];
+        Pricer hPricer0(hOption0,market), hPricer1(hOption1,market);
+        double Th0 = hPricer0.getVariable("maturity");
+        double Th1 = hPricer1.getVariable("maturity");
+        double O00 = hPricer0.calcPrice("Closed Form");
+        double O10 = hPricer1.calcPrice("Closed Form");
+        int idxK, idxK0, idxK1, idxT, idxT0, idxT1;
+        if(!flatImpVolSurface){
+            idxK = (log(getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
+            idxK0 = (log(hPricer0.getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
+            idxK1 = (log(hPricer1.getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
+        }
+        for(int i=0; i<numSim; i++){
+            setVariable("currentPrice",S0);
+            setVariable("maturity",T);
+            hPricer0.setVariable("currentPrice",S0);
+            hPricer0.setVariable("maturity",Th0);
+            hPricer1.setVariable("currentPrice",S0);
+            hPricer1.setVariable("maturity",Th1);
+            if(!flatImpVolSurface){
+                idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
+                hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
+                hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
+            }
+            double modPrice = calcPrice("Closed Form");
+            double tmpM[2][2]
+                = {{hPricer0.calcGreek("Theta"),hPricer1.calcGreek("Theta")},
+                    hPricer0.calcGreek("Gamma"),hPricer1.calcGreek("Gamma")};
+            double tmpV[2] = {calcGreek("Theta"),calcGreek("Gamma")};
+            matrix nOptions = matrix(tmpM).inverse().dot(matrix(tmpV).transpose());
+            double nOption0 = nOptions.getEntry(0,0),
+                   nOption1 = nOptions.getEntry(1,0);
+            double nStock = calcGreek("Delta")
+                -nOption0*hPricer0.calcGreek("Delta")
+                -nOption1*hPricer1.calcGreek("Delta");
+            double cash = modPrice;
+            cash -= nStock*S0+nOption0*O00+nOption1*O10;
+            double value = cash+nStock*S0+nOption0*O00+nOption1*O10-modPrice;
+            stratCashMatrix.setEntry(0,i,cash);
+            stratNStockMatrix.setEntry(0,i,nStock);
+            stratModPriceMatrix.setEntry(0,i,modPrice);
+            stratModValueMatrix.setEntry(0,i,value);
+            Delta = calcGreek("Delta"); hDelta0 = hPricer0.calcGreek("Delta"); hDelta1 = hPricer1.calcGreek("Delta");
+            Gamma = calcGreek("Gamma"); hGamma0 = hPricer0.calcGreek("Gamma"); hGamma1 = hPricer1.calcGreek("Gamma");
+            Vega = calcGreek("Vega"); hVega0 = hPricer0.calcGreek("Vega"); hVega1 = hPricer1.calcGreek("Vega");
+            Rho = calcGreek("Rho"); hRho0 = hPricer0.calcGreek("Rho"); hRho1 = hPricer1.calcGreek("Rho");
+            Theta = calcGreek("Theta"); hTheta0 = hPricer0.calcGreek("Theta"); hTheta1 = hPricer1.calcGreek("Theta");
+            stratGrkDelta.setEntry(0,i,nStock+nOption0*hDelta0+nOption1*hDelta1-Delta);
+            stratGrkGamma.setEntry(0,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
+            stratGrkVega.setEntry(0,i,nOption0*hVega0+nOption1*hVega1-Vega);
+            stratGrkRho.setEntry(0,i,nOption0*hRho0+nOption1*hRho1-Rho);
+            stratGrkTheta.setEntry(0,i,r*cash+q*S0);
+            stratNOptions[0].setEntry(0,i,nOption0);
+            stratNOptions[1].setEntry(0,i,nOption1);
+            stratHModPrices[0].setEntry(0,i,O00);
+            stratHModPrices[1].setEntry(0,i,O10);
+            for(int t=1; t<n; t++){
+                double S = simPriceMatrix.getEntry(t,i);
+                double nStockPrev = nStock;
+                double nOptionPrev0 = nOption0;
+                double nOptionPrev1 = nOption1;
+                setVariable("currentPrice",S);
+                setVariable("maturity",T-t*dt);
+                hPricer0.setVariable("currentPrice",S);
+                hPricer0.setVariable("maturity",Th0-t*dt);
+                hPricer1.setVariable("currentPrice",S);
+                hPricer1.setVariable("maturity",Th1-t*dt);
+                if(!flatImpVolSurface){
+                    idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                    idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                    idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                    setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
+                    hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
+                    hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
+                }
+                double O0 = hPricer0.calcPrice("Closed Form");
+                double O1 = hPricer1.calcPrice("Closed Form");
+                modPrice = calcPrice("Closed Form");
+                if(t%hedgeFreq==0){
+                    double tmpM[2][2]
+                        = {{hPricer0.calcGreek("Theta"),hPricer1.calcGreek("Theta")},
+                            hPricer0.calcGreek("Gamma"),hPricer1.calcGreek("Gamma")};
+                    double tmpV[2] = {calcGreek("Theta"),calcGreek("Gamma")};
+                    nOptions = matrix(tmpM).inverse().dot(matrix(tmpV).transpose());
+                    nOption0 = nOptions.getEntry(0,0),
+                    nOption1 = nOptions.getEntry(1,0);
+                    nStock = calcGreek("Delta")
+                        -nOption0*hPricer0.calcGreek("Delta")
+                        -nOption1*hPricer1.calcGreek("Delta");
+                    cash = cash*riskFreeRateFactor
+                        +nStock*S*(dividendYieldFactor-1)
+                        -(nStock-nStockPrev)*S
+                        -(nOption0-nOptionPrev0)*O0
+                        -(nOption1-nOptionPrev1)*O1;
+                }else{
+                    cash = cash*riskFreeRateFactor
+                        +nStockPrev*S*(dividendYieldFactor-1);
+                }
+                value = cash+nStock*S+nOption0*O0+nOption1*O1-modPrice;
+                stratCashMatrix.setEntry(t,i,cash);
+                stratNStockMatrix.setEntry(t,i,nStock);
+                stratModPriceMatrix.setEntry(t,i,modPrice);
+                stratModValueMatrix.setEntry(t,i,value);
+                Delta = calcGreek("Delta"); hDelta0 = hPricer0.calcGreek("Delta"); hDelta1 = hPricer1.calcGreek("Delta");
+                Gamma = calcGreek("Gamma"); hGamma0 = hPricer0.calcGreek("Gamma"); hGamma1 = hPricer1.calcGreek("Gamma");
+                Vega = calcGreek("Vega"); hVega0 = hPricer0.calcGreek("Vega"); hVega1 = hPricer1.calcGreek("Vega");
+                Rho = calcGreek("Rho"); hRho0 = hPricer0.calcGreek("Rho"); hRho1 = hPricer1.calcGreek("Rho");
+                Theta = calcGreek("Theta"); hTheta0 = hPricer0.calcGreek("Theta"); hTheta1 = hPricer1.calcGreek("Theta");
+                stratGrkDelta.setEntry(t,i,nStock+nOption0*hDelta0+nOption1*hDelta1-Delta);
+                stratGrkGamma.setEntry(t,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
+                stratGrkVega.setEntry(t,i,nOption0*hVega0+nOption1*hVega1-Vega);
+                stratGrkRho.setEntry(t,i,nOption0*hRho0+nOption1*hRho1-Rho);
+                stratGrkTheta.setEntry(t,i,r*cash+q*S);
+                stratNOptions[0].setEntry(t,i,nOption0);
+                stratNOptions[1].setEntry(t,i,nOption1);
+                stratHModPrices[0].setEntry(t,i,O0);
+                stratHModPrices[1].setEntry(t,i,O1);
+            }
+            double S1 = simPriceMatrix.getEntry(n,i);
+            double nStockPrev = nStock;
+            double nOptionPrev0 = nOption0;
+            double nOptionPrev1 = nOption1;
+            setVariable("currentPrice",S1);
+            setVariable("maturity",0);
+            hPricer0.setVariable("currentPrice",S1);
+            hPricer0.setVariable("maturity",Th0-n*dt);
+            hPricer1.setVariable("currentPrice",S1);
+            hPricer1.setVariable("maturity",Th1-n*dt);
+            if(!flatImpVolSurface){
+                idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
+                hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
+                hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
+            }
             double O01 = hPricer0.calcPrice("Closed Form");
             double O11 = hPricer1.calcPrice("Closed Form");
             modPrice = option.calcPayoff(S1);
