@@ -191,6 +191,9 @@ public:
     double calcImpliedVolatility(double optionMarketPrice, double vol0=5, double eps=1e-5);
     void generateImpliedVolSurfaceFromFile(string input, string file, double vol0=5, double eps=1e-5);
     void generateGreeksFromImpliedVolFile(string input, string file);
+    vector<matrix> modelImpliedVolSurface(const SimConfig& config, int numSpace,
+        const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
+        double lambdaT, double eps=1e-5);
     Backtest runBacktest(const SimConfig& config, int numSim=1,
         string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0, vector<Option> hOptions={},
         string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
@@ -1081,6 +1084,67 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
     fi.close();
     fo.close();
     resetOriginal();
+}
+
+vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSpace,
+    const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
+    double lambdaT, double eps){
+    double K = getVariable("strike");
+    double T = config.endTime;
+    int n = config.iters;
+    int m = numSpace;
+    double dt = config.stepSize;
+    double dt2 = dt*dt;
+    double x0 = log(K/3), x1 = log(3*K);
+    double dx = (x1-x0)/m;
+    double dx2 = dx*dx;
+    matrix impVolSurface(n+1,m+1);
+    matrix timeGrids; timeGrids.setRange(0,T,n,true);
+    matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
+    matrix initCondition, termCondition, bdryCondition0, bdryCondition1;
+    double sig0, sig1, expFactor = exp(-T/lambdaT);
+    initCondition = spaceGrids.apply(impVolFunc0);
+    termCondition = spaceGrids.apply(impVolFunc1);
+    sig0 = initCondition.getFirstEntry();
+    sig1 = termCondition.getFirstEntry();
+    bdryCondition0 = timeGrids.apply([sig0,sig1,expFactor,lambdaT](double x){
+        return mathFunc(x,"exponential",{
+            (sig1-sig0*expFactor)/(1-expFactor),(sig0-sig1)/(1-expFactor),lambdaT
+        });
+    });
+    sig0 = initCondition.getLastEntry();
+    sig1 = termCondition.getLastEntry();
+    bdryCondition1 = timeGrids.apply([sig0,sig1,expFactor,lambdaT](double x){
+        return mathFunc(x,"exponential",{
+            (sig1-sig0*expFactor)/(1-expFactor),(sig0-sig1)/(1-expFactor),lambdaT
+        });
+    });
+    impVolSurface.setRow(0,initCondition);
+    impVolSurface.setRow(n,termCondition);
+    impVolSurface.setCol(0,bdryCondition0);
+    impVolSurface.setCol(m,bdryCondition1);
+    double err = 1;
+    while(err>eps){
+        matrix impVolSurfacePrev = impVolSurface;
+        for(int i=1; i<n; i++)
+            for(int j=1; j<m; j++){
+                double avg =
+                   ((impVolSurfacePrev.getEntry(i-1,j)+
+                     impVolSurfacePrev.getEntry(i+1,j))/dt2+
+                    (impVolSurfacePrev.getEntry(i,j-1)+
+                     impVolSurfacePrev.getEntry(i,j+1))/dx2)
+                    /(2/dt2+2/dx2);
+                impVolSurface.setEntry(i,j,avg);
+            }
+        err = (impVolSurface-impVolSurfacePrev).sum()/impVolSurfacePrev.sum();
+    }
+    // cout << impVolSurface.print() << endl;
+    vector<matrix> results{
+        timeGrids,
+        spaceGrids,
+        impVolSurface
+    };
+    return results;
 }
 
 Backtest Pricer::runBacktest(const SimConfig& config, int numSim,

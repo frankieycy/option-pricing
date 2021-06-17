@@ -25,6 +25,29 @@ double lognormalPDF(double x, double mu=0, double sig=1){
     return exp(-(log_x-mu)*(log_x-mu)/(2*sig*sig))/(sqrt(2*M_PI)*sig*x);
 }
 
+double mathFunc(double x, string type, vector<double> vec){
+    double fx = NAN;
+    if(type=="const"){
+        double a = vec[0];
+        fx = a;
+    }else if(type=="linear"){
+        double a = vec[0],
+               b = vec[1];
+        fx = a+b*x;
+    }else if(type=="quadratic"){
+        double a = vec[0],
+               b = vec[1],
+               c = vec[2];
+        fx = a+b*x+c*x*x;
+    }else if(type=="exponential"){
+        double a = vec[0],
+               b = vec[1],
+               c = vec[2];
+        fx = a+b*exp(-x/c);
+    }
+    return fx;
+}
+
 template <class T>
 ostream& operator<<(ostream& out, const vector<T>& vec){
     // print elements of a vector

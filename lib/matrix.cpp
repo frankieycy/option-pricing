@@ -74,6 +74,7 @@ public:
     matrix transpose() const;
     matrix dot(const matrix& M) const;
     matrix apply(double (*f)(double)) const;
+    matrix apply(const function<double(double)>& f) const;
     matrix sample(int n, bool replace=true) const;
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const matrix& M);
@@ -508,6 +509,14 @@ matrix matrix::dot(const matrix& M) const {
 }
 
 matrix matrix::apply(double (*f)(double)) const {
+    matrix A(rows,cols);
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            A.m[row][col] = f(m[row][col]);
+    return A;
+}
+
+matrix matrix::apply(const function<double(double)>& f) const {
     matrix A(rows,cols);
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
