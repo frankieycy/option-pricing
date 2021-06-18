@@ -1090,6 +1090,8 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
 
 vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSpace,
     const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
+    logMessage("starting calculation modelImpliedVolSurface on config "+to_string(config)+
+        ", numSpace "+to_string(numSpace));
     double lambdaT, double eps){
     double K = getVariable("strike");
     double T = config.endTime;
@@ -1145,6 +1147,7 @@ vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSp
         timeGrids,
         impVolSurface
     };
+    logMessage("ending calculation modelImpliedVolSurface");
     return impVolSurfaceSet;
 }
 
@@ -1211,7 +1214,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkGamma.setEntry(0,i,-Gamma);
             stratGrkVega.setEntry(0,i,-Vega);
             stratGrkRho.setEntry(0,i,-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash+q*S0-Theta-sig2*S0*S0/2*Gamma);
+            stratGrkTheta.setEntry(0,i,r*cash+q*nStock*S0-Theta-sig2*S0*S0/2*Gamma);
             for(int t=1; t<n; t++){
                 double S = simPriceMatrix.getEntry(t,i);
                 double nStockPrev = nStock;
@@ -1241,7 +1244,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratGrkGamma.setEntry(t,i,-Gamma);
                 stratGrkVega.setEntry(t,i,-Vega);
                 stratGrkRho.setEntry(t,i,-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash+q*S-Theta-sig2*S*S/2*Gamma);
+                stratGrkTheta.setEntry(t,i,r*cash+q*nStock*S-Theta-sig2*S*S/2*Gamma);
             }
             double S1 = simPriceMatrix.getEntry(n,i);
             double nStockPrev = nStock;
@@ -1301,7 +1304,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkGamma.setEntry(0,i,nOption*hGamma-Gamma);
             stratGrkVega.setEntry(0,i,nOption*hVega-Vega);
             stratGrkRho.setEntry(0,i,nOption*hRho-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash+q*S0-Theta+nOption*hTheta);
+            stratGrkTheta.setEntry(0,i,r*cash+q*nStock*S0+nOption*hTheta-Theta);
             stratNOptions[0].setEntry(0,i,nOption);
             stratHModPrices[0].setEntry(0,i,O0);
             for(int t=1; t<n; t++){
@@ -1341,7 +1344,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratGrkGamma.setEntry(t,i,nOption*hGamma-Gamma);
                 stratGrkVega.setEntry(t,i,nOption*hVega-Vega);
                 stratGrkRho.setEntry(t,i,nOption*hRho-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash+q*S-Theta+nOption*hTheta);
+                stratGrkTheta.setEntry(t,i,r*cash+q*nStock*S+nOption*hTheta-Theta);
                 stratNOptions[0].setEntry(t,i,nOption);
                 stratHModPrices[0].setEntry(t,i,O);
             }
@@ -1423,7 +1426,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkGamma.setEntry(0,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
             stratGrkVega.setEntry(0,i,nOption0*hVega0+nOption1*hVega1-Vega);
             stratGrkRho.setEntry(0,i,nOption0*hRho0+nOption1*hRho1-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash+q*S0);
+            stratGrkTheta.setEntry(0,i,r*cash+q*nStock*S0);
             stratNOptions[0].setEntry(0,i,nOption0);
             stratNOptions[1].setEntry(0,i,nOption1);
             stratHModPrices[0].setEntry(0,i,O00);
@@ -1476,7 +1479,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratGrkGamma.setEntry(t,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
                 stratGrkVega.setEntry(t,i,nOption0*hVega0+nOption1*hVega1-Vega);
                 stratGrkRho.setEntry(t,i,nOption0*hRho0+nOption1*hRho1-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash+q*S);
+                stratGrkTheta.setEntry(t,i,r*cash+q*nStock*S);
                 stratNOptions[0].setEntry(t,i,nOption0);
                 stratNOptions[1].setEntry(t,i,nOption1);
                 stratHModPrices[0].setEntry(t,i,O0);
@@ -1575,7 +1578,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkGamma.setEntry(0,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
             stratGrkVega.setEntry(0,i,nOption0*hVega0+nOption1*hVega1-Vega);
             stratGrkRho.setEntry(0,i,nOption0*hRho0+nOption1*hRho1-Rho);
-            stratGrkTheta.setEntry(0,i,r*cash+q*S0);
+            stratGrkTheta.setEntry(0,i,r*cash+q*nStock*S0);
             stratNOptions[0].setEntry(0,i,nOption0);
             stratNOptions[1].setEntry(0,i,nOption1);
             stratHModPrices[0].setEntry(0,i,O00);
@@ -1636,7 +1639,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 stratGrkGamma.setEntry(t,i,nOption0*hGamma0+nOption1*hGamma1-Gamma);
                 stratGrkVega.setEntry(t,i,nOption0*hVega0+nOption1*hVega1-Vega);
                 stratGrkRho.setEntry(t,i,nOption0*hRho0+nOption1*hRho1-Rho);
-                stratGrkTheta.setEntry(t,i,r*cash+q*S);
+                stratGrkTheta.setEntry(t,i,r*cash+q*nStock*S);
                 stratNOptions[0].setEntry(t,i,nOption0);
                 stratNOptions[1].setEntry(t,i,nOption1);
                 stratHModPrices[0].setEntry(t,i,O0);
