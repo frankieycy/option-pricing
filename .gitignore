@@ -2,6 +2,7 @@
 main
 *.dSYM
 *.xlsx
+ref*
 exe*
 data*
 plot*

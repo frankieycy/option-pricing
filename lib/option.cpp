@@ -194,6 +194,7 @@ public:
     vector<matrix> modelImpliedVolSurface(const SimConfig& config, int numSpace,
         const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
         double lambdaT, double eps=1e-5);
+    vector<matrix> modelImpliedVolSurfaceFromFile(string input, const SimConfig& config, int numSpace); // TO DO
     Backtest runBacktest(const SimConfig& config, int numSim=1,
         string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0,
         vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
