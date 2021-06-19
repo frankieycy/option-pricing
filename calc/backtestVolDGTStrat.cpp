@@ -13,7 +13,7 @@ int main(){
     auto impVolFunc0 = [](double x){return mathFunc(x,"exponential",{0.03,5.65,1});}; // 20% --- 5%
     auto impVolFunc1 = [](double x){return mathFunc(x,"const",{0.1});}; // 10% --- 10%
     vector<matrix> impVolSurfaceSet = pricer.modelImpliedVolSurface(SimConfig(2,100),20,impVolFunc0,impVolFunc1,1,1e-3);
-    Backtest backtest = pricer.runBacktest(config,50,"vol-delta-gamma-theta",1,0,{hOption0,hOption1},impVolSurfaceSet);
+    Backtest backtest = pricer.runBacktest(config,50,"vol-delta-gamma-theta",1,0,0,{hOption0,hOption1},impVolSurfaceSet);
     impVolSurfaceSet[0].printToCsvFile("vol_gridX.csv");
     impVolSurfaceSet[1].printToCsvFile("vol_gridT.csv");
     impVolSurfaceSet[2].printToCsvFile("vol_surface.csv");

@@ -4,7 +4,7 @@
 #include "matrix.cpp"
 using namespace std;
 
-#define GUI false
+#define GUI true
 #define LOG false
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
@@ -196,7 +196,7 @@ public:
         double lambdaT, double eps=1e-5);
     vector<matrix> modelImpliedVolSurfaceFromFile(string input, const SimConfig& config, int numSpace); // TO DO
     Backtest runBacktest(const SimConfig& config, int numSim=1,
-        string strategy="simple-delta", int hedgeFreq=1, double mktPrice=0,
+        string strategy="simple-delta", int hedgeFreq=1, double mktImpVol=0, double mktPrice=0,
         vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
         string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
     /**** operators ****/
@@ -723,7 +723,7 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
         price = exp(-r*T)*payoffs.mean();
         err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
     }
-    logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with errror "+to_string(err));
+    logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
     return price;
 }
 
@@ -746,7 +746,8 @@ double Pricer::NumIntegrationPricer(double z, double dz){
 }
 
 double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, string method){
-    logMessage("starting calculation BlackScholesPDESolver on config "+to_string(config)+", numSpace "+to_string(numSpace));
+    logMessage("starting calculation BlackScholesPDESolver on config "+to_string(config)+
+        ", numSpace "+to_string(numSpace)+", method "+method);
     Stock stock = market.getStock();
     double K = getVariable("strike");
     double T = getVariable("maturity");
@@ -817,21 +818,15 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
 }
 
 double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int numSpace){
-    if(GUI) cout << "calculating option price with " << method << " pricer";
     if(method=="Closed Form"){
-        if(GUI) cout << endl;
         price = BlackScholesClosedForm();
     }else if(method=="Binomial Tree"){
-        if(GUI) cout << " on config " << config << endl;
         price = BinomialTreePricer(config);
     }else if(method=="Monte Carlo"){
-        if(GUI) cout << " on config " << config << ", numSim " << numSim << endl;
         price = MonteCarloPricer(config,numSim);
     }else if(method=="Num Integration"){
-        if(GUI) cout << endl;
         price = NumIntegrationPricer();
     }else if(method=="PDE Solver"){
-        if(GUI) cout << " on config " << config << ", numSpace " << numSpace << endl;
         price = BlackScholesPDESolver(config,numSpace);
     }
     return price;
@@ -924,7 +919,6 @@ double Pricer::FiniteDifferenceGreek(string var, int derivOrder, string method,
 
 double Pricer::calcGreek(string greekName, string greekMethod, string method,
     const SimConfig& config, int numSim, double eps){
-    if(GUI) cout << "calculating option " << greekName << " with " << method << " calculator" << endl;
     double greek = NAN;
     string var; int derivOrder;
     if(greekName=="Delta"){
@@ -968,7 +962,6 @@ matrix Pricer::varyGreekWithVariable(string var, matrix varVector, string greekN
 
 matrix Pricer::generatePriceSurface(matrix stockPriceVector, matrix optionTermVector,
     string method, const SimConfig& config, int numSim){
-    if(GUI) cout << "generating option price surface with " << method << " pricer" << endl;
     saveAsOriginal();
     int m = optionTermVector.getCols();
     int n = stockPriceVector.getCols();
@@ -1002,7 +995,6 @@ bool Pricer::satisfyPriceBounds(double optionMarketPrice){
 }
 
 double Pricer::calcImpliedVolatility(double optionMarketPrice, double vol0, double eps){
-    if(GUI) cout << "calculating option implied vol on optionMarketPrice " << optionMarketPrice << endl;
     saveAsOriginal();
     double impliedVol = NAN;
     double impliedVol0, impliedVol1;
@@ -1090,8 +1082,6 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
 
 vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSpace,
     const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
-    logMessage("starting calculation modelImpliedVolSurface on config "+to_string(config)+
-        ", numSpace "+to_string(numSpace));
     double lambdaT, double eps){
     double K = getVariable("strike");
     double T = config.endTime;
@@ -1147,16 +1137,14 @@ vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSp
         timeGrids,
         impVolSurface
     };
-    logMessage("ending calculation modelImpliedVolSurface");
     return impVolSurfaceSet;
 }
 
 Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
-    string strategy, int hedgeFreq, double mktPrice,
+    string strategy, int hedgeFreq, double mktImpVol, double mktPrice,
     vector<Option> hOptions, vector<matrix> impVolSurfaceSet,
     string simPriceMethod, matrix stockPriceSeries){
-    logMessage("starting calculation runBacktest on config "+to_string(config)+
-        ", numSim "+to_string(numSim)+", strategy "+strategy+", hedgeFreq "+to_string(hedgeFreq));
+    if(GUI) cout << "running backtest for strategy: " << strategy << endl;
     Stock stock = market.getStock();
     double K = getVariable("strike");
     double T = getVariable("maturity");
@@ -1190,8 +1178,10 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     matrix simPriceMatrix = stock.getSimPriceMatrix();
     if(strategy=="simple-delta" || strategy=="mkt-delta"){
         if(strategy=="mkt-delta"){
-            sig = calcImpliedVolatility(mktPrice);
-            setVariable("volatility",sig);
+            double sigImp;
+            if(mktImpVol>0) sigImp = mktImpVol;
+            else sigImp = calcImpliedVolatility(mktPrice);
+            setVariable("volatility",sigImp);
         }
         for(int i=0; i<numSim; i++){
             setVariable("currentPrice",S0);
@@ -1263,6 +1253,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkVega.setEntry(n,i,0);
             stratGrkRho.setEntry(n,i,0);
             stratGrkTheta.setEntry(n,i,r*cash);
+            if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
+                i+1 << "/" << numSim << " completes" << endl;
         }
         // cout << stratModValueMatrix.print() << endl;
     }else if(strategy=="simple-delta-gamma" || strategy=="mkt-delta-gamma"){
@@ -1274,9 +1266,11 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         double Th = hPricer.getVariable("maturity");
         double O0 = hPricer.calcPrice("Closed Form");
         if(strategy=="mkt-delta-gamma"){
-            sig = calcImpliedVolatility(mktPrice);
-            setVariable("volatility",sig);
-            hPricer.setVariable("volatility",sig);
+            double sigImp;
+            if(mktImpVol>0) sigImp = mktImpVol;
+            else sigImp = calcImpliedVolatility(mktPrice);
+            setVariable("volatility",sigImp);
+            hPricer.setVariable("volatility",sigImp);
         }
         for(int i=0; i<numSim; i++){
             setVariable("currentPrice",S0);
@@ -1372,6 +1366,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratGrkTheta.setEntry(n,i,r*cash);
             stratNOptions[0].setEntry(n,i,nOption);
             stratHModPrices[0].setEntry(n,i,O1);
+            if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
+                i+1 << "/" << numSim << " completes";
         }
     }else if(strategy=="simple-delta-gamma-theta" || strategy=="mkt-delta-gamma-theta"){
         double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
@@ -1387,10 +1383,12 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         double O00 = hPricer0.calcPrice("Closed Form");
         double O10 = hPricer1.calcPrice("Closed Form");
         if(strategy=="mkt-delta-gamma-theta"){
-            sig = calcImpliedVolatility(mktPrice);
-            setVariable("volatility",sig);
-            hPricer0.setVariable("volatility",sig);
-            hPricer1.setVariable("volatility",sig);
+            double sigImp;
+            if(mktImpVol>0) sigImp = mktImpVol;
+            else sigImp = calcImpliedVolatility(mktPrice);
+            setVariable("volatility",sigImp);
+            hPricer0.setVariable("volatility",sigImp);
+            hPricer1.setVariable("volatility",sigImp);
         }
         for(int i=0; i<numSim; i++){
             setVariable("currentPrice",S0);
@@ -1516,6 +1514,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNOptions[1].setEntry(n,i,nOption1);
             stratHModPrices[0].setEntry(n,i,O01);
             stratHModPrices[1].setEntry(n,i,O11);
+            if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
+                i+1 << "/" << numSim << " completes";
         }
     }else if(strategy=="vol-delta-gamma-theta"){
         double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
@@ -1684,6 +1684,8 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNOptions[1].setEntry(n,i,nOption1);
             stratHModPrices[0].setEntry(n,i,O01);
             stratHModPrices[1].setEntry(n,i,O11);
+            if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
+                i+1 << "/" << numSim << " completes";
         }
     }
     vector<matrix> results{
@@ -1703,7 +1705,6 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         stratHModPrices
     };
     Backtest backtest(results,hResults);
-    logMessage("ending calculation runBacktest");
     return backtest;
 }
 
