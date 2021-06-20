@@ -197,7 +197,7 @@ public:
     vector<matrix> modelImpliedVolSurfaceFromFile(string input, const SimConfig& config, int numSpace); // TO DO
     Backtest runBacktest(const SimConfig& config, int numSim=1,
         string strategy="simple-delta", int hedgeFreq=1, double mktImpVol=0, double mktPrice=0,
-        vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
+        vector<double> stratParams={}, vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
         string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
@@ -1142,7 +1142,7 @@ vector<matrix> Pricer::modelImpliedVolSurface(const SimConfig& config, int numSp
 
 Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
     string strategy, int hedgeFreq, double mktImpVol, double mktPrice,
-    vector<Option> hOptions, vector<matrix> impVolSurfaceSet,
+    vector<double> stratParams, vector<Option> hOptions, vector<matrix> impVolSurfaceSet,
     string simPriceMethod, matrix stockPriceSeries){
     if(GUI) cout << "running backtest for strategy: " << strategy << endl;
     Stock stock = market.getStock();
@@ -1257,6 +1257,93 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 i+1 << "/" << numSim << " completes" << endl;
         }
         // cout << stratModValueMatrix.print() << endl;
+    }else if(strategy=="mkt-delta-hedgingVol"){
+        double hedgingVol = stratParams[0];
+        Pricer hPricer(*this);
+        hPricer.setVariable("volatility",hedgingVol);
+        double sigImp;
+        if(mktImpVol>0) sigImp = mktImpVol;
+        else sigImp = calcImpliedVolatility(mktPrice);
+        setVariable("volatility",sigImp);
+        for(int i=0; i<numSim; i++){
+            setVariable("currentPrice",S0);
+            setVariable("maturity",T);
+            hPricer.setVariable("currentPrice",S0);
+            hPricer.setVariable("maturity",T);
+            double modPrice = calcPrice("Closed Form");
+            double nStock = hPricer.calcGreek("Delta");
+            double cash = modPrice;
+            cash -= nStock*S0;
+            double value = cash+nStock*S0-modPrice;
+            stratCashMatrix.setEntry(0,i,cash);
+            stratNStockMatrix.setEntry(0,i,nStock);
+            stratModPriceMatrix.setEntry(0,i,modPrice);
+            stratModValueMatrix.setEntry(0,i,value);
+            Delta = calcGreek("Delta");
+            Gamma = calcGreek("Gamma");
+            Vega = calcGreek("Vega");
+            Rho = calcGreek("Rho");
+            Theta = calcGreek("Theta");
+            stratGrkDelta.setEntry(0,i,nStock-Delta);
+            stratGrkGamma.setEntry(0,i,-Gamma);
+            stratGrkVega.setEntry(0,i,-Vega);
+            stratGrkRho.setEntry(0,i,-Rho);
+            stratGrkTheta.setEntry(0,i,r*cash+q*nStock*S0-Theta-sig2*S0*S0/2*Gamma);
+            for(int t=1; t<n; t++){
+                double S = simPriceMatrix.getEntry(t,i);
+                double nStockPrev = nStock;
+                setVariable("currentPrice",S);
+                setVariable("maturity",T-t*dt);
+                hPricer.setVariable("currentPrice",S);
+                hPricer.setVariable("maturity",T-t*dt);
+                modPrice = calcPrice("Closed Form");
+                if(t%hedgeFreq==0){
+                    nStock = hPricer.calcGreek("Delta");
+                    cash = cash*riskFreeRateFactor
+                        +nStock*S*(dividendYieldFactor-1)
+                        -(nStock-nStockPrev)*S;
+                }else{
+                    cash = cash*riskFreeRateFactor
+                        +nStockPrev*S*(dividendYieldFactor-1);
+                }
+                value = cash+nStock*S-modPrice;
+                stratCashMatrix.setEntry(t,i,cash);
+                stratNStockMatrix.setEntry(t,i,nStock);
+                stratModPriceMatrix.setEntry(t,i,modPrice);
+                stratModValueMatrix.setEntry(t,i,value);
+                Delta = calcGreek("Delta");
+                Gamma = calcGreek("Gamma");
+                Vega = calcGreek("Vega");
+                Rho = calcGreek("Rho");
+                Theta = calcGreek("Theta");
+                stratGrkDelta.setEntry(t,i,nStock-Delta);
+                stratGrkGamma.setEntry(t,i,-Gamma);
+                stratGrkVega.setEntry(t,i,-Vega);
+                stratGrkRho.setEntry(t,i,-Rho);
+                stratGrkTheta.setEntry(t,i,r*cash+q*nStock*S-Theta-sig2*S*S/2*Gamma);
+            }
+            double S1 = simPriceMatrix.getEntry(n,i);
+            double nStockPrev = nStock;
+            setVariable("currentPrice",S1);
+            setVariable("maturity",0);
+            hPricer.setVariable("currentPrice",S1);
+            hPricer.setVariable("maturity",0);
+            modPrice = option.calcPayoff(S1);
+            nStock = 0;
+            cash = cash*riskFreeRateFactor+nStockPrev*S1;
+            value = cash-modPrice;
+            stratCashMatrix.setEntry(n,i,cash);
+            stratNStockMatrix.setEntry(n,i,nStock);
+            stratModPriceMatrix.setEntry(n,i,modPrice);
+            stratModValueMatrix.setEntry(n,i,value);
+            stratGrkDelta.setEntry(n,i,0);
+            stratGrkGamma.setEntry(n,i,0);
+            stratGrkVega.setEntry(n,i,0);
+            stratGrkRho.setEntry(n,i,0);
+            stratGrkTheta.setEntry(n,i,r*cash);
+            if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
+                i+1 << "/" << numSim << " completes" << endl;
+        }
     }else if(strategy=="simple-delta-gamma" || strategy=="mkt-delta-gamma"){
         double hDelta, hGamma, hVega, hRho, hTheta;
         stratNOptions.push_back(matrix(n+1,numSim));
@@ -1367,7 +1454,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratNOptions[0].setEntry(n,i,nOption);
             stratHModPrices[0].setEntry(n,i,O1);
             if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
-                i+1 << "/" << numSim << " completes";
+                i+1 << "/" << numSim << " completes" << endl;
         }
     }else if(strategy=="simple-delta-gamma-theta" || strategy=="mkt-delta-gamma-theta"){
         double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
@@ -1515,7 +1602,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratHModPrices[0].setEntry(n,i,O01);
             stratHModPrices[1].setEntry(n,i,O11);
             if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
-                i+1 << "/" << numSim << " completes";
+                i+1 << "/" << numSim << " completes" << endl;
         }
     }else if(strategy=="vol-delta-gamma-theta"){
         double hDelta0, hGamma0, hVega0, hRho0, hTheta0;
@@ -1685,7 +1772,7 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             stratHModPrices[0].setEntry(n,i,O01);
             stratHModPrices[1].setEntry(n,i,O11);
             if(GUI) cout << "[" << getCurrentTime() << "] simulation " <<
-                i+1 << "/" << numSim << " completes";
+                i+1 << "/" << numSim << " completes" << endl;
         }
     }
     vector<matrix> results{
