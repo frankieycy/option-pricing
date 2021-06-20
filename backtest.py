@@ -148,22 +148,43 @@ def reportBacktest(name="backtest", maxNumPaths=3):
     calcBacktestStats()
     print(BacktestStats)
 
+def plotStratStatsAgainstVar(fileName, figName, var, title=""):
+    df = pd.read_csv(fileName)
+    x = df[var]
+    fig = plt.figure()
+    for stat in ["Mean","Std Dev","Min","Max"]:
+        plt.scatter(x,df[stat],s=10)
+        plt.plot(x,df[stat],linewidth=2,label=stat)
+    plt.xlim([np.min(x),np.max(x)])
+    plt.xlabel(var)
+    if title: plt.title(title)
+    plt.legend()
+    plt.grid()
+    fig.tight_layout()
+    fig.savefig(figName)
+    plt.close()
+
 def main():
-    sigHedgeList = np.linspace(0.05,0.9,18)
-    VolArbStratStats = {stat: [] for stat in [
-        "Min","25%","Median","75%","Max","Mean","Std Dev","Skew","Ex Kurt","95% VaR","99% VaR"
-    ]}
-    [makeDirectory(dir) for dir in [dataFolder,plotFolder]]
-    for sigHedge in sigHedgeList:
-        callExecutable([
-            "./"+exeFolder+"backtestVolArbStrat",
-            "%.2f"%sigHedge])
-        reportBacktest("sigHedge=%.2f"%sigHedge,maxNumPaths=5)
-        for stat in VolArbStratStats:
-            VolArbStratStats[stat].append(BacktestStats[stat])
-    VolArbStratStats["sigHedge"] = sigHedgeList
-    pd.DataFrame.from_dict(VolArbStratStats).round(6).to_csv(
-        dataFolder+"VolArbStratStats.csv",index=False)
+    # sigHedgeList = np.linspace(0.05,0.9,18)
+    # VolArbStratStats = {stat: [] for stat in [
+    #     "Min","25%","Median","75%","Max","Mean","Std Dev","Skew","Ex Kurt","95% VaR","99% VaR"
+    # ]}
+    # [makeDirectory(dir) for dir in [dataFolder,plotFolder]]
+    # for sigHedge in sigHedgeList:
+    #     callExecutable([
+    #         "./"+exeFolder+"backtestVolArbStrat",
+    #         "%.2f"%sigHedge])
+    #     reportBacktest("sigHedge=%.2f"%sigHedge,maxNumPaths=5)
+    #     for stat in VolArbStratStats:
+    #         VolArbStratStats[stat].append(BacktestStats[stat])
+    # VolArbStratStats["sigHedge"] = sigHedgeList
+    # pd.DataFrame.from_dict(VolArbStratStats).round(6).to_csv(
+    #     dataFolder+"VolArbStratStats.csv",index=False)
+    plotStratStatsAgainstVar(
+        dataFolder+"VolArbStratStats.csv",
+        plotFolder+"VolArbStratStats.png",
+        "sigHedge","Simulated Vol Arb Payoff vs Hedging Vol\n"
+        "sigAct = %.1f, sigImp = %.1f"%(0.2,0.4))
 
 if __name__=="__main__":
     main()
