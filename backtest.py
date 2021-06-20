@@ -29,7 +29,21 @@ BacktestData = {
     "hLabels": [
         "stratNOption",
         "stratHModPrice"
-    ]
+    ],
+    "fullLabels": {
+        "simPrice":         "Simulated Price Path",
+        "stratCash":        "Strategy Cash Position",
+        "stratNStock":      "Strategy Stock Position",
+        "stratModPrice":    "Strategy Option Model Price",
+        "stratModValue":    "Strategy Total Model Value",
+        "stratGrkDelta":    "Strategy Delta",
+        "stratGrkGamma":    "Strategy Gamma",
+        "stratGrkVega":     "Strategy Vega",
+        "stratGrkRho":      "Strategy Rho",
+        "stratGrkTheta":    "Strategy Theta",
+        "stratNOption":     "Strategy Hedge Option Position",
+        "stratHModPrice":   "Strategy Hedge Option Model Price"
+    }
 }
 
 BacktestStats = {}
@@ -81,7 +95,7 @@ def plotBacktestResults(figName, maxNumPaths=3):
             ax[idx//2,idx%2].plot(BacktestData[label].iloc[:-1,i],linewidth=1,label="Sim-%d"%i)
         ax[idx//2,idx%2].set_xlim([0,BacktestData[label].shape[0]-2])
         ax[idx//2,idx%2].set_xticklabels([])
-        ax[idx//2,idx%2].set_title(label)
+        ax[idx//2,idx%2].set_title(BacktestData["fullLabels"][label])
         ax[idx//2,idx%2].grid()
     ax[0,0].legend()
     fig.tight_layout()
@@ -100,7 +114,7 @@ def plotBacktestHResults(figName, maxNumPaths=3):
                 ax[m//2,m%2].plot(df.iloc[:-1,i],linewidth=1,label="Sim-%d"%i)
             ax[m//2,m%2].set_xlim([0,df.shape[0]-2])
             ax[m//2,m%2].set_xticklabels([])
-            ax[m//2,m%2].set_title(label+"-"+str(k))
+            ax[m//2,m%2].set_title(BacktestData["fullLabels"][label]+"-"+str(k))
             ax[m//2,m%2].grid()
     ax[0,0].legend()
     fig.tight_layout()
