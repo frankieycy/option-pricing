@@ -8,7 +8,6 @@ data*
 plot*
 test*
 assets/*.png
-*.csv
 *.txt
 *.log
 _*

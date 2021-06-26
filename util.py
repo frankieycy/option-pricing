@@ -16,5 +16,15 @@ def getPrevBDay(n=1):
     today = datetime.today()
     return (today-BDay(n)).strftime("%Y-%m-%d")
 
+def getRecentBDay():
+    today = datetime.today()
+    bDay = today-BDay(0)
+    if bDay>today: bDay = today-BDay(1)
+    return bDay.strftime("%Y-%m-%d")
+
 def bDaysBetween(d1, d2):
     return len(pd.bdate_range(d1,d2))
+
+def bDaysFromToday(date):
+    today = datetime.today().strftime("%Y-%m-%d")
+    return bDaysBetween(today,date)
