@@ -9,12 +9,14 @@ quote_ctx = OpenQuoteContext(host="127.0.0.1", port=11111)
 
 onDate = getRecentBDay()
 codeList = ["US.IBM","US.JPM","US.DIS"]
-expirationDateEnd = "2021-09-01"
+expirationDateEnd = "2021-06-30"
 
-dataFolder = "test-0626/"
+dataFolder = "bkts_data/"
 
-optionChainData = {}
+optionChainData = {} # master data dict
 optionChainDataFrames = {}
+optionHistDataFrames = {}
+
 optionChainDataCols = {
     "code":                 "Contract Name",
     "option_area_type":     "Type",
@@ -64,6 +66,30 @@ optionChainDataCsvCols = [
     "Theta",
     "Rho"
 ]
+optionHistDataCols = {
+    "time_key":     "Time",
+    "open":         "Open Price",
+    "close":        "Close Price",
+    "high":         "High Price",
+    "low":          "Low Price",
+    "volume":       "Volume",
+    "turnover":     "Turnover",
+    "change_rate":  "Change Rate",
+    "last_close":   "Last Close Price"
+}
+optionHistDataCsvCols = [
+    "Contract Name",
+    "Date",
+    "Time",
+    "Open Price",
+    "Close Price",
+    "High Price",
+    "Low Price",
+    "Volume",
+    "Turnover",
+    "Change Rate",
+    "Last Close Price"
+]
 
 def logMessage(msg):
     if LOG:
@@ -82,6 +108,8 @@ def getMatBDaysFromContractName(name):
     matDate = name.split("P" if putCall == "Put" else "C")[-2][-6:]
     matDate = "20"+matDate[:2]+"-"+matDate[2:4]+"-"+matDate[4:]
     return bDaysFromToday(matDate)
+
+################################################################################
 
 def initOptionChain():
     logMessage("initializing option chain")
@@ -148,22 +176,70 @@ def getOptionChainAsDataFrame():
         optionChainDataFrames[code]["Put/Call"] = optionChainDataFrames[code]["Contract Name"].apply(getPutCallFromContractName)
         optionChainDataFrames[code] = optionChainDataFrames[code][optionChainDataCsvCols]
 
-def saveOptionChainAsCsvFile():
-    logMessage("saving option chain as csv file")
+def saveOptionChainToCsvFile():
+    logMessage("saving option chain to csv file")
     for code in optionChainDataFrames:
         fileName = dataFolder+"option_chain_"+code+"_"+onDate+".csv"
         optionChainDataFrames[code].to_csv(fileName, index=False)
 
+################################################################################
+
+def fillOptionHistPrice():
+    logMessage("filling option historical price")
+    for code in optionChainData:
+        for date in optionChainData[code]:
+            optionChainData[code][date]["hist"] = {}
+            for optionCode in optionChainData[code][date]["codes"]:
+                ret, data, page_req_key = quote_ctx.request_history_kline(optionCode)
+                time.sleep(0.5)
+                if ret == RET_OK:
+                    logMessage(["filling option historical price: ",code,", ",date,", ",optionCode])
+                    optionChainData[code][date]["hist"][optionCode] = data[list(optionHistDataCols.keys())]
+                else:
+                    print('error:', data)
+
+def getOptionHistPriceAsDataFrame():
+    logMessage("getting option historical price as dataframe")
+    for code in optionChainData:
+        optionHistDataFrames[code] = pd.DataFrame()
+        for date in optionChainData[code]:
+            for optionCode in optionChainData[code][date]["hist"]:
+                histPrice = optionChainData[code][date]["hist"][optionCode]
+                histPrice.columns = [optionHistDataCols[col] for col in histPrice.columns]
+                histPrice["Contract Name"] = optionCode
+                histPrice["Date"] = histPrice["Time"].apply(lambda x: x.split()[0])
+                histPrice = histPrice[optionHistDataCsvCols]
+                optionHistDataFrames[code] = optionHistDataFrames[code].append(histPrice)
+
+def saveOptionHistPriceToCsvFile():
+    logMessage("saving option historical price to csv file")
+    for code in optionHistDataFrames:
+        fileName = dataFolder+"option_hist_"+code+"_"+onDate+".csv"
+        optionHistDataFrames[code].to_csv(fileName, index=False)
+
+################################################################################
+
 def closeConnection():
     quote_ctx.close()
 
-def main():
+def optionChainSnapshot():
     makeDirectory(dataFolder)
     initOptionChain()
     fillOptionChain()
     getOptionChainAsDataFrame()
-    saveOptionChainAsCsvFile()
+    saveOptionChainToCsvFile()
     closeConnection()
 
-if __name__=="__main__":
+def optionHistPricePull():
+    makeDirectory(dataFolder)
+    initOptionChain()
+    fillOptionHistPrice()
+    getOptionHistPriceAsDataFrame()
+    saveOptionHistPriceToCsvFile()
+    closeConnection()
+
+def main():
+    optionHistPricePull()
+
+if __name__ == "__main__":
     main()
