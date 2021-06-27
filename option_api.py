@@ -74,7 +74,6 @@ optionHistDataCols = {
     "low":          "Low Price",
     "volume":       "Volume",
     "turnover":     "Turnover",
-    "change_rate":  "Change Rate",
     "last_close":   "Last Close Price"
 }
 optionHistDataCsvCols = [
@@ -87,7 +86,6 @@ optionHistDataCsvCols = [
     "Low Price",
     "Volume",
     "Turnover",
-    "Change Rate",
     "Last Close Price"
 ]
 
@@ -189,14 +187,27 @@ def fillOptionHistPrice():
     for code in optionChainData:
         for date in optionChainData[code]:
             optionChainData[code][date]["hist"] = {}
-            for optionCode in optionChainData[code][date]["codes"]:
-                ret, data, page_req_key = quote_ctx.request_history_kline(optionCode)
-                time.sleep(0.5)
-                if ret == RET_OK:
-                    logMessage(["filling option historical price: ",code,", ",date,", ",optionCode])
-                    optionChainData[code][date]["hist"][optionCode] = data[list(optionHistDataCols.keys())]
-                else:
-                    print('error:', data)
+            optionCodeList = optionChainData[code][date]["codes"]
+            print("current subscription status:", quote_ctx.query_subscription())
+            ret_sub, err_message = quote_ctx.subscribe(optionCodeList, [SubType.K_DAY], subscribe_push=False)
+            if ret_sub == RET_OK:
+                print("subscription success. current subscription status:", quote_ctx.query_subscription())
+                for optionCode in optionCodeList:
+                    ret, data = quote_ctx.get_cur_kline(optionCode, num=1000)
+                    time.sleep(0.5)
+                    if ret == RET_OK:
+                        logMessage(["filling option historical price: ",code,", ",date,", ",optionCode])
+                        optionChainData[code][date]["hist"][optionCode] = data[list(optionHistDataCols.keys())]
+                    else:
+                        print('error:', data)
+                time.sleep(60)
+            else:
+                print("subscription failed", err_message)
+            ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+            if ret_unsub == RET_OK:
+                print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+            else:
+                print("unsubscription failed", err_message_unsub)
 
 def getOptionHistPriceAsDataFrame():
     logMessage("getting option historical price as dataframe")
