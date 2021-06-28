@@ -9,7 +9,7 @@ quote_ctx = OpenQuoteContext(host="127.0.0.1", port=11111)
 
 onDate = getRecentBDay()
 codeList = ["US.IBM","US.JPM","US.DIS"]
-expirationDateEnd = "2021-06-30"
+expirationDateEnd = "2021-12-31"
 
 dataFolder = "bkts_data/"
 
@@ -67,7 +67,7 @@ optionChainDataCsvCols = [
     "Rho"
 ]
 optionHistDataCols = {
-    "time_key":     "Time",
+    "time_key":     "Time Key",
     "open":         "Open Price",
     "close":        "Close Price",
     "high":         "High Price",
@@ -78,6 +78,7 @@ optionHistDataCols = {
 }
 optionHistDataCsvCols = [
     "Contract Name",
+    "Time Key",
     "Date",
     "Time",
     "Open Price",
@@ -108,6 +109,7 @@ def getMatBDaysFromContractName(name):
     return bDaysFromToday(matDate)
 
 ################################################################################
+#### Option Chain ##############################################################
 
 def initOptionChain():
     logMessage("initializing option chain")
@@ -123,11 +125,13 @@ def initOptionChain():
                 ret2, data2 = quote_ctx.get_option_chain(code=code, start=date, end=date, option_type=OptionType.CALL)
                 time.sleep(3)
                 if ret2 == RET_OK:
+                    logMessage(["initializing option chain: ",code,", ",date,", call"])
                     optionChainData[code][date]["codes"] = data2["code"].values.tolist()
                     # print(data2["code"].values.tolist())
                     ret3, data3 = quote_ctx.get_option_chain(code=code, start=date, end=date, option_type=OptionType.PUT)
                     time.sleep(3)
                     if ret3 == RET_OK:
+                        logMessage(["initializing option chain: ",code,", ",date,", put"])
                         optionChainData[code][date]["codes"] += data3["code"].values.tolist()
                         # print(data3["code"].values.tolist())
                     else:
@@ -140,27 +144,45 @@ def initOptionChain():
 
 def fillOptionChain():
     logMessage("filling option chain")
+    startTimeLog = []
     for code in optionChainData:
         for date in optionChainData[code]:
             optionCodeList = optionChainData[code][date]["codes"]
             print("current subscription status:", quote_ctx.query_subscription())
+            remain_quota = quote_ctx.query_subscription()[1]["remain"]
+            if remain_quota < len(optionCodeList):
+                endTime = time.time()
+                if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+                ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+                if ret_unsub == RET_OK:
+                    print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+                    startTimeLog = []
+                else:
+                    print("unsubscription failed", err_message_unsub)
             ret_sub, err_message = quote_ctx.subscribe(optionCodeList, [SubType.QUOTE], subscribe_push=False)
             if ret_sub == RET_OK:
                 print("subscription success. current subscription status:", quote_ctx.query_subscription())
+                startTime = time.time()
                 ret, data = quote_ctx.get_stock_quote(optionCodeList)
                 if ret == RET_OK:
                     logMessage(["filling option chain: ",code,", ",date])
                     optionChainData[code][date]["data"] = data[list(optionChainDataCols.keys())]
                 else:
                     print("error:", data)
-                time.sleep(60)
+                startTimeLog.append(startTime)
+                # endTime = time.time()
+                # if endTime-startTime < 60:
+                #     time.sleep(60-(endTime-startTime))
             else:
                 print("subscription failed", err_message)
-            ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
-            if ret_unsub == RET_OK:
-                print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
-            else:
-                print("unsubscription failed", err_message_unsub)
+    endTime = time.time()
+    if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+    ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+    if ret_unsub == RET_OK:
+        print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+        startTimeLog = []
+    else:
+        print("unsubscription failed", err_message_unsub)
 
 def getOptionChainAsDataFrame():
     logMessage("getting option chain as dataframe")
@@ -174,40 +196,59 @@ def getOptionChainAsDataFrame():
         optionChainDataFrames[code]["Put/Call"] = optionChainDataFrames[code]["Contract Name"].apply(getPutCallFromContractName)
         optionChainDataFrames[code] = optionChainDataFrames[code][optionChainDataCsvCols]
 
-def saveOptionChainToCsvFile():
+def saveOptionChainToCsvFile(name=""):
     logMessage("saving option chain to csv file")
     for code in optionChainDataFrames:
-        fileName = dataFolder+"option_chain_"+code+"_"+onDate+".csv"
+        fileName  = dataFolder+"option_chain_"+code+"_"+onDate
+        fileName += (("_"+name) if name else "")+".csv"
         optionChainDataFrames[code].to_csv(fileName, index=False)
 
 ################################################################################
+#### Hist Price ################################################################
 
-def fillOptionHistPrice():
+def fillOptionHistPrice(ktype=SubType.K_DAY):
     logMessage("filling option historical price")
+    startTimeLog = []
     for code in optionChainData:
         for date in optionChainData[code]:
             optionChainData[code][date]["hist"] = {}
             optionCodeList = optionChainData[code][date]["codes"]
             print("current subscription status:", quote_ctx.query_subscription())
-            ret_sub, err_message = quote_ctx.subscribe(optionCodeList, [SubType.K_DAY], subscribe_push=False)
+            remain_quota = quote_ctx.query_subscription()[1]["remain"]
+            if remain_quota < len(optionCodeList):
+                endTime = time.time()
+                if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+                ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+                if ret_unsub == RET_OK:
+                    print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+                    startTimeLog = []
+                else:
+                    print("unsubscription failed", err_message_unsub)
+            ret_sub, err_message = quote_ctx.subscribe(optionCodeList, [ktype], subscribe_push=False)
             if ret_sub == RET_OK:
                 print("subscription success. current subscription status:", quote_ctx.query_subscription())
+                startTime = time.time()
                 for optionCode in optionCodeList:
-                    ret, data = quote_ctx.get_cur_kline(optionCode, num=1000)
+                    ret, data = quote_ctx.get_cur_kline(optionCode, num=1000, ktype=ktype)
                     time.sleep(0.5)
                     if ret == RET_OK:
                         logMessage(["filling option historical price: ",code,", ",date,", ",optionCode])
                         optionChainData[code][date]["hist"][optionCode] = data[list(optionHistDataCols.keys())]
                     else:
                         print('error:', data)
-                time.sleep(60)
+                # endTime = time.time()
+                # if endTime-startTime < 60:
+                #     time.sleep(60-(endTime-startTime))
             else:
                 print("subscription failed", err_message)
-            ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
-            if ret_unsub == RET_OK:
-                print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
-            else:
-                print("unsubscription failed", err_message_unsub)
+    endTime = time.time()
+    if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+    ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+    if ret_unsub == RET_OK:
+        print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+        startTimeLog = []
+    else:
+        print("unsubscription failed", err_message_unsub)
 
 def getOptionHistPriceAsDataFrame():
     logMessage("getting option historical price as dataframe")
@@ -218,39 +259,46 @@ def getOptionHistPriceAsDataFrame():
                 histPrice = optionChainData[code][date]["hist"][optionCode]
                 histPrice.columns = [optionHistDataCols[col] for col in histPrice.columns]
                 histPrice["Contract Name"] = optionCode
-                histPrice["Date"] = histPrice["Time"].apply(lambda x: x.split()[0])
+                histPrice["Date"] = histPrice["Time Key"].apply(lambda x: x.split()[0])
+                histPrice["Time"] = histPrice["Time Key"].apply(lambda x: x.split()[1])
                 histPrice = histPrice[optionHistDataCsvCols]
                 optionHistDataFrames[code] = optionHistDataFrames[code].append(histPrice)
 
-def saveOptionHistPriceToCsvFile():
+def saveOptionHistPriceToCsvFile(name=""):
     logMessage("saving option historical price to csv file")
     for code in optionHistDataFrames:
-        fileName = dataFolder+"option_hist_"+code+"_"+onDate+".csv"
+        fileName  = dataFolder+"option_hist_"+code+"_"+onDate
+        fileName += (("_"+name) if name else "")+".csv"
         optionHistDataFrames[code].to_csv(fileName, index=False)
+
+################################################################################
+#### Plot ######################################################################
 
 ################################################################################
 
 def closeConnection():
     quote_ctx.close()
 
-def optionChainSnapshot():
+def optionChainSnapshot(name=""):
     makeDirectory(dataFolder)
     initOptionChain()
     fillOptionChain()
     getOptionChainAsDataFrame()
-    saveOptionChainToCsvFile()
+    saveOptionChainToCsvFile(name)
     closeConnection()
 
-def optionHistPricePull():
+def optionHistPricePull(name="", ktype=SubType.K_DAY):
     makeDirectory(dataFolder)
     initOptionChain()
-    fillOptionHistPrice()
+    fillOptionHistPrice(ktype)
     getOptionHistPriceAsDataFrame()
-    saveOptionHistPriceToCsvFile()
+    saveOptionHistPriceToCsvFile(name)
     closeConnection()
 
 def main():
-    optionHistPricePull()
+    optionChainSnapshot(name="End="+expirationDateEnd)
+    # optionHistPricePull(name="DAY", ktype=SubType.K_DAY) # DAY kline
+    # optionHistPricePull(name="5M", ktype=SubType.K_5M) # 5M kline
 
 if __name__ == "__main__":
     main()
