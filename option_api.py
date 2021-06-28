@@ -236,6 +236,7 @@ def fillOptionHistPrice(ktype=SubType.K_DAY):
                         optionChainData[code][date]["hist"][optionCode] = data[list(optionHistDataCols.keys())]
                     else:
                         print('error:', data)
+                startTimeLog.append(startTime)
                 # endTime = time.time()
                 # if endTime-startTime < 60:
                 #     time.sleep(60-(endTime-startTime))
