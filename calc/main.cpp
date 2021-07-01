@@ -26,12 +26,18 @@ int main() {
     // Pricer pricer;
     // pricer.setVariablesFromFile("pricer_var.csv");
     // pricer.generateImpliedVolSurfaceFromFile("option_data.csv","option_vol.csv");
-    /**** strat backtest ******************************************************/
+    /**** strat backtest - delta **********************************************/
     // pricer.runBacktest(config,50,"simple-delta",1).printToCsvFiles();
+    /**** strat backtest - delta/gamma ****************************************/
     // Option hOption = Option("European","Call",100,2);
     // pricer.runBacktest(config,3,"simple-delta-gamma",1,0,0,{hOption}).printToCsvFiles(true);
-    Option hOption0 = Option("European","Call",110,2);
-    Option hOption1 = Option("European","Call",90,2);
-    pricer.runBacktest(config,3,"simple-delta-gamma-theta",1,0,0,{hOption0,hOption1}).printToCsvFiles(true);
+    /**** strat backtest - delta/gamma/theta **********************************/
+    // Option hOption0 = Option("European","Call",110,2);
+    // Option hOption1 = Option("European","Call",90,2);
+    // pricer.runBacktest(config,3,"simple-delta-gamma-theta",1,0,0,{hOption0,hOption1}).printToCsvFiles(true);
+    /**** Monte Carlo *********************************************************/
+    pricer.MonteCarloPricer(config,5000,"simple");
+    pricer.MonteCarloPricer(config,5000,"antithetic variates");
+    pricer.MonteCarloPricer(config,5000,"control variates");
     return 0;
 }

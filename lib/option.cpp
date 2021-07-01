@@ -5,17 +5,17 @@
 using namespace std;
 
 #define GUI true
-#define LOG false
+#define LOG true
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
 /**** global variables ********************************************************/
 
 const set<string> OPTION_TYPES{
-    "European", "American", "Digital", "Asian"
+    "European", "American", "Bermudan", "Digital", "Asian", "Barrier"
 };
 const set<string> EARLY_EX_OPTIONS{
-    "American"
+    "American", "Bermudan"
 };
 const set<string> PATH_DEP_OPTIONS{
     "Asian"
@@ -60,6 +60,7 @@ public:
     string getAsJson() const;
     /**** mutators ****/
     string setName(string name);
+    string setType(string type);
     double setStrike(double strike);
     double setMaturity(double maturity);
     /**** main ****/
@@ -102,7 +103,7 @@ public:
     bool checkParams() const;
     double calcLognormalPrice(double z, double time);
     matrix calcLognormalPriceVector(matrix z, double time);
-    matrix simulatePrice(const SimConfig& config, int numSim=1);
+    matrix simulatePrice(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
     matrix bootstrapPrice(matrix priceSeries, const SimConfig& config, int numSim=1);
     matrix generatePriceTree(const SimConfig& config);
     matrix generatePriceMatrixFromTree();
@@ -152,6 +153,7 @@ private:
     Market market, market_orig;
     double price;
 public:
+    vector<double> tmp; // tmp variable log
     /**** constructors ****/
     Pricer(){};
     Pricer(const Option& option, const Market& market);
@@ -170,7 +172,7 @@ public:
     /**** main ****/
     double BlackScholesClosedForm();
     double BinomialTreePricer(const SimConfig& config);
-    double MonteCarloPricer(const SimConfig& config, int numSim);
+    double MonteCarloPricer(const SimConfig& config, int numSim, string method="simple");
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
@@ -258,6 +260,11 @@ string Option::getAsJson() const {
 string Option::setName(string name){
     this->name = name;
     return name;
+}
+
+string Option::setType(string type){
+    this->type = type;
+    return type;
 }
 
 double Option::setStrike(double strike){
@@ -415,7 +422,7 @@ matrix Stock::calcLognormalPriceVector(matrix z, double time){
     return S;
 }
 
-matrix Stock::simulatePrice(const SimConfig& config, int numSim){
+matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& randomMatrix){
     int n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
@@ -426,7 +433,8 @@ matrix Stock::simulatePrice(const SimConfig& config, int numSim){
     simPriceMatrix.setRow(0,simPriceVector);
     simTimeVector.setEntry(0,0,0);
     for(int i=1; i<n+1; i++){
-        randomVector.setNormalRand();
+        if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+        else randomVector = randomMatrix.getRow(i);
         simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
         simPriceMatrix.setRow(i,simPriceVector);
         simTimeVector.setEntry(0,i,i*dt);
@@ -629,6 +637,8 @@ string Pricer::setStringVariable(string var, string v){
         market.setStock(tmpStock);
     }else if(var=="optionName"){
         option.setName(v);
+    }else if(var=="optionType"){
+        option.setType(v);
     }
     return v;
 }
@@ -710,19 +720,53 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
     return price;
 }
 
-double Pricer::MonteCarloPricer(const SimConfig& config, int numSim){
+double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string method){
     logMessage("starting calculation MonteCarloPricer on config "+to_string(config)+", numSim "+to_string(numSim));
+    int n = config.iters;
     Stock stock = market.getStock();
     double r = getVariable("riskFreeRate");
     double T = getVariable("maturity");
     double err = NAN;
+    matrix simPriceMatrix;
     stock.setDriftRate(r);
-    stock.simulatePrice(config,numSim);
-    if(!option.canEarlyExercise()){
-        matrix payoffs = option.calcPayoffs(NULL_VECTOR,stock.getSimPriceMatrix());
-        price = exp(-r*T)*payoffs.mean();
-        err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
+    if(method=="simple"){
+        simPriceMatrix = stock.simulatePrice(config,numSim);
+        if(!option.canEarlyExercise()){
+            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix);
+            price = exp(-r*T)*payoffs.mean();
+            err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
+        }else{
+            // Longstaff-Schwartz algorithm
+        }
+    }else if(method=="antithetic variates"){
+        matrix simPriceMatrix0, simPriceMatrix1;
+        matrix randomMatrix0(n+1,numSim), randomMatrix1(n+1,numSim);
+        randomMatrix0.setNormalRand(); randomMatrix1 = -randomMatrix0;
+        simPriceMatrix0 = stock.simulatePrice(config,numSim,randomMatrix0);
+        simPriceMatrix1 = stock.simulatePrice(config,numSim,randomMatrix1);
+        if(!option.canEarlyExercise()){
+            matrix payoffs0 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix0);
+            matrix payoffs1 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix1);
+            matrix payoffs = (payoffs0+payoffs1)/2;
+            price = exp(-r*T)*payoffs.mean();
+            err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
+        }
+    }else if(method=="control variates"){
+        simPriceMatrix = stock.simulatePrice(config,numSim);
+        if(!option.canEarlyExercise()){
+            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix);
+            price = exp(-r*T)*payoffs.mean();
+            err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
+        }
+        Pricer refPricer(option,market);
+        refPricer.setStringVariable("optionType","European");
+        double refPriceMonte = refPricer.MonteCarloPricer(config,numSim);
+        double refPriceClosed = refPricer.BlackScholesClosedForm();
+        double refErr = refPricer.tmp[0];
+        price += refPriceClosed-refPriceMonte;
+        err = sqrt(err*err+refErr*refErr); // assume uncorrelated MC estimates
     }
+    tmp = {err};
     logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
     return price;
 }

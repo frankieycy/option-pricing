@@ -17,8 +17,11 @@
 * ok, backtest functions in Pricer for option hedging strategies
 * ok, implement DGT-neutral strategy
 * ok, vol surface modeling
-* vol arb research on delta-hedged strategy
-* broker API wrappers for market quotes
+* ok, vol arb research on delta-hedged strategy
+* ok, broker API wrappers for market quotes
+* ok, antithetic variate, control variate
+* American/Asian option pricing with Monte Carlo
+* stochastic vol model: jump diffusion, Heston
 * stochastic process object (called Process) and simulation
 * deterministic (non-constant) interest rate extension
 * deterministic (non-constant) volatility extension

@@ -68,6 +68,8 @@ public:
     double mean() const;
     double var(int k=1) const;
     double stdev(int k=1) const;
+    double cov(const matrix& M, int k=1) const;
+    double cor(const matrix& M, int k=1) const;
     matrix sum(int axis) const;
     matrix mean(int axis) const;
     matrix inverse() const;
@@ -76,6 +78,7 @@ public:
     matrix apply(double (*f)(double)) const;
     matrix apply(const function<double(double)>& f) const;
     matrix sample(int n, bool replace=true) const;
+    matrix concat(const matrix& M, int axis=0) const;
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const matrix& M);
     friend bool operator==(const matrix& M1, const matrix& M2);
@@ -378,6 +381,7 @@ double matrix::getMax() const {
             a = max(a, m[row][col]);
     return a;
 }
+
 double matrix::getMin() const {
     assert(!isEmpty());
     double a = m[0][0];
@@ -386,6 +390,7 @@ double matrix::getMin() const {
             a = min(a, m[row][col]);
     return a;
 }
+
 vector<int> matrix::maxIdx() const {
     assert(!isEmpty());
     double a = m[0][0];
@@ -398,6 +403,7 @@ vector<int> matrix::maxIdx() const {
             }
     return idx;
 }
+
 vector<int> matrix::minIdx() const {
     assert(!isEmpty());
     double a = m[0][0];
@@ -410,6 +416,7 @@ vector<int> matrix::minIdx() const {
             }
     return idx;
 }
+
 matrix matrix::maxWith(double a) const {
     matrix A(rows,cols);
     for(int row=0; row<rows; row++)
@@ -417,6 +424,7 @@ matrix matrix::maxWith(double a) const {
             A.m[row][col] = max(a, m[row][col]);
     return A;
 }
+
 matrix matrix::minWith(double a) const {
     matrix A(rows,cols);
     for(int row=0; row<rows; row++)
@@ -424,6 +432,7 @@ matrix matrix::minWith(double a) const {
             A.m[row][col] = min(a, m[row][col]);
     return A;
 }
+
 double matrix::sum() const {
     double a = 0;
     for(int row=0; row<rows; row++)
@@ -431,6 +440,7 @@ double matrix::sum() const {
             a += m[row][col];
     return a;
 }
+
 double matrix::mean() const {
     return sum()/(rows*cols);
 }
@@ -438,9 +448,21 @@ double matrix::var(int k) const {
     double mu = mean();
     return (((*this)-mu)*((*this)-mu)).sum()/(rows*cols-k);
 }
+
 double matrix::stdev(int k) const {
     return sqrt(var(k));
 }
+
+double matrix::cov(const matrix& M, int k) const {
+    double mu0 = mean();
+    double mu1 = M.mean();
+    return (((*this)-mu0)*(M-mu1)).sum()/(rows*cols-k);
+}
+
+double matrix::cor(const matrix& M, int k) const {
+    return cov(M,k)/(stdev(k)*M.stdev(k));
+}
+
 matrix matrix::sum(int axis) const {
     vector<double> v;
     switch(axis){
@@ -451,6 +473,7 @@ matrix matrix::sum(int axis) const {
     }
     return matrix(v);
 }
+
 matrix matrix::mean(int axis) const {
     vector<double> v;
     switch(axis){
@@ -461,6 +484,7 @@ matrix matrix::mean(int axis) const {
     }
     return matrix(v);
 }
+
 matrix matrix::matrix::inverse() const {
     assert(rows==cols);
     int n = rows;
@@ -475,6 +499,7 @@ matrix matrix::matrix::inverse() const {
     A.m = m_;
     return A;
 }
+
 // matrix matrix::inverse() const {
 //     assert(rows==cols);
 //     int n = rows;
@@ -490,6 +515,7 @@ matrix matrix::matrix::inverse() const {
 //     A = -1/c[0]*S[n-1];
 //     return A;
 // }
+
 matrix matrix::transpose() const {
     matrix A(cols,rows);
     for(int row=0; row<rows; row++)
@@ -497,6 +523,7 @@ matrix matrix::transpose() const {
             A.m[col][row] = m[row][col];
     return A;
 }
+
 matrix matrix::dot(const matrix& M) const {
     matrix A(rows,M.cols);
     for(int row=0; row<rows; row++)
@@ -535,6 +562,22 @@ matrix matrix::sample(int n, bool replace) const {
         }
     }else{
         // TO DO
+    }
+    return A;
+}
+
+matrix matrix::concat(const matrix& M, int axis) const {
+    matrix A;
+    if(axis==0){
+        assert(cols==M.cols);
+        A = matrix(rows+M.rows,cols);
+        A.setSubmatrix(0,rows,0,cols,*this);
+        A.setSubmatrix(rows,-1,0,cols,M);
+    }else if(axis==1){
+        assert(rows==M.rows);
+        A = matrix(rows,cols+M.cols);
+        A.setSubmatrix(0,rows,0,cols,*this);
+        A.setSubmatrix(0,rows,cols,-1,M);
     }
     return A;
 }
