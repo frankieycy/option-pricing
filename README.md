@@ -20,6 +20,7 @@
 * ok, vol arb research on delta-hedged strategy
 * ok, broker API wrappers for market quotes
 * ok, antithetic variate, control variate
+* visualize Girsanov change of measure
 * American/Asian option pricing with Monte Carlo
 * stochastic vol model: jump diffusion, Heston
 * stochastic process object (called Process) and simulation

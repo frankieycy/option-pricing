@@ -490,6 +490,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             volRandomVector.setNormalRand();
             volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
             currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar.apply(sqrt)*sqrt_dt*volRandomVector;
+            currentVar  = currentVar.apply(abs);
             currentVol  = currentVar.apply(sqrt);
             simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
             simPriceMatrix.setRow(i,simPriceVector);
