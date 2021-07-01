@@ -73,16 +73,19 @@ public:
 
 class Stock{
 private:
-    string name;
+    string name, dynamics;
     double currentPrice, dividendYield, driftRate, volatility;
     matrix simTimeVector, simPriceMatrix, binomialPriceTree;
+    vector<double> dynParams;
 public:
     /**** constructors ****/
     Stock(){};
-    Stock(double currentPrice, double dividendYield, double driftRate, double volatility, string name="unnamed");
+    Stock(double currentPrice, double dividendYield, double driftRate, double volatility,
+        vector<double> dynParams={}, string dynamics="lognormal", string name="unnamed");
     Stock(const Stock& stock);
     /**** accessors ****/
     string getName() const {return name;}
+    string getDynamics() const {return dynamics;}
     double getCurrentPrice() const {return currentPrice;}
     double getDividendYield() const {return dividendYield;}
     double getDriftRate() const {return driftRate;}
@@ -90,13 +93,16 @@ public:
     matrix getSimTimeVector() const {return simTimeVector;}
     matrix getSimPriceMatrix() const {return simPriceMatrix;}
     matrix getBinomialPriceTree() const {return binomialPriceTree;}
+    vector<double> getDynParams() const {return dynParams;}
     string getAsJson() const;
     /**** mutators ****/
     string setName(string name);
+    string setDynamics(string dynamics);
     double setCurrentPrice(double currentPrice);
     double setDividendYield(double dividendYield);
     double setDriftRate(double driftRate);
     double setVolatility(double volatility);
+    vector<double> setDynParams(vector<double> dynParams);
     double estDriftRateFromPrice(matrix priceSeries, double dt, string method="simple");
     double estVolatilityFromPrice(matrix priceSeries, double dt, string method="simple");
     /**** main ****/
@@ -200,7 +206,7 @@ public:
     Backtest runBacktest(const SimConfig& config, int numSim=1,
         string strategy="simple-delta", int hedgeFreq=1, double mktImpVol=0, double mktPrice=0,
         vector<double> stratParams={}, vector<Option> hOptions={}, vector<matrix> impVolSurfaceSet={},
-        string simPriceMethod="lognormal", matrix stockPriceSeries=NULL_VECTOR);
+        string simPriceMethod="model", matrix stockPriceSeries=NULL_VECTOR);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Pricer& pricer);
 };
@@ -328,11 +334,14 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix){
 
 //### Stock class ##############################################################
 
-Stock::Stock(double currentPrice, double dividendYield, double driftRate, double volatility, string name){
+Stock::Stock(double currentPrice, double dividendYield, double driftRate, double volatility,
+    vector<double> dynParams, string dynamics, string name){
     this->currentPrice = currentPrice;
     this->dividendYield = dividendYield;
     this->driftRate = driftRate;
     this->volatility = volatility;
+    this->dynParams = dynParams;
+    this->dynamics = dynamics;
     this->name = name;
     assert(checkParams());
 }
@@ -342,6 +351,8 @@ Stock::Stock(const Stock& stock){
     this->dividendYield = stock.dividendYield;
     this->driftRate = stock.driftRate;
     this->volatility = stock.volatility;
+    this->dynParams = stock.dynParams;
+    this->dynamics = stock.dynamics;
     this->name = stock.name;
 }
 
@@ -349,10 +360,12 @@ string Stock::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "\"name\":\""         << name             << "\"," <<
+    "\"dynamics\":\""     << dynamics         << "\"," <<
     "\"currentPrice\":"   << currentPrice     << "," <<
     "\"dividendYield\":"  << dividendYield    << "," <<
     "\"driftRate\":"      << driftRate        << "," <<
-    "\"volatility\":"     << volatility       <<
+    "\"volatility\":"     << volatility       << "," <<
+    "\"dynParams\":"      << dynParams        <<
     "}";
     return oss.str();
 }
@@ -360,6 +373,11 @@ string Stock::getAsJson() const {
 string Stock::setName(string name){
     this->name = name;
     return name;
+}
+
+string Stock::setDynamics(string dynamics){
+    this->dynamics = dynamics;
+    return dynamics;
 }
 
 double Stock::setCurrentPrice(double currentPrice){
@@ -380,6 +398,11 @@ double Stock::setDriftRate(double driftRate){
 double Stock::setVolatility(double volatility){
     this->volatility = volatility;
     return volatility;
+}
+
+vector<double> Stock::setDynParams(vector<double> dynParams){
+    this->dynParams = dynParams;
+    return dynParams;
 }
 
 double Stock::estDriftRateFromPrice(matrix priceSeries, double dt, string method){
@@ -432,12 +455,18 @@ matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& r
     simPriceMatrix = matrix(n+1,numSim);
     simPriceMatrix.setRow(0,simPriceVector);
     simTimeVector.setEntry(0,0,0);
-    for(int i=1; i<n+1; i++){
-        if(randomMatrix.isEmpty()) randomVector.setNormalRand();
-        else randomVector = randomMatrix.getRow(i);
-        simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
-        simPriceMatrix.setRow(i,simPriceVector);
-        simTimeVector.setEntry(0,i,i*dt);
+    if(dynamics=="lognormal"){
+        for(int i=1; i<n+1; i++){
+            if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            else randomVector = randomMatrix.getRow(i);
+            simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
+            simPriceMatrix.setRow(i,simPriceVector);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
+    }else if(dynamics=="jump-diffusion"){
+        // TO DO
+    }else if(dynamics=="Heston"){
+        // TO DO
     }
     return simPriceMatrix;
 }
