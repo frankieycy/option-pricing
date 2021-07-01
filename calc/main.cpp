@@ -36,8 +36,16 @@ int main() {
     // Option hOption1 = Option("European","Call",90,2);
     // pricer.runBacktest(config,3,"simple-delta-gamma-theta",1,0,0,{hOption0,hOption1}).printToCsvFiles(true);
     /**** Monte Carlo *********************************************************/
-    pricer.MonteCarloPricer(config,5000,"simple");
-    pricer.MonteCarloPricer(config,5000,"antithetic variates");
-    pricer.MonteCarloPricer(config,5000,"control variates");
+    // pricer.MonteCarloPricer(config,5000,"simple");
+    // pricer.MonteCarloPricer(config,5000,"antithetic variates");
+    // pricer.MonteCarloPricer(config,5000,"control variates");
+    /**** Heston model ********************************************************/
+    stock = Stock(100,0,0.05,0.2,{50,0.04,0.5,-0.5},"Heston");
+    vector<matrix> result = stock.simulatePriceWithFullCalc(config,10);
+    result[0].printToCsvFile("test_price.csv");
+    result[1].printToCsvFile("test_vol.csv");
+    result[2].printToCsvFile("test_var.csv");
+    /**** jump-diffusion model ************************************************/
+    // TO DO
     return 0;
 }

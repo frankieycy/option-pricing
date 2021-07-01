@@ -110,6 +110,7 @@ public:
     double calcLognormalPrice(double z, double time);
     matrix calcLognormalPriceVector(matrix z, double time);
     matrix simulatePrice(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
+    vector<matrix> simulatePriceWithFullCalc(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
     matrix bootstrapPrice(matrix priceSeries, const SimConfig& config, int numSim=1);
     matrix generatePriceTree(const SimConfig& config);
     matrix generatePriceMatrixFromTree();
@@ -446,6 +447,11 @@ matrix Stock::calcLognormalPriceVector(matrix z, double time){
 }
 
 matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& randomMatrix){
+    vector<matrix> fullCalc = simulatePriceWithFullCalc(config,numSim,randomMatrix);
+    return fullCalc[0]; // simPriceMatrix
+}
+
+vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int numSim, const matrix& randomMatrix){
     int n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
@@ -466,9 +472,34 @@ matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& r
     }else if(dynamics=="jump-diffusion"){
         // TO DO
     }else if(dynamics=="Heston"){
-        // TO DO
+        double sig0             = volatility;
+        double reversionRate    = dynParams[0];
+        double longRunVar       = dynParams[1];
+        double volOfVol         = dynParams[2];
+        double brownianCor0     = dynParams[3];
+        double brownianCor1     = sqrt(1-brownianCor0*brownianCor0);
+        matrix volRandomVector(1,numSim);
+        matrix currentVol(1,numSim,sig0), currentVar(1,numSim,sig0*sig0);
+        matrix simVolMatrix(n+1,numSim), simVarMatrix(n+1,numSim);
+        simVolMatrix.setRow(0,currentVol);
+        simVarMatrix.setRow(0,currentVar);
+        assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
+        for(int i=1; i<n+1; i++){
+            if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            else randomVector = randomMatrix.getRow(i);
+            volRandomVector.setNormalRand();
+            volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
+            currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar.apply(sqrt)*sqrt_dt*volRandomVector;
+            currentVol  = currentVar.apply(sqrt);
+            simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
+            simPriceMatrix.setRow(i,simPriceVector);
+            simVolMatrix.setRow(i,currentVol);
+            simVarMatrix.setRow(i,currentVar);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
+        return {simPriceMatrix,simVolMatrix,simVarMatrix};
     }
-    return simPriceMatrix;
+    return {simPriceMatrix};
 }
 
 matrix Stock::bootstrapPrice(matrix priceSeries, const SimConfig& config, int numSim){
@@ -728,7 +759,7 @@ double Pricer::BinomialTreePricer(const SimConfig& config){
     double sig = getVariable("volatility");
     double u = exp(sig*sqrt_dt), d = 1/u;
     double qu = (exp((r-q)*dt)-d)/(u-d), qd = 1-qu;
-    stock.setDriftRate(r);
+    stock.setDriftRate(r-q);
     stock.generatePriceTree(config);
     matrix optionBinomialTree(n,n);
     if(!option.isPathDependent()){
@@ -754,10 +785,11 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string meth
     int n = config.iters;
     Stock stock = market.getStock();
     double r = getVariable("riskFreeRate");
+    double q = getVariable("dividendYield");
     double T = getVariable("maturity");
     double err = NAN;
     matrix simPriceMatrix;
-    stock.setDriftRate(r);
+    stock.setDriftRate(r-q);
     if(method=="simple"){
         simPriceMatrix = stock.simulatePrice(config,numSim);
         if(!option.canEarlyExercise()){
@@ -804,8 +836,9 @@ double Pricer::NumIntegrationPricer(double z, double dz){
     logMessage("starting calculation NumIntegrationPricer on z "+to_string(z)+", dz "+to_string(dz));
     Stock stock = market.getStock();
     double r = getVariable("riskFreeRate");
+    double q = getVariable("dividendYield");
     double T = getVariable("maturity");
-    stock.setDriftRate(r);
+    stock.setDriftRate(r-q);
     int n = static_cast<int>(z/dz);
     matrix z0; z0.setRange(-z,z,2*n);
     matrix S = stock.calcLognormalPriceVector(z0,T);
