@@ -453,6 +453,7 @@ double matrix::prod() const {
 double matrix::mean(string method) const {
     if(method=="Arithmetic") return sum()/(rows*cols);
     else if(method=="Geometric") return exp((*this).apply(log).mean());
+    else return 0;
 }
 
 double matrix::var(int k) const {

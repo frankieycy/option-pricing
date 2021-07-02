@@ -670,8 +670,35 @@ matrix Market::setCorMatrix(matrix corMatrix){
 }
 
 vector<matrix> Market::simulateCorrelatedPrices(const SimConfig& config, int numSim, vector<matrix> randomMatrixSet){
-    // TO DO
-    return {NULL_MATRIX};
+    int n = config.iters;
+    int m = stocks.size();
+    double dt = config.stepSize;
+    double sqrt_dt = sqrt(dt);
+    matrix simTimeVector(1,n+1);
+    vector<matrix> randomVectorSet;
+    vector<matrix> simPriceVectorSet;
+    vector<matrix> simPriceMatrixSet;
+    simTimeVector.setEntry(0,0,0);
+    for(auto& stock:stocks){
+        double S = stock.getCurrentPrice();
+        matrix randomVector(1,numSim);
+        matrix simPriceVector(1,numSim,S);
+        matrix simPriceMatrix(n+1,numSim);
+        simPriceMatrix.setRow(0,simPriceVector);
+        randomVectorSet.push_back(randomVector);
+        simPriceVectorSet.push_back(simPriceVector);
+        simPriceMatrixSet.push_back(simPriceMatrix);
+    }
+    if(dynamics=="lognormal"){
+        for(int i=1; i<n+1; i++){
+            // if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            // else randomVector = randomMatrix.getRow(i);
+            // simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
+            // simPriceMatrix.setRow(i,simPriceVector);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
+    }
+    return simPriceMatrixSet;
 }
 
 //### Backtest class ###########################################################
@@ -941,9 +968,9 @@ double Pricer::MultiStockMonteCarloPricer(const SimConfig& config, int numSim, s
     double T = getVariable("maturity");
     Market rnMarket(market); // risk-neutral market
     vector<Stock> stocks = rnMarket.getStocks();
-    for(int i=0; i<stocks.size(); i++){
-        double q = stocks[i].getDividendYield();
-        stocks[i].setDriftRate(r-q);
+    for(auto& stock:stocks){
+        double q = stock.getDividendYield();
+        stock.setDriftRate(r-q);
     }
     rnMarket.setStocks(stocks);
     double err = NAN;
