@@ -20,6 +20,12 @@ inline double normalCDF(double x, double mu=0, double sig=1){return erfc(-M_SQRT
 inline double stdNormalPDF(double x){return normalPDF(x);}
 inline double stdNormalCDF(double x){return normalCDF(x);}
 
+double normalRand_(double mu=0, double sig=1){
+    double n = normalRand(mu,sig);
+    while(!isfinite(n)) n = normalRand(mu,sig);
+    return n;
+}
+
 double lognormalPDF(double x, double mu=0, double sig=1){
     double log_x = log(x);
     return exp(-(log_x-mu)*(log_x-mu)/(2*sig*sig))/(sqrt(2*M_PI)*sig*x);

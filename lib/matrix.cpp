@@ -65,13 +65,14 @@ public:
     matrix maxWith(double a) const;
     matrix minWith(double a) const;
     double sum() const;
-    double mean() const;
+    double prod() const;
+    double mean(string method="Arithmetic") const;
     double var(int k=1) const;
     double stdev(int k=1) const;
     double cov(const matrix& M, int k=1) const;
     double cor(const matrix& M, int k=1) const;
     matrix sum(int axis) const;
-    matrix mean(int axis) const;
+    matrix mean(int axis, string method="Arithmetic") const;
     matrix inverse() const;
     matrix transpose() const;
     matrix dot(const matrix& M) const;
@@ -310,7 +311,7 @@ matrix matrix::setUniformRand(double min, double max){
 matrix matrix::setNormalRand(double mu, double sig){
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            m[row][col] = normalRand(mu,sig);
+            m[row][col] = normalRand_(mu,sig);
     return *this;
 }
 
@@ -441,9 +442,19 @@ double matrix::sum() const {
     return a;
 }
 
-double matrix::mean() const {
-    return sum()/(rows*cols);
+double matrix::prod() const {
+    double a = 1;
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            a *= m[row][col];
+    return a;
 }
+
+double matrix::mean(string method) const {
+    if(method=="Arithmetic") return sum()/(rows*cols);
+    else if(method=="Geometric") return exp((*this).apply(log).mean());
+}
+
 double matrix::var(int k) const {
     double mu = mean();
     return (((*this)-mu)*((*this)-mu)).sum()/(rows*cols-k);
@@ -467,20 +478,20 @@ matrix matrix::sum(int axis) const {
     vector<double> v;
     switch(axis){
         case 1:
-        for(int row=0; row<rows; row++) v.push_back(getRow(row).sum());
+            for(int row=0; row<rows; row++) v.push_back(getRow(row).sum()); break;
         case 2:
-        for(int col=0; col<cols; col++) v.push_back(getCol(col).sum());
+            for(int col=0; col<cols; col++) v.push_back(getCol(col).sum()); break;
     }
     return matrix(v);
 }
 
-matrix matrix::mean(int axis) const {
+matrix matrix::mean(int axis, string method) const {
     vector<double> v;
     switch(axis){
         case 1:
-        for(int row=0; row<rows; row++) v.push_back(getRow(row).mean());
+            for(int row=0; row<rows; row++) v.push_back(getRow(row).mean(method)); break;
         case 2:
-        for(int col=0; col<cols; col++) v.push_back(getCol(col).mean());
+            for(int col=0; col<cols; col++) v.push_back(getCol(col).mean(method)); break;
     }
     return matrix(v);
 }
@@ -568,16 +579,19 @@ matrix matrix::sample(int n, bool replace) const {
 
 matrix matrix::concat(const matrix& M, int axis) const {
     matrix A;
-    if(axis==0){
-        assert(cols==M.cols);
-        A = matrix(rows+M.rows,cols);
-        A.setSubmatrix(0,rows,0,cols,*this);
-        A.setSubmatrix(rows,-1,0,cols,M);
-    }else if(axis==1){
-        assert(rows==M.rows);
-        A = matrix(rows,cols+M.cols);
-        A.setSubmatrix(0,rows,0,cols,*this);
-        A.setSubmatrix(0,rows,cols,-1,M);
+    switch(axis){
+        case 1:
+            assert(cols==M.cols);
+            A = matrix(rows+M.rows,cols);
+            A.setSubmatrix(0,rows,0,cols,*this);
+            A.setSubmatrix(rows,-1,0,cols,M);
+            break;
+        case 2:
+            assert(rows==M.rows);
+            A = matrix(rows,cols+M.cols);
+            A.setSubmatrix(0,rows,0,cols,*this);
+            A.setSubmatrix(0,rows,cols,-1,M);
+            break;
     }
     return A;
 }

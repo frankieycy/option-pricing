@@ -12,13 +12,13 @@ inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] "
 /**** global variables ********************************************************/
 
 const set<string> OPTION_TYPES{
-    "European", "American", "Bermudan", "Digital", "Asian", "Barrier"
+    "European", "Digital", "American", "Bermudan", "Asian", "Barrier", "Lookback", "Margrabe"
 };
 const set<string> EARLY_EX_OPTIONS{
     "American", "Bermudan"
 };
 const set<string> PATH_DEP_OPTIONS{
-    "Asian"
+    "Asian", "Barrier", "Lookback"
 };
 const set<string> PUT_CALL{
     "Put", "Call"
@@ -38,35 +38,39 @@ public:
 
 const SimConfig NULL_CONFIG;
 
-class Process{}; // TO DO
-
 class Option{
 private:
-    string name, type, putCall;
+    string name, type, putCall, nature;
     double strike, maturity;
+    vector<double> params;
 public:
     /**** constructors ****/
     Option(){};
-    Option(string type, string putCall, double strike, double maturity, string name="unnamed");
+    Option(string type, string putCall, double strike, double maturity,
+        vector<double> params={}, string nature="", string name="unnamed");
     Option(const Option& option);
     /**** accessors ****/
     bool canEarlyExercise() const;
     bool isPathDependent() const;
     string getName() const {return name;}
+    string getNature() const {return nature;}
     string getType() const {return type;}
     string getPutCall() const {return putCall;}
     double getStrike() const {return strike;}
     double getMaturity() const {return maturity;}
+    vector<double> getParams() const {return params;}
     string getAsJson() const;
     /**** mutators ****/
     string setName(string name);
+    string setNature(string nature);
     string setType(string type);
     double setStrike(double strike);
     double setMaturity(double maturity);
+    vector<double> setParams(vector<double> params);
     /**** main ****/
     bool checkParams() const;
-    double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR);
-    matrix calcPayoffs(matrix stockPriceVector=NULL_VECTOR, matrix priceMatrix=NULL_MATRIX);
+    double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR, vector<matrix> priceSeriesSet={});
+    matrix calcPayoffs(matrix stockPriceVector=NULL_VECTOR, matrix priceMatrix=NULL_MATRIX, vector<matrix> priceMatrixSet={});
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Option& option);
 };
@@ -109,8 +113,8 @@ public:
     bool checkParams() const;
     double calcLognormalPrice(double z, double time);
     matrix calcLognormalPriceVector(matrix z, double time);
-    matrix simulatePrice(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
-    vector<matrix> simulatePriceWithFullCalc(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
+    matrix simulatePrice(const SimConfig& config, int numSim=1, matrix randomMatrix=NULL_MATRIX);
+    vector<matrix> simulatePriceWithFullCalc(const SimConfig& config, int numSim=1, matrix randomMatrix=NULL_MATRIX);
     matrix bootstrapPrice(matrix priceSeries, const SimConfig& config, int numSim=1);
     matrix generatePriceTree(const SimConfig& config);
     matrix generatePriceMatrixFromTree();
@@ -118,22 +122,32 @@ public:
     friend ostream& operator<<(ostream& out, const Stock& stock);
 };
 
+const Stock NULL_STOCK;
+
 class Market{
 private:
-    Stock stock;
     double riskFreeRate;
+    Stock stock;
+    vector<Stock> stocks;
+    matrix corMatrix;
 public:
     /**** constructors ****/
     Market(){};
-    Market(double riskFreeRate, const Stock& stock);
+    Market(double riskFreeRate, const Stock& stock, vector<Stock> stocks={}, matrix corMatrix=NULL_MATRIX);
     Market(const Market& market);
     /**** accessors ****/
-    Stock getStock() const {return stock;}
     double getRiskFreeRate() const {return riskFreeRate;}
+    Stock getStock() const {return stock;}
+    vector<Stock> getStocks() const {return stocks;}
+    matrix getCorMatrix() const {return corMatrix;}
     string getAsJson() const;
     /**** mutators ****/
     double setRiskFreeRate(double riskFreeRate);
     Stock setStock(const Stock& stock);
+    vector<Stock> setStocks(vector<Stock> stocks);
+    matrix setCorMatrix(matrix corMatrix);
+    /**** main ****/
+    vector<matrix> simulateCorrelatedPrices(const SimConfig& config, int numSim=1, vector<matrix> randomMatrixSet={});
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Market& market);
 };
@@ -180,6 +194,7 @@ public:
     double BlackScholesClosedForm();
     double BinomialTreePricer(const SimConfig& config);
     double MonteCarloPricer(const SimConfig& config, int numSim, string method="simple");
+    double MultiStockMonteCarloPricer(const SimConfig& config, int numSim, string method="simple");
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
@@ -227,11 +242,13 @@ string SimConfig::getAsJson() const {
 
 //### Option class #############################################################
 
-Option::Option(string type, string putCall, double strike, double maturity, string name){
+Option::Option(string type, string putCall, double strike, double maturity, vector<double> params, string nature, string name){
     this->type = type;
     this->putCall = putCall;
     this->strike = strike;
     this->maturity = maturity;
+    this->params = params;
+    this->nature = nature;
     this->name = name;
     assert(checkParams());
 }
@@ -241,6 +258,8 @@ Option::Option(const Option& option){
     this->putCall = option.putCall;
     this->strike = option.strike;
     this->maturity = option.maturity;
+    this->params = option.params;
+    this->nature = option.nature;
     this->name = option.name;
 }
 
@@ -257,9 +276,11 @@ string Option::getAsJson() const {
     oss << "{" <<
     "\"name\":\""      << name     << "\"," <<
     "\"type\":\""      << type     << "\"," <<
+    "\"nature\":\""    << nature   << "\"," <<
     "\"putCall\":\""   << putCall  << "\"," <<
-    "\"strike\":"      << strike   << ","  <<
-    "\"maturity\":"    << maturity <<
+    "\"strike\":"      << strike   << ","   <<
+    "\"maturity\":"    << maturity << ","   <<
+    "\"params\":"      << params   <<
     "}";
     return oss.str();
 }
@@ -267,6 +288,11 @@ string Option::getAsJson() const {
 string Option::setName(string name){
     this->name = name;
     return name;
+}
+
+string Option::setNature(string nature){
+    this->nature = nature;
+    return nature;
 }
 
 string Option::setType(string type){
@@ -284,6 +310,11 @@ double Option::setMaturity(double maturity){
     return maturity;
 }
 
+vector<double> Option::setParams(vector<double> params){
+    this->params = params;
+    return params;
+}
+
 bool Option::checkParams() const {
     return
     OPTION_TYPES.find(type)!=OPTION_TYPES.end() &&
@@ -291,7 +322,7 @@ bool Option::checkParams() const {
     strike>=0 && maturity>=0;
 }
 
-double Option::calcPayoff(double stockPrice, matrix priceSeries){
+double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> priceSeriesSet){
     double S;
     if(type=="European" || type=="American"){
         if(priceSeries.isEmpty()) S = stockPrice;
@@ -305,14 +336,44 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries){
         else if(putCall=="Call") return (S>strike);
     }else if(type=="Asian"){
         if(priceSeries.isEmpty()) return NAN;
-        else S = priceSeries.getRow(0).mean();
+        else S = priceSeries.getRow(0).mean(nature);
         if(putCall=="Put") return max(strike-S,0.);
         else if(putCall=="Call") return max(S-strike,0.);
+    }else if(type=="Barrier"){
+        if(priceSeries.isEmpty()) return NAN;
+        else S = priceSeries.getLastEntry();
+        double barrier = params[0];
+        double rebate = params[1];
+        bool triggered =
+            (nature=="Up-and-In" && priceSeries.getMax()>barrier) ||
+            (nature=="Up-and-Out" && priceSeries.getMax()<barrier) ||
+            (nature=="Down-and-In" && priceSeries.getMin()<barrier) ||
+            (nature=="Down-and-Out" && priceSeries.getMin()>barrier);
+        if(triggered){
+            if(putCall=="Put") return max(strike-S,0.);
+            else if(putCall=="Call") return max(S-strike,0.);
+        }else return rebate;
+    }else if(type=="Lookback"){
+        if(priceSeries.isEmpty()) return NAN;
+        else S = priceSeries.getLastEntry();
+        if(putCall=="Put"){
+            double Smax = priceSeries.getMax();
+            return max(Smax-S,0.);
+        }else if(putCall=="Call"){
+            double Smin = priceSeries.getMin();
+            return max(S-Smin,0.);
+        }
+    }else if(type=="Margrabe"){
+        if(priceSeriesSet.empty()) return NAN;
+        double S0 = priceSeriesSet[0].getLastEntry();
+        double S1 = priceSeriesSet[1].getLastEntry();
+        if(putCall=="Put") return max(S1-S0,0.);
+        else if(putCall=="Call") return max(S0-S1,0.);
     }
     return NAN;
 }
 
-matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix){
+matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<matrix> priceMatrixSet){
     matrix S;
     if(type=="European" || type=="American"){
         if(priceMatrix.isEmpty()) S = stockPriceVector;
@@ -326,9 +387,27 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix){
         else if(putCall=="Call") return (S>strike);
     }else if(type=="Asian"){
         if(priceMatrix.isEmpty()) return NULL_VECTOR;
-        else S = priceMatrix.mean(2);
+        else S = priceMatrix.mean(2,nature);
         if(putCall=="Put") return (strike-S).maxWith(0.);
         else if(putCall=="Call") return (S-strike).maxWith(0.);
+    }else if(type=="Barrier" || type=="Lookback"){
+        if(priceMatrix.isEmpty()) return NULL_VECTOR;
+        int n = priceMatrix.getCols();
+        matrix V(1,n);
+        for(int i=0; i<n; i++) V.setEntry(0,i,calcPayoff(0,priceMatrix.getCol(i)));
+        return V;
+    }else if(type=="Margrabe"){
+        if(priceMatrixSet.empty()) return NULL_VECTOR;
+        int n = priceMatrixSet[0].getCols();
+        matrix V(1,n);
+        for(int i=0; i<n; i++){
+            vector<matrix> priceSeriesSet = {
+                priceMatrixSet[0].getCol(i),
+                priceMatrixSet[1].getCol(i)
+            };
+            V.setEntry(0,i,calcPayoff(0,NULL_VECTOR,priceSeriesSet));
+        }
+        return V;
     }
     return NULL_VECTOR;
 }
@@ -446,12 +525,12 @@ matrix Stock::calcLognormalPriceVector(matrix z, double time){
     return S;
 }
 
-matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& randomMatrix){
+matrix Stock::simulatePrice(const SimConfig& config, int numSim, matrix randomMatrix){
     vector<matrix> fullCalc = simulatePriceWithFullCalc(config,numSim,randomMatrix);
     return fullCalc[0]; // simPriceMatrix
 }
 
-vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int numSim, const matrix& randomMatrix){
+vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int numSim, matrix randomMatrix){
     int n = config.iters;
     double dt = config.stepSize;
     double sqrt_dt = sqrt(dt);
@@ -489,6 +568,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             else randomVector = randomMatrix.getRow(i);
             volRandomVector.setNormalRand();
             volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
+            // currentVar += reversionRate*(longRunVar-currentVar.maxWith(0.))*dt+volOfVol*currentVar.maxWith(0.).apply(sqrt)*sqrt_dt*volRandomVector;
             currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar.apply(sqrt)*sqrt_dt*volRandomVector;
             currentVar  = currentVar.apply(abs);
             currentVol  = currentVar.apply(sqrt);
@@ -544,21 +624,27 @@ matrix Stock::generatePriceTree(const SimConfig& config){
 
 //### Market class #############################################################
 
-Market::Market(double riskFreeRate, const Stock& stock){
+Market::Market(double riskFreeRate, const Stock& stock, vector<Stock> stocks, matrix corMatrix){
     this->riskFreeRate = riskFreeRate;
     this->stock = stock;
+    this->stocks = stocks;
+    this->corMatrix = corMatrix;
 }
 
 Market::Market(const Market& market){
     this->riskFreeRate = market.riskFreeRate;
     this->stock = market.stock;
+    this->stocks = market.stocks;
+    this->corMatrix = market.corMatrix;
 }
 
 string Market::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "\"riskFreeRate\":"   << riskFreeRate << "," <<
-    "\"stock\":"          << stock        <<
+    "\"stock\":"          << stock        << "," <<
+    "\"stocks\":"         << stocks       << "," <<
+    "\"corMatrix\":"      << corMatrix    <<
     "}";
     return oss.str();
 }
@@ -571,6 +657,21 @@ double Market::setRiskFreeRate(double riskFreeRate){
 Stock Market::setStock(const Stock& stock){
     this->stock = stock;
     return stock;
+}
+
+vector<Stock> Market::setStocks(vector<Stock> stocks){
+    this->stocks = stocks;
+    return stocks;
+}
+
+matrix Market::setCorMatrix(matrix corMatrix){
+    this->corMatrix = corMatrix;
+    return corMatrix;
+}
+
+vector<matrix> Market::simulateCorrelatedPrices(const SimConfig& config, int numSim, vector<matrix> randomMatrixSet){
+    // TO DO
+    return {NULL_MATRIX};
 }
 
 //### Backtest class ###########################################################
@@ -827,6 +928,33 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string meth
         double refErr = refPricer.tmp[0];
         price += refPriceClosed-refPriceMonte;
         err = sqrt(err*err+refErr*refErr); // assume uncorrelated MC estimates
+    }
+    tmp = {err};
+    logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
+    return price;
+}
+
+double Pricer::MultiStockMonteCarloPricer(const SimConfig& config, int numSim, string method){
+    logMessage("starting calculation MonteCarloPricer on config "+to_string(config)+", numSim "+to_string(numSim));
+    int n = config.iters;
+    double r = getVariable("riskFreeRate");
+    double T = getVariable("maturity");
+    Market rnMarket(market); // risk-neutral market
+    vector<Stock> stocks = rnMarket.getStocks();
+    for(int i=0; i<stocks.size(); i++){
+        double q = stocks[i].getDividendYield();
+        stocks[i].setDriftRate(r-q);
+    }
+    rnMarket.setStocks(stocks);
+    double err = NAN;
+    vector<matrix> simPriceMatrixSet;
+    if(method=="simple"){
+        simPriceMatrixSet = rnMarket.simulateCorrelatedPrices(config,numSim);
+        if(!option.canEarlyExercise()){
+            matrix payoffs = option.calcPayoffs(NULL_VECTOR,NULL_MATRIX,simPriceMatrixSet);
+            price = exp(-r*T)*payoffs.mean();
+            err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
+        }
     }
     tmp = {err};
     logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
@@ -1142,7 +1270,7 @@ void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double
         strike = stod(strikeStr);
         maturity = stod(maturityStr);
         optionMarketPrice = stod(optionMarketPriceStr);
-        option = Option(type,putCall,strike,maturity,name);
+        option = Option(type,putCall,strike,maturity,{},"",name);
         // cout << option << endl;
         impliedVol = calcImpliedVolatility(optionMarketPrice,vol0,eps);
         if(!isnan(impliedVol)) fo << name << "," << type << "," << putCall << "," <<
@@ -1171,7 +1299,7 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
         maturity = stod(maturityStr);
         impliedVol = stod(impliedVolStr);
         setVariable("volatility",impliedVol);
-        option = Option(type,putCall,strike,maturity,name);
+        option = Option(type,putCall,strike,maturity,{},"",name);
         // cout << option << endl;
         Delta = calcGreek("Delta");
         Gamma = calcGreek("Gamma");
