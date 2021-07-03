@@ -831,7 +831,8 @@ string Pricer::getAsJson() const {
     ostringstream oss;
     oss << "{" <<
     "\"option\":"     << option   << "," <<
-    "\"market\":"     << market   <<
+    "\"market\":"     << market   << "," <<
+    "\"price\":"      << price    <<
     "}";
     return oss.str();
 }
