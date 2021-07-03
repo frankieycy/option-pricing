@@ -26,7 +26,146 @@
 * ok, Exotic option pricing with Monte Carlo
 * stochastic vol model: jump diffusion, Heston
 * Heston model construct imp vol surface
+* facade design pattern: optionlib.cpp (wrapper)
 * deterministic (non-constant) interest rate extension (PDE)
 * deterministic (non-constant) volatility extension (PDE)
 * (app.py) visualization of implied vol surface in table format
 * (app.py) visualization of Greeks vs strike
+
+### Single-Asset Option Pricing Examples
+
+For pricing of option on single underlying asset via Monte-Carlo simulation, the following serves as a template. Concrete examples can be found under calc/.
+```
+#include "option.cpp" // The pricing lib
+/**** Config-related ********/
+int n = ...; // Num of time steps
+int m = ...; // Num of MC sims
+/**** Option-related ********/
+string Type             = ...;
+string PutCall          = ...;
+string Nature           = ...;
+double Strike           = ...;
+double Maturity         = ...;
+vector<double> Params   = ...;
+/**** Stock-related *********/
+double CurrPrice        = ...;
+double DivYield         = ...;
+double Drift            = ...;
+double Vol              = ...;
+/**** Market-related ********/
+double RiskFreeRate     = ...;
+/**** Declare objects *******/
+Option option           = Option(Type,PutCall,Strike,Maturity,Params,Nature);
+Stock  stock            = Stock(CurrPrice,DivYield,Drift,Vol);
+Market market           = Market(RiskFreeRate,stock);
+Pricer pricer           = Pricer(option,market);
+SimConfig config        = SimConfig(Maturity,n);
+/**** Calc price ************/
+double mcPrice          = pricer.MonteCarloPricer(config,m);
+```
+
+For vanilla European options, `Nature` and `Params` can be left empty.
+```
+Nature = "";
+Params = {};
+```
+
+However, for exotic options, they are generally required, as described case by case below.
+
+##### 1. Asian Option
+
+Asian option has the average of historical prices as its underlying. The averaging can be arithmetic or geometric, while in practice, arithmetic is more common.
+```
+Nature = "Arithmetic" or "Geometric";
+Params = {};
+```
+
+##### 2. Barrier Option
+
+Barrier option has the terminal asset price as its underlying but only if the barrier condition is met. For example, for a Down-and-Out, rebate is paid out if historically the barrier (lower than strike) was crossed. Rebate can be zero, meaning the option goes worthless on such occurrence. If the condition is not met, the usual vanilla payoff is paid.
+```
+Barrier = ...; // Has to be consistent with Up/Down setting
+Rebate  = ...; // e.g. 0
+Nature  = "Up-and-In" or "Up-and-Out" or "Down-and-In" or "Down-and-Out";
+Params  = {Barrier, Rebate};
+```
+
+##### 3. Lookback Option
+
+Lookback option has the terminal asset price as its underlying but is struck at the historical min or max. For a Lookback call, max(S-Smin,0) is paid; for a Lookback put, max(Smax-S,0) is paid. `Nature` and `Params` can be left empty.
+```
+Nature = "";
+Params = {};
+```
+
+### Multi-Asset Option Pricing Examples
+
+For pricing of option on multiple underlying assets via Monte-Carlo simulation, the following serves as a template. Additionally, all underlying stocks and the correlation matrix (of their underlying Brownian motions) have to be specified. Concrete examples can be found under calc/.
+```
+#include "option.cpp" // The pricing lib
+/**** Config-related ********/
+int n = ...; // Num of time steps
+int m = ...; // Num of MC sims
+/**** Option-related ********/
+string Type             = ...;
+string PutCall          = ...;
+string Nature           = ...;
+double Strike           = ...;
+double Maturity         = ...;
+vector<double> Params   = ...;
+/**** Stock-related *********/
+int nStk = ...; // Num of stocks
+vector<double> CurrPrices = ...;
+vector<double> DivYields  = ...;
+vector<double> Drifts     = ...;
+vector<double> Vols       = ...;
+vector<Stock>  stocks;
+for(int i=0; i<nStk; i++){
+    double CurrPrice    = CurrPrices[i];
+    double DivYield     = DivYields[i];
+    double Drift        = Drifts[i];
+    double Vol          = Vols[i];
+    Stock stock = Stock(CurrPrice,DivYield,Drift,Vol);
+    stocks.push_back(stock);
+}
+matrix corMatrix;
+corMatrix = matrix(...); // Double array arguments
+/**** Market-related ********/
+double RiskFreeRate     = ...;
+/**** Declare objects *******/
+Option option           = Option(Type,PutCall,Strike,Maturity,Params,Nature);
+Market market           = Market(RiskFreeRate,NULL_STOCK,stocks,corMatrix);
+Pricer pricer           = Pricer(option,market);
+SimConfig config        = SimConfig(Maturity,n);
+/**** Calc price ************/
+double mcPrice          = pricer.MonteCarloPricer(config,m);
+```
+
+##### 1. Basket Option
+
+Basket option has the average of terminal asset prices of the basket as its underlying. The averaging can be a simple even-out or weighted. If weighted, specify `Params` as the respective weights.
+```
+Nature = "";
+Params = ...; // weights for each stock
+```
+
+##### 2. Margrabe Option
+
+Margrabe option gives the holder the right to exchange two assets at maturity. For a call, the second asset is exchanged for the first, hence payoff max(S1-S2,0); for a put, the first asset is exchanged for the second, hence payoff max(S2-S1,0). `Nature` and `Params` can be left empty.
+```
+Nature = "";
+Params = {};
+```
+
+##### 3. Rainbow Option
+
+Rainbow option has the max or min of terminal asset prices of the basket as its underlying, struck at the strike price. The max/min nature is specified via `Nature`. Alternatively, Best Rainbow pays the max between asset prices and strike, which effectively is the lump sum of cash payout and a call on max.
+```
+Nature = "Max" or "Min" or "Best";
+Params = {};
+```
+
+### Other Price Dynamics
+
+##### 1. Heston Model
+##### 2. Jump-Diffusion Model

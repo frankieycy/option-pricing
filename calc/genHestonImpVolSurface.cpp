@@ -4,7 +4,7 @@ using namespace std;
 int main() {
     /**** Heston model imp vol ************************************************/
     string dataFolder = "data/";
-    int m = 1e4; // num of sims
+    int m = 1e4; // num of MC sims
     double dt = 0.005; // step size
     double K0 = 50, K1 = 200, dK = 5;
     double T0 = 0.25, T1 = 2, dT = 0.25;
@@ -25,8 +25,8 @@ int main() {
     PutCallSet = {"Put","Call"};
     for(double K=K0; K<=K1; K+=dK) StrikeSet.push_back(K);
     for(double T=T0; T<=T1; T+=dT) MaturitySet.push_back(T);
-    ofstream f1; f1.open(dataFolder+"heston_config.json");
-    ofstream f2; f2.open(dataFolder+"heston_price.csv");
+    ofstream f1; f1.open(dataFolder+"heston_config.json");  // input data
+    ofstream f2; f2.open(dataFolder+"heston_price.csv");    // pricing data
     f1 << "{";
     for(double T:MaturitySet){
         for(string PC:PutCallSet){
