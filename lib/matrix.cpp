@@ -80,6 +80,7 @@ public:
     matrix apply(const function<double(double)>& f) const;
     matrix sample(int n, bool replace=true) const;
     matrix concat(const matrix& M, int axis=0) const;
+    matrix chol() const;
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const matrix& M);
     friend bool operator==(const matrix& M1, const matrix& M2);
@@ -594,6 +595,11 @@ matrix matrix::concat(const matrix& M, int axis) const {
             A.setSubmatrix(0,rows,cols,-1,M);
             break;
     }
+    return A;
+}
+
+matrix matrix::chol() const {
+    matrix A(rows,cols);
     return A;
 }
 

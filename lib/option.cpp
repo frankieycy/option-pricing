@@ -107,6 +107,8 @@ public:
     double setDriftRate(double driftRate);
     double setVolatility(double volatility);
     vector<double> setDynParams(vector<double> dynParams);
+    matrix setSimTimeVector(matrix simTimeVector);
+    matrix setSimPriceMatrix(matrix simPriceMatrix);
     double estDriftRateFromPrice(matrix priceSeries, double dt, string method="simple");
     double estVolatilityFromPrice(matrix priceSeries, double dt, string method="simple");
     /**** main ****/
@@ -148,6 +150,7 @@ public:
     matrix setCorMatrix(matrix corMatrix);
     /**** main ****/
     vector<matrix> simulateCorrelatedPrices(const SimConfig& config, int numSim=1, vector<matrix> randomMatrixSet={});
+    vector<vector<matrix>> simulateCorrelatedPricesWithFullCalc(const SimConfig& config, int numSim=1, vector<matrix> randomMatrixSet={});
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Market& market);
 };
@@ -485,6 +488,16 @@ vector<double> Stock::setDynParams(vector<double> dynParams){
     return dynParams;
 }
 
+matrix Stock::setSimTimeVector(matrix simTimeVector){
+    this->simTimeVector = simTimeVector;
+    return simTimeVector;
+}
+
+matrix Stock::setSimPriceMatrix(matrix simPriceMatrix){
+    this->simPriceMatrix = simPriceMatrix;
+    return simPriceMatrix;
+}
+
 double Stock::estDriftRateFromPrice(matrix priceSeries, double dt, string method){
     if(method=="simple"){
         matrix returnSeries;
@@ -670,6 +683,11 @@ matrix Market::setCorMatrix(matrix corMatrix){
 }
 
 vector<matrix> Market::simulateCorrelatedPrices(const SimConfig& config, int numSim, vector<matrix> randomMatrixSet){
+    vector<vector<matrix>> fullCalc = simulateCorrelatedPricesWithFullCalc(config,numSim,randomMatrixSet);
+    return fullCalc[0]; // simPriceMatrixSet
+}
+
+vector<vector<matrix>> Market::simulateCorrelatedPricesWithFullCalc(const SimConfig& config, int numSim, vector<matrix> randomMatrixSet){
     int n = config.iters;
     int m = stocks.size();
     double dt = config.stepSize;
@@ -679,7 +697,7 @@ vector<matrix> Market::simulateCorrelatedPrices(const SimConfig& config, int num
     vector<matrix> simPriceVectorSet;
     vector<matrix> simPriceMatrixSet;
     simTimeVector.setEntry(0,0,0);
-    for(auto& stock:stocks){
+    for(auto stock:stocks){
         double S = stock.getCurrentPrice();
         matrix randomVector(1,numSim);
         matrix simPriceVector(1,numSim,S);
@@ -689,16 +707,33 @@ vector<matrix> Market::simulateCorrelatedPrices(const SimConfig& config, int num
         simPriceVectorSet.push_back(simPriceVector);
         simPriceMatrixSet.push_back(simPriceMatrix);
     }
+    matrix corFactor = corMatrix.chol(); // Choleskey decomposition
+    string dynamics = stocks[0].getDynamics();
     if(dynamics=="lognormal"){
         for(int i=1; i<n+1; i++){
-            // if(randomMatrix.isEmpty()) randomVector.setNormalRand();
-            // else randomVector = randomMatrix.getRow(i);
-            // simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector);
-            // simPriceMatrix.setRow(i,simPriceVector);
+            matrix iidRandomMatrix(m,numSim);
+            if(randomMatrixSet.empty()) iidRandomMatrix.setNormalRand();
+            else for(int j=0; j<m; j++) iidRandomMatrix.setRow(j,randomMatrixSet[j].getRow(i));
+            matrix corRandomMatrix = corFactor.dot(iidRandomMatrix);
+            for(int j=0; j<m; j++){
+                double driftRate = stocks[j].getDriftRate();
+                double volatility = stocks[j].getVolatility();
+                randomVectorSet[j] = corRandomMatrix.getRow(j);
+                simPriceVectorSet[j] += simPriceVectorSet[j]*(driftRate*dt+volatility*sqrt_dt*randomVectorSet[j]);
+                simPriceMatrixSet[j].setRow(i,simPriceVectorSet[j]);
+            }
             simTimeVector.setEntry(0,i,i*dt);
         }
+        for(int j=0; j<m; j++){
+            stocks[j].setSimTimeVector(simTimeVector);
+            stocks[j].setSimPriceMatrix(simPriceMatrixSet[j]);
+        }
+    }else if(dynamics=="jump-diffusion"){
+        // TO DO
+    }else if(dynamics=="Heston"){
+        // TO DO
     }
-    return simPriceMatrixSet;
+    return {simPriceMatrixSet};
 }
 
 //### Backtest class ###########################################################
