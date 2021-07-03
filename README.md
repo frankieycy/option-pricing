@@ -82,7 +82,7 @@ Params = {};
 
 ##### 2. Barrier Option
 
-Barrier option has the terminal asset price as its underlying but only if the barrier condition is met. For example, for a Down-and-Out, rebate is paid out if historically the barrier (lower than strike) was crossed. Rebate can be zero, meaning the option goes worthless on such occurrence. If the condition is not met, the usual vanilla payoff is paid.
+Barrier option has the terminal asset price as its underlying but only if, for an In, the barrier is hit or if, for an Out, the barrier is not hit. For example, for a Down-and-Out, rebate is paid out if historically the barrier (lower than strike) was crossed. Rebate can be zero, meaning the option goes worthless on such occurrence. If otherwise, the usual vanilla payoff is paid.
 ```
 Barrier = ...; // Has to be consistent with Up/Down setting
 Rebate  = ...; // e.g. 0
