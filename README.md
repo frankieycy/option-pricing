@@ -38,8 +38,8 @@ For pricing of option on single underlying asset via Monte-Carlo simulation, the
 ```
 #include "option.cpp" // The pricing lib
 /**** Config-related ********/
-int n = ...; // Num of time steps
-int m = ...; // Num of MC sims
+int n = ...; // Num of time steps, e.g. 500
+int m = ...; // Num of MC sims, e.g. 1e4
 /**** Option-related ********/
 string Type             = ...;
 string PutCall          = ...;
@@ -71,6 +71,8 @@ Params = {};
 ```
 
 However, for exotic options, they are generally required, as described case by case below.
+
+**Technical Note on Monte-Carlo.** In the simulations, asset prices drift under the risk-neutral measure, not the physical measure. In practice, a risk-neutral market is created and assets have Drift equal to RiskFreeRate minus DivYield, or mu=r-q. With the simulated price paths, option payoffs can computed and averaged, eventually discounted to give the present value. Other pricing methods aside from Monte-Carlo are supported, including: 1. Black-Scholes closed form, 2. binomial tree, 3. numerical integration and 4. PDE solver. However, they have their limitations and are restricted to certain option types, e.g. simple closed form price is not always available (except for few examples like vanilla and Margrabe), binomial tree does not easily support path-dependence. Monte-Carlo serves as a generic brute-force method and applies to a wide class of non-early exercisable options, despite disadvantages like: 1. slow in convergence of O(n^-0.5) and statistical error, 2. slow in computation. Early exercise can be handled via some techniques (which estimate continuation value), and will be incorporated in future development.
 
 ##### 1. Asian Option
 
@@ -146,7 +148,7 @@ double mcPrice          = pricer.MonteCarloPricer(config,m);
 Basket option has the average of terminal asset prices of the basket as its underlying. The averaging can be a simple even-out or weighted. If weighted, specify `Params` as the respective weights.
 ```
 Nature = "";
-Params = ...; // weights for each stock
+Params = ...; // Weights for each stock
 ```
 
 ##### 2. Margrabe Option
