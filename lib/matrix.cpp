@@ -65,8 +65,10 @@ public:
     matrix maxWith(double a) const;
     matrix minWith(double a) const;
     double sum() const;
+    double sum(vector<double> weights) const;
     double prod() const;
     double mean(string method="Arithmetic") const;
+    double wmean(vector<double> weights, string method="Arithmetic") const;
     double var(int k=1) const;
     double stdev(int k=1) const;
     double cov(const matrix& M, int k=1) const;
@@ -443,6 +445,15 @@ double matrix::sum() const {
     return a;
 }
 
+double matrix::sum(vector<double> weights) const {
+    assert(rows*cols==weights.size());
+    double a = 0;
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            a += m[row][col]*weights[row*cols+col];
+    return a;
+}
+
 double matrix::prod() const {
     double a = 1;
     for(int row=0; row<rows; row++)
@@ -454,6 +465,14 @@ double matrix::prod() const {
 double matrix::mean(string method) const {
     if(method=="Arithmetic") return sum()/(rows*cols);
     else if(method=="Geometric") return exp((*this).apply(log).mean());
+    else return 0;
+}
+
+double matrix::wmean(vector<double> weights, string method) const {
+    double weightSum = 0;
+    for(auto w:weights) weightSum += w;
+    if(method=="Arithmetic") return sum(weights)/(weightSum);
+    else if(method=="Geometric") return exp((*this).apply(log).wmean(weights));
     else return 0;
 }
 
@@ -599,7 +618,17 @@ matrix matrix::concat(const matrix& M, int axis) const {
 }
 
 matrix matrix::chol() const {
-    matrix A(rows,cols);
+    assert(rows==cols);
+    int n = rows;
+    MatrixXd a(n,n);
+    for(int i=0; i<n; i++) a.row(i) = VectorXd::Map(&m[i][0],m[i].size());
+    a = a.llt().matrixL();
+    double b[n][n];
+    Map<RowMatrixXd>(&b[0][0],n,n) = a;
+    matrix A(n,n);
+    vector<vector<double>> m_;
+    for(int i=0; i<n; i++) m_.push_back(vector<double>(b[i],b[i]+n));
+    A.m = m_;
     return A;
 }
 

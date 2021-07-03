@@ -12,7 +12,8 @@ inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] "
 /**** global variables ********************************************************/
 
 const set<string> OPTION_TYPES{
-    "European", "Digital", "American", "Bermudan", "Asian", "Barrier", "Lookback", "Margrabe"
+    "European", "Digital", "American", "Bermudan", "Asian", "Barrier", "Lookback",
+    "Margrabe", "Basket", "Rainbow"
 };
 const set<string> EARLY_EX_OPTIONS{
     "American", "Bermudan"
@@ -139,13 +140,13 @@ public:
     Market(const Market& market);
     /**** accessors ****/
     double getRiskFreeRate() const {return riskFreeRate;}
-    Stock getStock() const {return stock;}
+    Stock getStock(int i=-1) const {return i<0?stock:stocks[i];}
     vector<Stock> getStocks() const {return stocks;}
     matrix getCorMatrix() const {return corMatrix;}
     string getAsJson() const;
     /**** mutators ****/
     double setRiskFreeRate(double riskFreeRate);
-    Stock setStock(const Stock& stock);
+    Stock setStock(const Stock& stock, int i=-1);
     vector<Stock> setStocks(vector<Stock> stocks);
     matrix setCorMatrix(matrix corMatrix);
     /**** main ****/
@@ -186,9 +187,9 @@ public:
     Market getMarket() const {return market;}
     double getPrice() const {return price;}
     string getAsJson() const;
-    double getVariable(string var) const;
+    double getVariable(string var, int i=-1, int j=-1) const;
     /**** mutators ****/
-    double setVariable(string var, double v);
+    double setVariable(string var, double v, int i=-1);
     string setStringVariable(string var, string v);
     Pricer setVariablesFromFile(string file);
     Pricer resetOriginal();
@@ -326,6 +327,7 @@ bool Option::checkParams() const {
 }
 
 double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> priceSeriesSet){
+    // case by case
     double S;
     if(type=="European" || type=="American"){
         if(priceSeries.isEmpty()) S = stockPrice;
@@ -372,6 +374,29 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
         double S1 = priceSeriesSet[1].getLastEntry();
         if(putCall=="Put") return max(S1-S0,0.);
         else if(putCall=="Call") return max(S0-S1,0.);
+    }else if(type=="Basket"){
+        if(priceSeriesSet.empty()) return NAN;
+        int n = priceSeriesSet.size();
+        matrix Sset(1,n);
+        for(int i=0; i<n; i++) Sset.setEntry(0,i,priceSeriesSet[i].getLastEntry());
+        double S;
+        if(params.size()) S = Sset.wmean(params); // weighted average
+        else S = Sset.mean(); // simple average
+        if(putCall=="Put") return max(strike-S,0.);
+        else if(putCall=="Call") return max(S-strike,0.);
+    }else if(type=="Rainbow"){
+        if(priceSeriesSet.empty()) return NAN;
+        int n = priceSeriesSet.size();
+        matrix Sset(1,n);
+        for(int i=0; i<n; i++) Sset.setEntry(0,i,priceSeriesSet[i].getLastEntry());
+        double S;
+        if(nature=="Best"){
+            S = Sset.getMax();
+            return max(S,strike); // Best of assets or cash
+        }else if(nature=="Max") S = Sset.getMax(); // Put/Call on max
+        else if(nature=="Min") S = Sset.getMin(); // Put/Call on min
+        if(putCall=="Put") return max(strike-S,0.);
+        else if(putCall=="Call") return max(S-strike,0.);
     }
     return NAN;
 }
@@ -393,21 +418,20 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<m
         else S = priceMatrix.mean(2,nature);
         if(putCall=="Put") return (strike-S).maxWith(0.);
         else if(putCall=="Call") return (S-strike).maxWith(0.);
-    }else if(type=="Barrier" || type=="Lookback"){
+    }else if(type=="Barrier" || type=="Lookback"){ // generic
         if(priceMatrix.isEmpty()) return NULL_VECTOR;
         int n = priceMatrix.getCols();
         matrix V(1,n);
         for(int i=0; i<n; i++) V.setEntry(0,i,calcPayoff(0,priceMatrix.getCol(i)));
         return V;
-    }else if(type=="Margrabe"){
+    }else if(type=="Margrabe" || type=="Basket" || type=="Rainbow"){ // generic
         if(priceMatrixSet.empty()) return NULL_VECTOR;
         int n = priceMatrixSet[0].getCols();
+        int m = priceMatrixSet.size();
         matrix V(1,n);
         for(int i=0; i<n; i++){
-            vector<matrix> priceSeriesSet = {
-                priceMatrixSet[0].getCol(i),
-                priceMatrixSet[1].getCol(i)
-            };
+            vector<matrix> priceSeriesSet;
+            for(int j=0; j<m; j++) priceSeriesSet.push_back(priceMatrixSet[j].getCol(i));
             V.setEntry(0,i,calcPayoff(0,NULL_VECTOR,priceSeriesSet));
         }
         return V;
@@ -667,8 +691,9 @@ double Market::setRiskFreeRate(double riskFreeRate){
     return riskFreeRate;
 }
 
-Stock Market::setStock(const Stock& stock){
-    this->stock = stock;
+Stock Market::setStock(const Stock& stock, int i){
+    if(i<0) this->stock = stock;
+    else this->stocks[i] = stock;
     return stock;
 }
 
@@ -811,16 +836,22 @@ string Pricer::getAsJson() const {
     return oss.str();
 }
 
-double Pricer::getVariable(string var) const {
+double Pricer::getVariable(string var, int i, int j) const {
     double v = NAN;
     if(var=="currentPrice"){
-        v = market.getStock().getCurrentPrice();
+        Stock stock = market.getStock(i);
+        v = stock.getCurrentPrice();
     }else if(var=="driftRate"){
-        v = market.getStock().getDriftRate();
+        Stock stock = market.getStock(i);
+        v = stock.getDriftRate();
     }else if(var=="dividendYield"){
-        v = market.getStock().getDividendYield();
+        Stock stock = market.getStock(i);
+        v = stock.getDividendYield();
     }else if(var=="volatility"){
-        v = market.getStock().getVolatility();
+        Stock stock = market.getStock(i);
+        v = stock.getVolatility();
+    }else if(var=="correlation"){
+        v = market.getCorMatrix().getEntry(i,j);
     }else if(var=="riskFreeRate"){
         v = market.getRiskFreeRate();
     }else if(var=="strike"){
@@ -831,19 +862,19 @@ double Pricer::getVariable(string var) const {
     return v;
 }
 
-double Pricer::setVariable(string var, double v){
+double Pricer::setVariable(string var, double v, int i){
     if(var=="currentPrice"){
-        Stock tmpStock = market.getStock();
+        Stock tmpStock = market.getStock(i);
         tmpStock.setCurrentPrice(v);
-        market.setStock(tmpStock);
+        market.setStock(tmpStock,i);
     }else if(var=="dividendYield"){
-        Stock tmpStock = market.getStock();
+        Stock tmpStock = market.getStock(i);
         tmpStock.setDividendYield(v);
-        market.setStock(tmpStock);
+        market.setStock(tmpStock,i);
     }else if(var=="volatility"){
-        Stock tmpStock = market.getStock();
+        Stock tmpStock = market.getStock(i);
         tmpStock.setVolatility(v);
-        market.setStock(tmpStock);
+        market.setStock(tmpStock,i);
     }else if(var=="riskFreeRate"){
         market.setRiskFreeRate(v);
     }else if(var=="strike"){
@@ -907,6 +938,23 @@ double Pricer::BlackScholesClosedForm(){
             price = S0*exp(-q*T)*normalCDF(d1)-K*exp(-r*T)*normalCDF(d2);
         else if(option.getPutCall()=="Put")
             price = K*exp(-r*T)*normalCDF(-d2)-S0*exp(-q*T)*normalCDF(-d1);
+    }else if(option.getType()=="Margrabe"){
+        double T   = getVariable("maturity");
+        double r   = getVariable("riskFreeRate");
+        double S0  = getVariable("currentPrice",0);
+        double S1  = getVariable("currentPrice",1);
+        double q0  = getVariable("dividendYield",0);
+        double q1  = getVariable("dividendYield",1);
+        double sig0 = getVariable("volatility",0);
+        double sig1 = getVariable("volatility",1);
+        double rho = getVariable("correlation",0,1);
+        double sig = sqrt(sig0*sig0+sig1*sig1-2*rho*sig0*sig1);
+        double d0  = (log(S0/S1)+(q1-q0+sig*sig/2)*T)/(sig*sqrt(T));
+        double d1  = d0-sig*sqrt(T);
+        if(option.getPutCall()=="Call")
+            price = S0*exp(-q0*T)*normalCDF(d0)-S1*exp(-q1*T)*normalCDF(d1);
+        else if(option.getPutCall()=="Put")
+            price = S1*exp(-q1*T)*normalCDF(d1)-S0*exp(-q0*T)*normalCDF(d0);
     }
     logMessage("ending calculation BlackScholesClosedForm, return "+to_string(price));
     return price;
@@ -1017,6 +1065,10 @@ double Pricer::MultiStockMonteCarloPricer(const SimConfig& config, int numSim, s
             price = exp(-r*T)*payoffs.mean();
             err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
         }
+    }else if(method=="antithetic variates"){
+        // TO DO
+    }else if(method=="control variates"){
+        // TO DO
     }
     tmp = {err};
     logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
