@@ -11,6 +11,7 @@
 
 * last, option.cpp commenting
 * last, use const pointer args for class methods
+* last, header files and makefile
 * ok, organize library files into lib/
 * ok, printToCsvFile: support header
 * ok, Black-Scholes PDE solver (calc matrix of price surface)
@@ -98,6 +99,16 @@ Lookback option has the terminal asset price as its underlying but is struck at 
 ```
 Nature = "";
 Params = {};
+```
+
+##### 4. Chooser Option
+
+Chooser option allows the holder to decide the Put/Call identity at a specific choice time, paying the vanilla payoff upon the decision. On the choice time t, the holder chooses a call if C(t)>P(t), or by the put-call parity: S(t)>K*e^-r(T-t), and vice versa. A Chooser at time t is the sum of a call of strike K, maturity T and a put struck at the discounted strike expiring immediately.
+```
+ChTime = ...; // Choice time
+PutCall = "";
+Nature = "";
+Params = {ChTime};
 ```
 
 ### Multi-Asset Option Pricing Examples

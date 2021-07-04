@@ -13,16 +13,16 @@ inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] "
 
 const set<string> OPTION_TYPES{
     "European", "Digital", "American", "Bermudan", "Asian", "Barrier", "Lookback",
-    "Margrabe", "Basket", "Rainbow"
+    "Margrabe", "Basket", "Rainbow", "Chooser", "Shout"
 };
 const set<string> EARLY_EX_OPTIONS{
     "American", "Bermudan"
 };
 const set<string> PATH_DEP_OPTIONS{
-    "Asian", "Barrier", "Lookback"
+    "Asian", "Barrier", "Lookback", "Chooser", "Shout"
 };
 const set<string> PUT_CALL{
-    "Put", "Call"
+    "Put", "Call", ""
 };
 
 /**** class declarations ******************************************************/
@@ -42,7 +42,7 @@ const SimConfig NULL_CONFIG;
 class Option{
 private:
     string name, type, putCall, nature;
-    double strike, maturity;
+    double strike, discStrike, maturity;
     vector<double> params;
 public:
     /**** constructors ****/
@@ -58,6 +58,7 @@ public:
     string getType() const {return type;}
     string getPutCall() const {return putCall;}
     double getStrike() const {return strike;}
+    double getDiscStrike() const {return discStrike;}
     double getMaturity() const {return maturity;}
     vector<double> getParams() const {return params;}
     string getAsJson() const;
@@ -66,12 +67,15 @@ public:
     string setNature(string nature);
     string setType(string type);
     double setStrike(double strike);
+    double setDiscStrike(double discStrike);
     double setMaturity(double maturity);
     vector<double> setParams(vector<double> params);
     /**** main ****/
     bool checkParams() const;
-    double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR, vector<matrix> priceSeriesSet={});
-    matrix calcPayoffs(matrix stockPriceVector=NULL_VECTOR, matrix priceMatrix=NULL_MATRIX, vector<matrix> priceMatrixSet={});
+    double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR,
+        vector<matrix> priceSeriesSet={}, matrix timeVector=NULL_VECTOR);
+    matrix calcPayoffs(matrix stockPriceVector=NULL_VECTOR, matrix priceMatrix=NULL_MATRIX,
+        vector<matrix> priceMatrixSet={}, matrix timeVector=NULL_VECTOR);
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const Option& option);
 };
@@ -309,6 +313,11 @@ double Option::setStrike(double strike){
     return strike;
 }
 
+double Option::setDiscStrike(double discStrike){
+    this->discStrike = discStrike;
+    return discStrike;
+}
+
 double Option::setMaturity(double maturity){
     this->maturity = maturity;
     return maturity;
@@ -326,7 +335,7 @@ bool Option::checkParams() const {
     strike>=0 && maturity>=0;
 }
 
-double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> priceSeriesSet){
+double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> priceSeriesSet, matrix timeVector){
     // case by case
     double S;
     if(type=="European" || type=="American"){
@@ -397,11 +406,21 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
         else if(nature=="Min") S = Sset.getMin(); // Put/Call on min
         if(putCall=="Put") return max(strike-S,0.);
         else if(putCall=="Call") return max(S-strike,0.);
+    }else if(type=="Chooser"){
+        if(priceSeries.isEmpty()) return NAN;
+        else S = priceSeries.getLastEntry();
+        double chTime = params[0];
+        vector<int> chTimeIdx = (timeVector-chTime).apply(abs).minIdx();
+        string chPutCall;
+        if(priceSeries.getEntry(chTimeIdx)<discStrike) chPutCall = "Put";
+        else chPutCall = "Call";
+        if(chPutCall=="Put") return max(strike-S,0.);
+        else if(chPutCall=="Call") return max(S-strike,0.);
     }
     return NAN;
 }
 
-matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<matrix> priceMatrixSet){
+matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<matrix> priceMatrixSet, matrix timeVector){
     matrix S;
     if(type=="European" || type=="American"){
         if(priceMatrix.isEmpty()) S = stockPriceVector;
@@ -418,13 +437,13 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<m
         else S = priceMatrix.mean(2,nature);
         if(putCall=="Put") return (strike-S).maxWith(0.);
         else if(putCall=="Call") return (S-strike).maxWith(0.);
-    }else if(type=="Barrier" || type=="Lookback"){ // generic
+    }else if(type=="Barrier" || type=="Lookback" || type=="Chooser"){ // generic single-stock
         if(priceMatrix.isEmpty()) return NULL_VECTOR;
         int n = priceMatrix.getCols();
         matrix V(1,n);
-        for(int i=0; i<n; i++) V.setEntry(0,i,calcPayoff(0,priceMatrix.getCol(i)));
+        for(int i=0; i<n; i++) V.setEntry(0,i,calcPayoff(0,priceMatrix.getCol(i),{},timeVector));
         return V;
-    }else if(type=="Margrabe" || type=="Basket" || type=="Rainbow"){ // generic
+    }else if(type=="Margrabe" || type=="Basket" || type=="Rainbow"){ // generic multi-stock
         if(priceMatrixSet.empty()) return NULL_VECTOR;
         int n = priceMatrixSet[0].getCols();
         int m = priceMatrixSet.size();
@@ -1001,12 +1020,20 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string meth
     double q = getVariable("dividendYield");
     double T = getVariable("maturity");
     double err = NAN;
-    matrix simPriceMatrix;
+    matrix simPriceMatrix, simTimeVector;
     stock.setDriftRate(r-q);
+    // handle exceptions
+    string optionType = option.getType();
+    if(optionType=="Chooser"){
+        double K = option.getStrike();
+        double t = option.getParams()[0];
+        option.setDiscStrike(K*exp(-r*(T-t)));
+    }
     if(method=="simple"){
         simPriceMatrix = stock.simulatePrice(config,numSim);
+        simTimeVector = stock.getSimTimeVector();
         if(!option.canEarlyExercise()){
-            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix);
+            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix,{},simTimeVector);
             price = exp(-r*T)*payoffs.mean();
             err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
         }else{
@@ -1018,17 +1045,19 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string meth
         randomMatrix0.setNormalRand(); randomMatrix1 = -randomMatrix0;
         simPriceMatrix0 = stock.simulatePrice(config,numSim,randomMatrix0);
         simPriceMatrix1 = stock.simulatePrice(config,numSim,randomMatrix1);
+        simTimeVector = stock.getSimTimeVector();
         if(!option.canEarlyExercise()){
-            matrix payoffs0 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix0);
-            matrix payoffs1 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix1);
+            matrix payoffs0 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix0,{},simTimeVector);
+            matrix payoffs1 = option.calcPayoffs(NULL_VECTOR,simPriceMatrix1,{},simTimeVector);
             matrix payoffs = (payoffs0+payoffs1)/2;
             price = exp(-r*T)*payoffs.mean();
             err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
         }
     }else if(method=="control variates"){
         simPriceMatrix = stock.simulatePrice(config,numSim);
+        simTimeVector = stock.getSimTimeVector();
         if(!option.canEarlyExercise()){
-            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix);
+            matrix payoffs = option.calcPayoffs(NULL_VECTOR,simPriceMatrix,{},simTimeVector);
             price = exp(-r*T)*payoffs.mean();
             err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
         }
@@ -1160,8 +1189,8 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
         }
         // cout << priceMatrix.print() << endl;
         double x = log(S0);
-        int idx = (x-spaceGrids).apply(abs).minIdx()[1];
-        price = priceMatrix.getEntry(0,idx);
+        vector<int> idx = (x-spaceGrids).apply(abs).minIdx();
+        price = priceMatrix.getEntry(idx);
     }
     logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
     return price;

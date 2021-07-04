@@ -25,6 +25,7 @@ public:
     int getCols() const {return cols;}
     int getEntries() const {return rows*cols;}
     double getEntry(int row, int col) const {return m[row][col];}
+    double getEntry(vector<int> idx) const {return m[idx[0]][idx[1]];}
     double getFirstEntry() const;
     double getLastEntry() const;
     matrix getRow(int row) const;
@@ -62,6 +63,7 @@ public:
     double getMin() const;
     vector<int> maxIdx() const;
     vector<int> minIdx() const;
+    vector<int> find(double a) const;
     matrix maxWith(double a) const;
     matrix minWith(double a) const;
     double sum() const;
@@ -244,8 +246,11 @@ string matrix::getAsCsv() const {
 
 string matrix::getAsJson() const {
     ostringstream oss;
-    for(int row=0; row<rows; row++)
-        oss << ((row==0)?"[":"") << m[row] << ((row==rows-1)?"]":",");
+    if(rows==0) oss << "[]";
+    else{
+        for(int row=0; row<rows; row++)
+            oss << ((row==0)?"[":"") << m[row] << ((row==rows-1)?"]":",");
+    }
     return oss.str();
 }
 
@@ -401,7 +406,7 @@ vector<int> matrix::maxIdx() const {
     vector<int> idx{0,0};
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            if(m[row][col]>a) {
+            if(m[row][col]>a){
                 a = m[row][col];
                 idx = {row,col};
             }
@@ -414,9 +419,21 @@ vector<int> matrix::minIdx() const {
     vector<int> idx{0,0};
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
-            if(m[row][col]<a) {
+            if(m[row][col]<a){
                 a = m[row][col];
                 idx = {row,col};
+            }
+    return idx;
+}
+
+vector<int> matrix::find(double a) const {
+    assert(!isEmpty());
+    vector<int> idx;
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            if(m[row][col]==a){
+                idx = {row,col};
+                break;
             }
     return idx;
 }
