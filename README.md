@@ -180,5 +180,14 @@ Params = {};
 
 ### Other Price Dynamics
 
+Asset prices may admit dynamics other than the usual constant vol drift-diffusion process, such as local vol or stochastic vol process. This is easily accommodated by modifying the Stock object initialization, and the following serves as a template.
+
 ##### 1. Heston Model
 ##### 2. Jump-Diffusion Model
+
+### Some Classical Exercises
+
+##### 1. Real Stock Implied Vol
+##### 2. Delta-Hedging
+##### 3. Girsanov Change of Measure
+##### 4. Heston Implied Vol

@@ -618,7 +618,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
         matrix simVolMatrix(n+1,numSim), simVarMatrix(n+1,numSim);
         simVolMatrix.setRow(0,currentVol);
         simVarMatrix.setRow(0,currentVar);
-        assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
+        // assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
         for(int i=1; i<n+1; i++){
             if(randomMatrix.isEmpty()) randomVector.setNormalRand();
             else randomVector = randomMatrix.getRow(i);

@@ -6,18 +6,18 @@ int main() {
     string dataFolder = "data/";
     int m = 1e4; // num of MC sims
     double dt = 0.005; // step size
-    double K0 = 50, K1 = 200, dK = 5;
-    double T0 = 0.25, T1 = 2, dT = 0.25;
+    double K0 = 50, K1 = 120, dK = 5;
+    double T0 = 0.2, T1 = 1.2, dT = 0.2;
     double r        = 0.02;
     double S0       = 100;
     double q        = 0;
     double mu       = 0.05;
     double sig      = 0.2;
-    double kappa    = 5;    // reversion rate
+    double kappa    = 1;    // reversion rate
     double theta    = 0.04; // long run var
     double zeta     = 0.6;  // vol of vol
     double rho      = -0.4; // correlation
-    Stock  stock    = Stock(S0,q,mu,sig,{kappa,theta,zeta,rho},"Heston");
+    Stock  stock    = Stock(S0,q,mu,sig,{kappa,theta,zeta,rho},"Heston","HES");
     Market market   = Market(r,stock);
     vector<string> PutCallSet;
     vector<double> StrikeSet;
