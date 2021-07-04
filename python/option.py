@@ -15,8 +15,8 @@ onDate = getPrevBDay()
 stockList = ["IBM","JPM","DIS"]
 # stockList = stock_info.tickers_dow()
 
-exeFolder = "exe/"
-dataFolder = "data/"
+exeFolder = "../exe/"
+dataFolder = "../data/"
 plotFolder = "assets/"
 
 def logMessage(msg):

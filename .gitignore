@@ -7,7 +7,7 @@ exe*
 data*
 plot*
 test*
-assets/*.png
+*/assets/*.png
 *.txt
 *.log
 _*
