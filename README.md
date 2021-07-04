@@ -1,13 +1,9 @@
 ## Option Pricing Library
 
-* last update: 210703
-* an object-oriented option pricing library that
-    1. supports efficient valuation of vanilla & exotic contracts and Greeks calculation via binomial tree, numerical integration, PDE schemes and Monte Carlo simulation, accommodating various stock price and interest rate stochastic processes
-    1. streamlines market data to compute and construct implied vol surface with live tabulation as well as visualize Greeks vs strike price curves on an interactive Python dashboard using Dash and Plotly package
-    1. offers robust backtest engines for realistic simulation of dynamic delta/gamma/theta-neutral option hedging strategies riding on market-calibrated underlying price dynamics and modellable/interpolated vol surface accounting for transaction cost
-    1. provides access to live market quotes by wrappers around broker API to identify opportunities with proprietary vol arbitrage-based trading signals on at-the-money options to speculate on mispriced implied vol by a dynamic delta-hedged position
+* last update: 210704
+* C++ option pricing library that implements the classical models
 
-## To-do List
+## To-Do List
 
 * last, option.cpp commenting
 * last, use const pointer args for class methods
@@ -22,18 +18,23 @@
 * ok, vol arb research on delta-hedged strategy
 * ok, broker API wrappers for market quotes
 * ok, antithetic variate, control variate
+* ok, Exotic option pricing with Monte Carlo
+* ok, stochastic vol model: Heston
+* ok, Heston model construct imp vol surface
+* stochastic vol model: GARCH
+* local vol model: CEV
+* jump-diffusion model: Merton
+* model param calibration
 * visualize Girsanov change of measure
 * American option pricing with Monte Carlo
-* ok, Exotic option pricing with Monte Carlo
-* stochastic vol model: jump diffusion, Heston
-* Heston model construct imp vol surface
+* forward/future pricing
 * facade design pattern: optionlib.cpp (wrapper)
 * deterministic (non-constant) interest rate extension (PDE)
 * deterministic (non-constant) volatility extension (PDE)
 * (app.py) visualization of implied vol surface in table format
 * (app.py) visualization of Greeks vs strike
 
-### Single-Asset Option Pricing Examples
+## Single-Asset Option Pricing Examples
 
 For pricing of option on single underlying asset via Monte-Carlo simulation, the following serves as a template. Concrete examples can be found under calc/.
 ```
@@ -111,7 +112,7 @@ Nature = "";
 Params = {ChTime};
 ```
 
-### Multi-Asset Option Pricing Examples
+## Multi-Asset Option Pricing Examples
 
 For pricing of option on multiple underlying assets via Monte-Carlo simulation, the following serves as a template. Additionally, all underlying stocks and the correlation matrix (of their underlying Brownian motions) have to be specified. Concrete examples can be found under calc/.
 ```
@@ -178,14 +179,14 @@ Nature = "Max" or "Min" or "Best";
 Params = {};
 ```
 
-### Other Price Dynamics
+## Other Price Dynamics
 
 Asset prices may admit dynamics other than the usual constant vol drift-diffusion process, such as local vol or stochastic vol process. This is easily accommodated by modifying the Stock object initialization, and the following serves as a template.
 
 ##### 1. Heston Model
 ##### 2. Jump-Diffusion Model
 
-### Some Classical Exercises
+## Some Classical Exercises
 
 ##### 1. Real Stock Implied Vol
 ##### 2. Delta-Hedging
