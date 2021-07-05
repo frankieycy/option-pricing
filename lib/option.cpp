@@ -1,6 +1,7 @@
 #ifndef OPTION
 #define OPTION
 #include "util.cpp"
+#include "complex.cpp"
 #include "matrix.cpp"
 using namespace std;
 
@@ -205,6 +206,8 @@ public:
     double MultiStockMonteCarloPricer(const SimConfig& config, int numSim, string method="simple");
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
+    double _FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim);
+    double FourierInversionPricer(int numSpace, double rightLim);
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
     matrix varyPriceWithVariable(string var, matrix varVector,
@@ -1193,6 +1196,57 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
         price = priceMatrix.getEntry(idx);
     }
     logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
+    return price;
+}
+
+double Pricer::_FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim){
+    int m = numSpace;
+    double inf = rightLim;
+    Stock stock = market.getStock();
+    double K = getVariable("strike");
+    double T = getVariable("maturity");
+    double r = getVariable("riskFreeRate");
+    double S0 = getVariable("currentPrice");
+    double q = getVariable("dividendYield");
+    double k = log(K/S0);
+    double x0 = 1e-5;
+    double du = (inf-x0)/m;
+    auto f0 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u)/(i*u)).getReal();};
+    auto f1 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u-i)/(i*u*charFunc(-i))).getReal();};
+    matrix spaceGrids; spaceGrids.setRange(x0,inf,m,true);
+    double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum()*du;
+    double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum()*du;
+    price = S0*exp(-q*T)*Q1-K*exp(-r*T)*Q0; // model-free
+    return price;
+}
+
+double Pricer::FourierInversionPricer(int numSpace, double rightLim){
+    logMessage("starting calculation FourierInversionPricer on config numSpace "+
+        to_string(numSpace)+", rightLim "+to_string(rightLim));
+    Stock stock = market.getStock();
+    double K = getVariable("strike");
+    double T = getVariable("maturity");
+    double r = getVariable("riskFreeRate");
+    double S0 = getVariable("currentPrice");
+    double q = getVariable("dividendYield");
+    stock.setDriftRate(r-q);
+    if(option.getType()=="European"){
+        function<complx(complx)> charFunc;
+        string dynamics = stock.getDynamics();
+        if(dynamics=="lognormal"){
+            double mu = stock.getDriftRate();
+            double sig = stock.getVolatility();
+            double sig2 = sig*sig;
+            mu = mu-sig2/2;
+            charFunc = [mu,sig2](complx u){return exp(i*mu*u-sig2*u*u/2);};
+        }else if(dynamics=="jump-diffusion"){
+
+        }
+        double callPrice = _FourierInversionCallPricer(charFunc,numSpace,rightLim);
+        if(option.getPutCall()=="Call") price = callPrice;
+        else price = callPrice-S0*exp(-q*T)+K*exp(-r*T);
+    }
+    logMessage("ending calculation FourierInversionPricer, return "+to_string(price));
     return price;
 }
 
