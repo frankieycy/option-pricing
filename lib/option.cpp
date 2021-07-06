@@ -484,10 +484,8 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<m
         else if(putCall=="Call") return (S-strike).maxWith(0.);
     }else if(type=="Barrier" || type=="Lookback" || type=="Chooser"){ // generic single-stock
         if(priceMatrix.isEmpty()){
-            if(type=="Barrier"){ // assume activated
-                S = stockPriceVector;
-                if(putCall=="Put") return (strike-S).maxWith(0.);
-                else if(putCall=="Call") return (S-strike).maxWith(0.);
+            if(type=="Barrier"){
+                priceMatrix = matrix(stockPriceVector);
             }else return NULL_VECTOR;
         }
         int n = priceMatrix.getCols();
@@ -1250,42 +1248,36 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
         }else if(option.getPutCall()=="Put"){
             bdryCondition0 = exp(-r*(T-timeGrids));
         }
-    }else if(option.getType()=="Barrier"){ // DEBUG
+    }else if(option.getType()=="Barrier"){
         vector<string> nature = option.getNature();
         vector<double> params = option.getParams();
         double barrier = params[0];
         double rebate = params[1];
         string barrierType = nature[0];
-        if(barrierType=="Up-and-In"){
+        if(barrierType=="Up-and-In"){ // TO DO: concat vnla result
             x0 = log(K/3); x1 = log(barrier);
             Option vnlaOption(option); vnlaOption.setType("European");
             Pricer vnlaPricer(vnlaOption,market);
             vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
             matrix vnlaSpaceGrids = vnlaFullCalc[0];
             matrix vnlaPriceMatrix = vnlaFullCalc[2];
-            int bdry1Idx = abs(vnlaSpaceGrids-x1).minIdx()[1];
+            int bdry1Idx = abs(vnlaSpaceGrids-log(barrier)).minIdx()[1];
             bdryCondition1 = vnlaPriceMatrix.getCol(bdry1Idx);
-            if(option.getPutCall()=="Put"){
-                bdryCondition0 = K*exp(-r*(T-timeGrids));
-            }
         }else if(barrierType=="Up-and-Out"){
             x0 = log(K/3); x1 = log(barrier);
             bdryCondition1 = rebate*exp(-r*(T-timeGrids));
             if(option.getPutCall()=="Put"){
                 bdryCondition0 = K*exp(-r*(T-timeGrids));
             }
-        }else if(barrierType=="Down-and-In"){
+        }else if(barrierType=="Down-and-In"){ // TO DO: concat vnla result
             x0 = log(barrier); x1 = log(3*K);
             Option vnlaOption(option); vnlaOption.setType("European");
             Pricer vnlaPricer(vnlaOption,market);
             vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
             matrix vnlaSpaceGrids = vnlaFullCalc[0];
             matrix vnlaPriceMatrix = vnlaFullCalc[2];
-            int bdry0Idx = abs(vnlaSpaceGrids-x0).minIdx()[1];
+            int bdry0Idx = abs(vnlaSpaceGrids-log(barrier)).minIdx()[1];
             bdryCondition0 = vnlaPriceMatrix.getCol(bdry0Idx);
-            if(option.getPutCall()=="Call"){
-                bdryCondition1 = exp(x1)*exp(-q*(T-timeGrids))-K*exp(-r*(T-timeGrids));
-            }
         }else if(barrierType=="Down-and-Out"){
             x0 = log(barrier); x1 = log(3*K);
             bdryCondition0 = rebate*exp(-r*(T-timeGrids));
@@ -1308,7 +1300,7 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
         double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
         matrix D(m-1,m-1);
         D.setDiags({a,b,c},{-1,0,1});
-        D = D.inverse();
+        D = D.inverse(); // TO DO: eff sparse inverse
         for(int i=n-1; i>=0; i--){
             double u0 = a*priceMatrix.getEntry(i,0);
             double u1 = c*priceMatrix.getEntry(i,m);

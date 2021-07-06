@@ -2,7 +2,7 @@
 using namespace std;
 
 int main() {
-    /**** Digital *************************************************************/
+    /**** Barrier *************************************************************/
     Option option       = Option("Barrier","Call",100,1,{120,0},{"Up-and-Out"});
     // Option option       = Option("Barrier","Call",100,1,{90,0},{"Down-and-In"});
     Stock  stock        = Stock(100,0,0.05,0.2);
@@ -12,7 +12,7 @@ int main() {
     double mcPrice      = pricer.MonteCarloPricer(config,1e4);
     double pdePrice     = pricer.BlackScholesPDESolver(config,1e3);
     cout << "Option Details: "      << option   << endl;
-    cout << "Monte-Carlo Price: "   << mcPrice  << endl;
+    cout << "Monte-Carlo Price: "   << mcPrice  << endl; // biased (discrete sampling)
     cout << "PDE Price: "           << pdePrice << endl;
     return 0;
 }
