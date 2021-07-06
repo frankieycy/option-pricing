@@ -45,10 +45,10 @@ int m = ...; // Num of MC sims, e.g. 1e4
 /**** Option-related ********/
 string Type             = ...;
 string PutCall          = ...;
-string Nature           = ...;
 double Strike           = ...;
 double Maturity         = ...;
 vector<double> Params   = ...;
+vector<string> Nature   = ...;
 /**** Stock-related *********/
 double CurrPrice        = ...;
 double DivYield         = ...;
@@ -68,19 +68,19 @@ double mcPrice          = pricer.MonteCarloPricer(config,m);
 
 For vanilla European options, `Nature` and `Params` can be left empty.
 ```
-Nature = "";
+Nature = {};
 Params = {};
 ```
 
 However, for exotic options, they are generally required, as described case by case below.
 
-**Technical Note on Monte-Carlo.** In the simulations, asset prices drift under the risk-neutral measure, not the physical measure. In practice, a risk-neutral market is created and assets have Drift equal to RiskFreeRate minus DivYield, or mu=r-q. With the simulated price paths, option payoffs can computed and averaged, eventually discounted to give the present value. Other pricing methods aside from Monte-Carlo are supported, including: 1. Black-Scholes closed form, 2. binomial tree, 3. numerical integration and 4. PDE solver. However, they have their limitations and are restricted to certain option types, e.g. simple closed form price is not always available (except for few examples like vanilla and Margrabe), binomial tree does not easily support path-dependence. Monte-Carlo serves as a generic brute-force method and applies to a wide class of non-early exercisable options, despite disadvantages like: 1. slow in convergence of O(n^-0.5) and statistical error, 2. slow in computation. Early exercise can be handled via some techniques (which estimate continuation value), and will be incorporated in future development.
+**Technical Note on Monte-Carlo.** In the simulations, asset prices drift under the risk-neutral measure, not the physical measure. In practice, a risk-neutral market is created and assets have Drift equal to RiskFreeRate minus DivYield, or mu=r-q. With the simulated price paths, option payoffs can computed and averaged, eventually discounted to give the present value. Other pricing methods aside from Monte-Carlo are supported, including: 1. Black-Scholes closed form, 2. binomial tree, 3. numerical integration and 4. PDE solver. However, they have their limitations and are restricted to certain option types, e.g. simple closed form price is not always available (except for few examples like vanilla, digital and Margrabe), binomial tree does not easily support path-dependence. Monte-Carlo serves as a generic brute-force method and applies to a wide class of non-early exercisable options, despite disadvantages like: 1. slow in convergence of O(n^-0.5) and statistical error, 2. slow in computation. Early exercise can be handled via some techniques (which estimate continuation value), and will be incorporated in future development.
 
 ##### 1. Asian Option
 
 Asian option has the average of historical prices as its underlying. The averaging can be arithmetic or geometric, while in practice, arithmetic is more common.
 ```
-Nature = "Arithmetic" or "Geometric";
+Nature = {"Arithmetic"} or {"Geometric"};
 Params = {};
 ```
 
@@ -90,7 +90,7 @@ Barrier option has the terminal asset price as its underlying but only if, for a
 ```
 Barrier = ...; // Has to be consistent with Up/Down setting
 Rebate  = ...; // e.g. 0
-Nature  = "Up-and-In" or "Up-and-Out" or "Down-and-In" or "Down-and-Out";
+Nature  = {"Up-and-In"} or {"Up-and-Out"} or {"Down-and-In"} or {"Down-and-Out"};
 Params  = {Barrier, Rebate};
 ```
 
@@ -98,7 +98,7 @@ Params  = {Barrier, Rebate};
 
 Lookback option has the terminal asset price as its underlying but is struck at the historical min or max. For a Lookback call, max(S-Smin,0) is paid; for a Lookback put, max(Smax-S,0) is paid. `Nature` and `Params` can be left empty.
 ```
-Nature = "";
+Nature = {};
 Params = {};
 ```
 
@@ -108,7 +108,7 @@ Chooser option allows the holder to decide the Put/Call identity at a specific c
 ```
 ChTime = ...; // Choice time
 PutCall = "";
-Nature = "";
+Nature = {};
 Params = {ChTime};
 ```
 
@@ -123,10 +123,10 @@ int m = ...; // Num of MC sims
 /**** Option-related ********/
 string Type             = ...;
 string PutCall          = ...;
-string Nature           = ...;
 double Strike           = ...;
 double Maturity         = ...;
 vector<double> Params   = ...;
+vector<string> Nature   = ...;
 /**** Stock-related *********/
 int nStk = ...; // Num of stocks
 vector<double> CurrPrices = ...;
@@ -159,7 +159,7 @@ double mcPrice          = pricer.MonteCarloPricer(config,m);
 
 Basket option has the average of terminal asset prices of the basket as its underlying. The averaging can be a simple even-out or weighted. If weighted, specify `Params` as the respective weights.
 ```
-Nature = "";
+Nature = {};
 Params = ...; // Weights for each stock
 ```
 
@@ -167,7 +167,7 @@ Params = ...; // Weights for each stock
 
 Margrabe option gives the holder the right to exchange two assets at maturity. For a call, the second asset is exchanged for the first, hence payoff max(S1-S2,0); for a put, the first asset is exchanged for the second, hence payoff max(S2-S1,0). `Nature` and `Params` can be left empty.
 ```
-Nature = "";
+Nature = {};
 Params = {};
 ```
 
@@ -175,7 +175,7 @@ Params = {};
 
 Rainbow option has the max or min of terminal asset prices of the basket as its underlying, struck at the strike price. The max/min nature is specified via `Nature`. Alternatively, Best Rainbow pays the max between asset prices and strike, which effectively is the lump sum of cash payout and a call on max.
 ```
-Nature = "Max" or "Min" or "Best";
+Nature = {"Max"} or {"Min"} or {"Best"};
 Params = {};
 ```
 

@@ -3,7 +3,7 @@ using namespace std;
 
 int main() {
     /**** Asian ***************************************************************/
-    Option option       = Option("Asian","Call",100,1,{},"Arithmetic");
+    Option option       = Option("Asian","Call",100,1,{},{"Arithmetic"});
     Stock  stock        = Stock(100,0,0.05,0.2);
     Market market       = Market(0.02,stock);
     Pricer pricer       = Pricer(option,market);

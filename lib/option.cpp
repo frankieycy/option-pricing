@@ -1,7 +1,7 @@
 #ifndef OPTION
 #define OPTION
 #include "util.cpp"
-#include "complex.cpp"
+#include "complx.cpp"
 #include "matrix.cpp"
 using namespace std;
 
@@ -42,35 +42,36 @@ const SimConfig NULL_CONFIG;
 
 class Option{
 private:
-    string name, type, putCall, nature;
+    string name, type, putCall;
     double strike, discStrike, maturity;
     vector<double> params;
+    vector<string> nature;
 public:
     /**** constructors ****/
     Option(){};
     Option(string type, string putCall, double strike, double maturity,
-        vector<double> params={}, string nature="", string name="unnamed");
+        vector<double> params={}, vector<string> nature={}, string name="unnamed");
     Option(const Option& option);
     /**** accessors ****/
     bool canEarlyExercise() const;
     bool isPathDependent() const;
     string getName() const {return name;}
-    string getNature() const {return nature;}
     string getType() const {return type;}
     string getPutCall() const {return putCall;}
     double getStrike() const {return strike;}
     double getDiscStrike() const {return discStrike;}
     double getMaturity() const {return maturity;}
     vector<double> getParams() const {return params;}
+    vector<string> getNature() const {return nature;}
     string getAsJson() const;
     /**** mutators ****/
     string setName(string name);
-    string setNature(string nature);
     string setType(string type);
     double setStrike(double strike);
     double setDiscStrike(double discStrike);
     double setMaturity(double maturity);
     vector<double> setParams(vector<double> params);
+    vector<string> setNature(vector<string> nature);
     /**** main ****/
     bool checkParams() const;
     double calcPayoff(double stockPrice=0, matrix priceSeries=NULL_VECTOR,
@@ -206,6 +207,7 @@ public:
     double MultiStockMonteCarloPricer(const SimConfig& config, int numSim, string method="simple");
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
+    vector<matrix> BlackScholesPDESolverWithFullCalc(const SimConfig& config, int numSpace, string method="implicit");
     double _FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim);
     double FourierInversionPricer(int numSpace, double rightLim);
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
@@ -253,7 +255,7 @@ string SimConfig::getAsJson() const {
 
 //### Option class #############################################################
 
-Option::Option(string type, string putCall, double strike, double maturity, vector<double> params, string nature, string name){
+Option::Option(string type, string putCall, double strike, double maturity, vector<double> params, vector<string> nature, string name){
     this->type = type;
     this->putCall = putCall;
     this->strike = strike;
@@ -287,7 +289,7 @@ string Option::getAsJson() const {
     oss << "{" <<
     "\"name\":\""      << name     << "\"," <<
     "\"type\":\""      << type     << "\"," <<
-    "\"nature\":\""    << nature   << "\"," <<
+    "\"nature\":"      << nature   << ","   <<
     "\"putCall\":\""   << putCall  << "\"," <<
     "\"strike\":"      << strike   << ","   <<
     "\"maturity\":"    << maturity << ","   <<
@@ -299,11 +301,6 @@ string Option::getAsJson() const {
 string Option::setName(string name){
     this->name = name;
     return name;
-}
-
-string Option::setNature(string nature){
-    this->nature = nature;
-    return nature;
 }
 
 string Option::setType(string type){
@@ -331,6 +328,11 @@ vector<double> Option::setParams(vector<double> params){
     return params;
 }
 
+vector<string> Option::setNature(vector<string> nature){
+    this->nature = nature;
+    return nature;
+}
+
 bool Option::checkParams() const {
     return
     OPTION_TYPES.find(type)!=OPTION_TYPES.end() &&
@@ -349,23 +351,43 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
     }else if(type=="Digital"){
         if(priceSeries.isEmpty()) S = stockPrice;
         else S = priceSeries.getLastEntry();
+        if(nature.size()>0){
+            string strikeType = nature[0];
+            if(strikeType=="Double"){
+                double strike0 = params[0];
+                double strike1 = params[1];
+                if(putCall=="Put") return (S<strike0||S>strike1);
+                else if(putCall=="Call") return (S>strike0&&S<strike1);
+            }
+        }
         if(putCall=="Put") return (S<strike);
         else if(putCall=="Call") return (S>strike);
     }else if(type=="Asian"){
+        string avgType = nature[0];
         if(priceSeries.isEmpty()) return NAN;
-        else S = priceSeries.getRow(0).mean(nature);
+        else S = priceSeries.getRow(0).mean(avgType);
+        if(nature.size()>1){
+            string strikeType = nature[1];
+            if(strikeType=="Float"){
+                double fltStrk = S;
+                S = priceSeries.getLastEntry();
+                if(putCall=="Put") return max(fltStrk-S,0.);
+                else if(putCall=="Call") return max(S-fltStrk,0.);
+            }
+        }
         if(putCall=="Put") return max(strike-S,0.);
         else if(putCall=="Call") return max(S-strike,0.);
     }else if(type=="Barrier"){
         if(priceSeries.isEmpty()) return NAN;
         else S = priceSeries.getLastEntry();
+        string barrierType = nature[0];
         double barrier = params[0];
         double rebate = params[1];
         bool triggered =
-            (nature=="Up-and-In" && priceSeries.getMax()>barrier) ||
-            (nature=="Up-and-Out" && priceSeries.getMax()<barrier) ||
-            (nature=="Down-and-In" && priceSeries.getMin()<barrier) ||
-            (nature=="Down-and-Out" && priceSeries.getMin()>barrier);
+            (barrierType=="Up-and-In" && priceSeries.getMax()>barrier) ||
+            (barrierType=="Up-and-Out" && priceSeries.getMax()<barrier) ||
+            (barrierType=="Down-and-In" && priceSeries.getMin()<barrier) ||
+            (barrierType=="Down-and-Out" && priceSeries.getMin()>barrier);
         if(triggered){
             if(putCall=="Put") return max(strike-S,0.);
             else if(putCall=="Call") return max(S-strike,0.);
@@ -402,11 +424,12 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
         matrix Sset(1,n);
         for(int i=0; i<n; i++) Sset.setEntry(0,i,priceSeriesSet[i].getLastEntry());
         double S;
-        if(nature=="Best"){
+        string rainbowType = nature[0];
+        if(rainbowType=="Best"){
             S = Sset.getMax();
             return max(S,strike); // Best of assets or cash
-        }else if(nature=="Max") S = Sset.getMax(); // Put/Call on max
-        else if(nature=="Min") S = Sset.getMin(); // Put/Call on min
+        }else if(rainbowType=="Max") S = Sset.getMax(); // Put/Call on max
+        else if(rainbowType=="Min") S = Sset.getMin(); // Put/Call on min
         if(putCall=="Put") return max(strike-S,0.);
         else if(putCall=="Call") return max(S-strike,0.);
     }else if(type=="Chooser"){
@@ -433,11 +456,30 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<m
     }else if(type=="Digital"){
         if(priceMatrix.isEmpty()) S = stockPriceVector;
         else S = priceMatrix.getLastRow();
+        if(nature.size()>0){
+            string strikeType = nature[0];
+            if(strikeType=="Double"){
+                double strike0 = params[0];
+                double strike1 = params[1];
+                if(putCall=="Put") return (S<strike0)||(S>strike1);
+                else if(putCall=="Call") return (S>strike0)&&(S<strike1);
+            }
+        }
         if(putCall=="Put") return (S<strike);
         else if(putCall=="Call") return (S>strike);
     }else if(type=="Asian"){
+        string avgType = nature[0];
         if(priceMatrix.isEmpty()) return NULL_VECTOR;
-        else S = priceMatrix.mean(2,nature);
+        else S = priceMatrix.mean(2,avgType);
+        if(nature.size()>1){
+            string strikeType = nature[1];
+            if(strikeType=="Float"){
+                matrix fltStrk = S;
+                S = priceMatrix.getLastRow();
+                if(putCall=="Put") return (fltStrk-S).maxWith(0.);
+                else if(putCall=="Call") return (S-fltStrk).maxWith(0.);
+            }
+        }
         if(putCall=="Put") return (strike-S).maxWith(0.);
         else if(putCall=="Call") return (S-strike).maxWith(0.);
     }else if(type=="Barrier" || type=="Lookback" || type=="Chooser"){ // generic single-stock
@@ -978,7 +1020,37 @@ double Pricer::BlackScholesClosedForm(){
             price = S0*exp(-q0*T)*normalCDF(d0)-S1*exp(-q1*T)*normalCDF(d1);
         else if(option.getPutCall()=="Put")
             price = S1*exp(-q1*T)*normalCDF(d1)-S0*exp(-q0*T)*normalCDF(d0);
-    }
+    }else if(option.getType()=="Digital"){
+        double K   = getVariable("strike");
+        double T   = getVariable("maturity");
+        double r   = getVariable("riskFreeRate");
+        double S0  = getVariable("currentPrice");
+        double q   = getVariable("dividendYield");
+        double sig = getVariable("volatility");
+        vector<string> nature = option.getNature();
+        if(nature.size()>0){
+            string strikeType = nature[0];
+            if(strikeType=="Double"){
+                vector<double> params = option.getParams();
+                double K0 = params[0];
+                double K1 = params[1];
+                double d01 = (log(S0/K0)+(r-q+sig*sig/2)*T)/(sig*sqrt(T));
+                double d02 = d01-sig*sqrt(T);
+                double d11 = (log(S0/K1)+(r-q+sig*sig/2)*T)/(sig*sqrt(T));
+                double d12 = d11-sig*sqrt(T);
+                if(option.getPutCall()=="Call")
+                    price = exp(-r*T)*(normalCDF(d02)-normalCDF(d12));
+                else if(option.getPutCall()=="Put")
+                    price = exp(-r*T)*(normalCDF(-d02)+normalCDF(d12));
+            }
+        }
+        double d1 = (log(S0/K)+(r-q+sig*sig/2)*T)/(sig*sqrt(T));
+        double d2 = d1-sig*sqrt(T);
+        if(option.getPutCall()=="Call")
+            price = exp(-r*T)*normalCDF(d2);
+        else if(option.getPutCall()=="Put")
+            price = exp(-r*T)*normalCDF(-d2);
+    }else if(option.getType()=="Barrier"){}
     logMessage("ending calculation BlackScholesClosedForm, return "+to_string(price));
     return price;
 }
@@ -1130,6 +1202,18 @@ double Pricer::NumIntegrationPricer(double z, double dz){
 double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, string method){
     logMessage("starting calculation BlackScholesPDESolver on config "+to_string(config)+
         ", numSpace "+to_string(numSpace)+", method "+method);
+    double S0 = getVariable("currentPrice");
+    double x = log(S0);
+    vector<matrix> fullCalc = BlackScholesPDESolverWithFullCalc(config,numSpace,method);
+    matrix spaceGrids = fullCalc[0];
+    matrix priceMatrix = fullCalc[2];
+    vector<int> idx = (x-spaceGrids).apply(abs).minIdx();
+    price = priceMatrix.getEntry(idx);
+    logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
+    return price;
+}
+
+vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config, int numSpace, string method){
     Stock stock = market.getStock();
     double K = getVariable("strike");
     double T = getVariable("maturity");
@@ -1140,63 +1224,62 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
     int n = config.iters;
     int m = numSpace;
     double dt = config.stepSize;
-    double x0 = log(K/3), x1 = log(3*K);
-    double dx = (x1-x0)/m, dx2 = dx*dx;
+    double x0, x1;
+    double dx, dx2;
     double sig2 = sig*sig;
     matrix priceMatrix(n+1,m+1);
-    matrix timeGrids; timeGrids.setRange(0,T,n,true);
-    matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
-    // cout << D.print() << endl;
+    matrix spaceGrids, timeGrids; timeGrids.setRange(0,T,n,true);
+    matrix payoffs, bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, u(m-1,1);
     if(option.getType()=="European"){
-        matrix payoffs = option.calcPayoffs(spaceGrids.apply(exp));
-        matrix bdryCondition0(1,n+1), bdryCondition1(1,n+1), v, u(m-1,1);
+        x0 = log(K/3); x1 = log(3*K);
         if(option.getPutCall()=="Call"){
             bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
         }else if(option.getPutCall()=="Put"){
             bdryCondition0 = K*(-r*(T-timeGrids)).apply(exp);
         }
-        priceMatrix.setRow(n,payoffs);
-        priceMatrix.setCol(0,bdryCondition0);
-        priceMatrix.setCol(m,bdryCondition1);
-        // cout << priceMatrix.print() << endl;
-        v = priceMatrix.submatrix(n,n+1,1,m).transpose();
-        if(method=="implicit"){
-            double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
-            double b = 1+r*dt+sig2*dt/dx2;
-            double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
-            matrix D(m-1,m-1);
-            D.setDiags({a,b,c},{-1,0,1});
-            D = D.inverse();
-            for(int i=n-1; i>=0; i--){
-                double u0 = a*priceMatrix.getEntry(i,0);
-                double u1 = c*priceMatrix.getEntry(i,m);
-                u.setEntry(0,0,u0);
-                u.setEntry(m-2,0,u1);
-                v = D.dot(v-u);
-                priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
-            }
-        }else if(method=="explicit"){
-            double a = -(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
-            double b = 1-r*dt-sig2*dt/dx2;
-            double c = +(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
-            matrix D(m-1,m-1);
-            D.setDiags({a,b,c},{-1,0,1});
-            for(int i=n-1; i>=0; i--){
-                double u0 = a*priceMatrix.getEntry(i+1,0);
-                double u1 = c*priceMatrix.getEntry(i+1,m);
-                u.setEntry(0,0,u0);
-                u.setEntry(m-2,0,u1);
-                v = D.dot(v)+u;
-                priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
-            }
+    }else if(option.getType()=="Digital"){
+    }else if(option.getType()=="Barrier"){
+    }else return {};
+    dx = (x1-x0)/m; dx2 = dx*dx;
+    spaceGrids.setRange(x0,x1,m,true);
+    payoffs = option.calcPayoffs(spaceGrids.apply(exp));
+    priceMatrix.setRow(n,payoffs);
+    priceMatrix.setCol(0,bdryCondition0);
+    priceMatrix.setCol(m,bdryCondition1);
+    // cout << priceMatrix.print() << endl;
+    v = priceMatrix.submatrix(n,n+1,1,m).transpose();
+    if(method=="implicit"){
+        double a = +(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
+        double b = 1+r*dt+sig2*dt/dx2;
+        double c = -(r-q-sig2/2)*dt/(2*dx)-sig2/2*dt/dx2;
+        matrix D(m-1,m-1);
+        D.setDiags({a,b,c},{-1,0,1});
+        D = D.inverse();
+        for(int i=n-1; i>=0; i--){
+            double u0 = a*priceMatrix.getEntry(i,0);
+            double u1 = c*priceMatrix.getEntry(i,m);
+            u.setEntry(0,0,u0);
+            u.setEntry(m-2,0,u1);
+            v = D.dot(v-u);
+            priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
         }
-        // cout << priceMatrix.print() << endl;
-        double x = log(S0);
-        vector<int> idx = (x-spaceGrids).apply(abs).minIdx();
-        price = priceMatrix.getEntry(idx);
+    }else if(method=="explicit"){
+        double a = -(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
+        double b = 1-r*dt-sig2*dt/dx2;
+        double c = +(r-q-sig2/2)*dt/(2*dx)+sig2/2*dt/dx2;
+        matrix D(m-1,m-1);
+        D.setDiags({a,b,c},{-1,0,1});
+        for(int i=n-1; i>=0; i--){
+            double u0 = a*priceMatrix.getEntry(i+1,0);
+            double u1 = c*priceMatrix.getEntry(i+1,m);
+            u.setEntry(0,0,u0);
+            u.setEntry(m-2,0,u1);
+            v = D.dot(v)+u;
+            priceMatrix.setSubmatrix(i,i+1,1,m,v.transpose());
+        }
     }
-    logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
-    return price;
+    // cout << priceMatrix.print() << endl;
+    return {spaceGrids, timeGrids, priceMatrix};
 }
 
 double Pricer::_FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim){
@@ -1244,7 +1327,7 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim){
         }
         double callPrice = _FourierInversionCallPricer(charFunc,numSpace,rightLim);
         if(option.getPutCall()=="Call") price = callPrice;
-        else price = callPrice-S0*exp(-q*T)+K*exp(-r*T);
+        else if(option.getPutCall()=="Put") price = callPrice-S0*exp(-q*T)+K*exp(-r*T);
     }
     logMessage("ending calculation FourierInversionPricer, return "+to_string(price));
     return price;
@@ -1261,6 +1344,7 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int
         price = NumIntegrationPricer();
     }else if(method=="PDE Solver"){
         price = BlackScholesPDESolver(config,numSpace);
+    }else if(method=="Fourier Inversion"){
     }
     return price;
 }
@@ -1468,7 +1552,7 @@ void Pricer::generateImpliedVolSurfaceFromFile(string input, string file, double
         strike = stod(strikeStr);
         maturity = stod(maturityStr);
         optionMarketPrice = stod(optionMarketPriceStr);
-        option = Option(type,putCall,strike,maturity,{},"",name);
+        option = Option(type,putCall,strike,maturity,{},{},name);
         // cout << option << endl;
         impliedVol = calcImpliedVolatility(optionMarketPrice,vol0,eps);
         if(!isnan(impliedVol)) fo << name << "," << type << "," << putCall << "," <<
@@ -1497,7 +1581,7 @@ void Pricer::generateGreeksFromImpliedVolFile(string input, string file){
         maturity = stod(maturityStr);
         impliedVol = stod(impliedVolStr);
         setVariable("volatility",impliedVol);
-        option = Option(type,putCall,strike,maturity,{},"",name);
+        option = Option(type,putCall,strike,maturity,{},{},name);
         // cout << option << endl;
         Delta = calcGreek("Delta");
         Gamma = calcGreek("Gamma");

@@ -1,6 +1,6 @@
 // complx number library
-#ifndef COMPLEX
-#define COMPLEX
+#ifndef COMPLX
+#define COMPLX
 #include "util.cpp"
 using namespace std;
 

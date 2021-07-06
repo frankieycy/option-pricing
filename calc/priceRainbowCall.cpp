@@ -3,7 +3,7 @@ using namespace std;
 
 int main() {
     /**** Rainbow *************************************************************/
-    Option option       = Option("Rainbow","Call",100,1,{},"Max");
+    Option option       = Option("Rainbow","Call",100,1,{},{"Max"});
     Stock  stock1       = Stock(100,0,0.05,0.2);
     Stock  stock2       = Stock(100,0,0.08,0.3);
     matrix corMatrix    = matrix({{1,0.3},{0.3,1}});

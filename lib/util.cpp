@@ -60,7 +60,9 @@ ostream& operator<<(ostream& out, const vector<T>& vec){
     if(vec.size()==0) out << "[]";
     else{
         out << "[";
-        for(auto p=vec.begin(); p!=vec.end(); p++) out << *p << ((p==vec.end()-1)?"]":",");
+        for(auto p=vec.begin(); p!=vec.end(); p++)
+            if(is_same<T,string>::value) out << "\"" << *p << "\"" << ((p==vec.end()-1)?"]":",");
+            else out << *p << ((p==vec.end()-1)?"]":",");
     }
     return out;
 }

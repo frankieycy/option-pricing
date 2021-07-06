@@ -112,6 +112,8 @@ public:
     friend matrix operator>=(const matrix& M, double a);
     friend matrix operator<(const matrix& M, double a);
     friend matrix operator<=(const matrix& M, double a);
+    friend matrix operator||(const matrix& M1, const matrix& M2);
+    friend matrix operator&&(const matrix& M1, const matrix& M2);
 };
 
 const matrix NULL_VECTOR, NULL_MATRIX;
@@ -796,6 +798,24 @@ matrix operator<=(const matrix& M, double a){
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
             A.m[row][col] = M.m[row][col]<=a;
+    return A;
+}
+
+matrix operator||(const matrix& M1, const matrix& M2){
+    assert(M1.rows==M2.rows && M1.cols==M2.cols);
+    matrix A(M1.rows,M1.cols);
+    for(int row=0; row<A.rows; row++)
+        for(int col=0; col<A.cols; col++)
+            A.m[row][col] = M1.m[row][col]||M2.m[row][col];
+    return A;
+}
+
+matrix operator&&(const matrix& M1, const matrix& M2){
+    assert(M1.rows==M2.rows && M1.cols==M2.cols);
+    matrix A(M1.rows,M1.cols);
+    for(int row=0; row<A.rows; row++)
+        for(int col=0; col<A.cols; col++)
+            A.m[row][col] = M1.m[row][col]&&M2.m[row][col];
     return A;
 }
 
