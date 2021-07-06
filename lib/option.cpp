@@ -208,7 +208,7 @@ public:
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     vector<matrix> BlackScholesPDESolverWithFullCalc(const SimConfig& config, int numSpace, string method="implicit");
-    double _FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim);
+    vector<double> _FourierInversionRNProb(const function<complx(complx)>& charFunc, int numSpace, double rightLim);
     double FourierInversionPricer(int numSpace, double rightLim);
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
@@ -1238,6 +1238,12 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
             bdryCondition0 = K*(-r*(T-timeGrids)).apply(exp);
         }
     }else if(option.getType()=="Digital"){
+        x0 = log(K/3); x1 = log(3*K);
+        if(option.getPutCall()=="Call"){
+            bdryCondition1 = (-r*(T-timeGrids)).apply(exp);
+        }else if(option.getPutCall()=="Put"){
+            bdryCondition0 = (-r*(T-timeGrids)).apply(exp);
+        }
     }else if(option.getType()=="Barrier"){
     }else return {};
     dx = (x1-x0)/m; dx2 = dx*dx;
@@ -1282,7 +1288,7 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
     return {spaceGrids, timeGrids, priceMatrix};
 }
 
-double Pricer::_FourierInversionCallPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim){
+vector<double> Pricer::_FourierInversionRNProb(const function<complx(complx)>& charFunc, int numSpace, double rightLim){
     int m = numSpace;
     double inf = rightLim;
     Stock stock = market.getStock();
@@ -1297,10 +1303,9 @@ double Pricer::_FourierInversionCallPricer(const function<complx(complx)>& charF
     auto f0 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u)/(i*u)).getReal();};
     auto f1 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u-i)/(i*u*charFunc(-i))).getReal();};
     matrix spaceGrids; spaceGrids.setRange(x0,inf,m,true);
-    double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum()*du;
-    double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum()*du;
-    price = S0*exp(-q*T)*Q1-K*exp(-r*T)*Q0; // model-free
-    return price;
+    double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum()*du; // cash numeraire ITM prob
+    double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum()*du; // stock numeraire ITM prob
+    return {Q0,Q1};
 }
 
 double Pricer::FourierInversionPricer(int numSpace, double rightLim){
@@ -1313,21 +1318,24 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim){
     double S0 = getVariable("currentPrice");
     double q = getVariable("dividendYield");
     stock.setDriftRate(r-q);
+    function<complx(complx)> charFunc;
+    string dynamics = stock.getDynamics();
+    if(dynamics=="lognormal"){
+        double mu = stock.getDriftRate();
+        double sig = stock.getVolatility();
+        double sig2 = sig*sig;
+        mu = mu-sig2/2;
+        charFunc = [mu,sig2](complx u){return exp(i*mu*u-sig2*u*u/2);};
+    }else if(dynamics=="jump-diffusion"){}
+    vector<double> rnProb = _FourierInversionRNProb(charFunc,numSpace,rightLim);
+    double Q0 = rnProb[0];
+    double Q1 = rnProb[1];
     if(option.getType()=="European"){
-        function<complx(complx)> charFunc;
-        string dynamics = stock.getDynamics();
-        if(dynamics=="lognormal"){
-            double mu = stock.getDriftRate();
-            double sig = stock.getVolatility();
-            double sig2 = sig*sig;
-            mu = mu-sig2/2;
-            charFunc = [mu,sig2](complx u){return exp(i*mu*u-sig2*u*u/2);};
-        }else if(dynamics=="jump-diffusion"){
-
-        }
-        double callPrice = _FourierInversionCallPricer(charFunc,numSpace,rightLim);
-        if(option.getPutCall()=="Call") price = callPrice;
-        else if(option.getPutCall()=="Put") price = callPrice-S0*exp(-q*T)+K*exp(-r*T);
+        if(option.getPutCall()=="Call") price = S0*exp(-q*T)*Q1-K*exp(-r*T)*Q0;
+        else if(option.getPutCall()=="Put") price = K*exp(-r*T)*(1-Q0)-S0*exp(-q*T)*(1-Q1);
+    }else if(option.getType()=="Digital"){
+        if(option.getPutCall()=="Call") price = exp(-r*T)*Q0;
+        else if(option.getPutCall()=="Put") price = exp(-r*T)*(1-Q0);
     }
     logMessage("ending calculation FourierInversionPricer, return "+to_string(price));
     return price;
@@ -1345,6 +1353,7 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int
     }else if(method=="PDE Solver"){
         price = BlackScholesPDESolver(config,numSpace);
     }else if(method=="Fourier Inversion"){
+        price = FourierInversionPricer(numSpace,1e3);
     }
     return price;
 }

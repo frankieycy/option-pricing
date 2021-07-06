@@ -1,0 +1,19 @@
+20210706 16:29:20 [LOG] starting calculation BlackScholesClosedForm
+20210706 16:29:20 [LOG] ending calculation BlackScholesClosedForm, return 0.490099
+20210706 16:29:20 [LOG] starting calculation NumIntegrationPricer on z 5.000000, dz 0.001000
+20210706 16:29:24 [LOG] ending calculation NumIntegrationPricer, return 0.489904
+20210706 16:29:24 [LOG] starting calculation BinomialTreePricer on config {"iters":200,"endTime":1,"stepSize":0.005}
+20210706 16:29:53 [LOG] ending calculation BinomialTreePricer, return 0.490150
+20210706 16:29:53 [LOG] starting calculation MonteCarloPricer on config {"iters":200,"endTime":1,"stepSize":0.005}, numSim 10000
+20210706 16:30:04 [LOG] ending calculation MonteCarloPricer, return 0.487061 with error 0.004901
+20210706 16:30:04 [LOG] starting calculation BlackScholesPDESolver on config {"iters":200,"endTime":1,"stepSize":0.005}, numSpace 1000, method implicit
+20210706 16:30:23 [LOG] ending calculation BlackScholesPDESolver, return 0.492252
+20210706 16:30:23 [LOG] starting calculation FourierInversionPricer on config numSpace 10000, rightLim 1000.000000
+20210706 16:30:24 [LOG] ending calculation FourierInversionPricer, return 0.490099
+Option Details: {"name":"unnamed","type":"Digital","nature":[],"putCall":"Call","strike":100,"maturity":1,"params":[]}
+Black-Scholes Price: 0.490099
+Num-Integration Price: 0.489904
+Binomial-Tree Price: 0.49015
+Monte-Carlo Price: 0.487061
+PDE Price: 0.492252
+Fourier-Inversion Price: 0.490099
