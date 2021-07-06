@@ -118,6 +118,18 @@ public:
 
 const matrix NULL_VECTOR, NULL_MATRIX;
 
+matrix exp(const matrix& M){
+    return M.apply(exp);
+}
+
+matrix abs(const matrix& M){
+    return M.apply(abs);
+}
+
+matrix sqrt(const matrix& M){
+    return M.apply(sqrt);
+}
+
 /**** constructors ****/
 
 matrix::matrix():rows(0),cols(0){}

@@ -59,8 +59,6 @@ public:
 
 const complx i = complx(0,1);
 
-/**** main ****/
-
 complx exp(complx c){
     return exp(c.x)*complx(cos(c.y),sin(c.y));
 }

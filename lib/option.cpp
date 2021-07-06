@@ -436,7 +436,7 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
         if(priceSeries.isEmpty()) return NAN;
         else S = priceSeries.getLastEntry();
         double chTime = params[0];
-        vector<int> chTimeIdx = (timeVector-chTime).apply(abs).minIdx();
+        vector<int> chTimeIdx = abs(timeVector-chTime).minIdx();
         string chPutCall;
         if(priceSeries.getEntry(chTimeIdx)<discStrike) chPutCall = "Put";
         else chPutCall = "Call";
@@ -483,7 +483,13 @@ matrix Option::calcPayoffs(matrix stockPriceVector, matrix priceMatrix, vector<m
         if(putCall=="Put") return (strike-S).maxWith(0.);
         else if(putCall=="Call") return (S-strike).maxWith(0.);
     }else if(type=="Barrier" || type=="Lookback" || type=="Chooser"){ // generic single-stock
-        if(priceMatrix.isEmpty()) return NULL_VECTOR;
+        if(priceMatrix.isEmpty()){
+            if(type=="Barrier"){ // assume activated
+                S = stockPriceVector;
+                if(putCall=="Put") return (strike-S).maxWith(0.);
+                else if(putCall=="Call") return (S-strike).maxWith(0.);
+            }else return NULL_VECTOR;
+        }
         int n = priceMatrix.getCols();
         matrix V(1,n);
         for(int i=0; i<n; i++) V.setEntry(0,i,calcPayoff(0,priceMatrix.getCol(i),{},timeVector));
@@ -669,10 +675,10 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             else randomVector = randomMatrix.getRow(i);
             volRandomVector.setNormalRand();
             volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
-            // currentVar += reversionRate*(longRunVar-currentVar.maxWith(0.))*dt+volOfVol*currentVar.maxWith(0.).apply(sqrt)*sqrt_dt*volRandomVector;
-            currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar.apply(sqrt)*sqrt_dt*volRandomVector;
-            currentVar  = currentVar.apply(abs);
-            currentVol  = currentVar.apply(sqrt);
+            // currentVar += reversionRate*(longRunVar-currentVar.maxWith(0.))*dt+volOfVol*sqrt(currentVar.maxWith(0.))*sqrt_dt*volRandomVector;
+            currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*sqrt(currentVar)*sqrt_dt*volRandomVector;
+            currentVar  = abs(currentVar);
+            currentVol  = sqrt(currentVar);
             simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
             simPriceMatrix.setRow(i,simPriceVector);
             simVolMatrix.setRow(i,currentVol);
@@ -1207,7 +1213,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
     vector<matrix> fullCalc = BlackScholesPDESolverWithFullCalc(config,numSpace,method);
     matrix spaceGrids = fullCalc[0];
     matrix priceMatrix = fullCalc[2];
-    vector<int> idx = (x-spaceGrids).apply(abs).minIdx();
+    vector<int> idx = abs(x-spaceGrids).minIdx();
     price = priceMatrix.getEntry(idx);
     logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
     return price;
@@ -1233,22 +1239,64 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
     if(option.getType()=="European"){
         x0 = log(K/3); x1 = log(3*K);
         if(option.getPutCall()=="Call"){
-            bdryCondition1 = exp(x1)-K*(-r*(T-timeGrids)).apply(exp);
+            bdryCondition1 = exp(x1)*exp(-q*(T-timeGrids))-K*exp(-r*(T-timeGrids));
         }else if(option.getPutCall()=="Put"){
-            bdryCondition0 = K*(-r*(T-timeGrids)).apply(exp);
+            bdryCondition0 = K*exp(-r*(T-timeGrids));
         }
     }else if(option.getType()=="Digital"){
         x0 = log(K/3); x1 = log(3*K);
         if(option.getPutCall()=="Call"){
-            bdryCondition1 = (-r*(T-timeGrids)).apply(exp);
+            bdryCondition1 = exp(-r*(T-timeGrids));
         }else if(option.getPutCall()=="Put"){
-            bdryCondition0 = (-r*(T-timeGrids)).apply(exp);
+            bdryCondition0 = exp(-r*(T-timeGrids));
         }
-    }else if(option.getType()=="Barrier"){
+    }else if(option.getType()=="Barrier"){ // DEBUG
+        vector<string> nature = option.getNature();
+        vector<double> params = option.getParams();
+        double barrier = params[0];
+        double rebate = params[1];
+        string barrierType = nature[0];
+        if(barrierType=="Up-and-In"){
+            x0 = log(K/3); x1 = log(barrier);
+            Option vnlaOption(option); vnlaOption.setType("European");
+            Pricer vnlaPricer(vnlaOption,market);
+            vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
+            matrix vnlaSpaceGrids = vnlaFullCalc[0];
+            matrix vnlaPriceMatrix = vnlaFullCalc[2];
+            int bdry1Idx = abs(vnlaSpaceGrids-x1).minIdx()[1];
+            bdryCondition1 = vnlaPriceMatrix.getCol(bdry1Idx);
+            if(option.getPutCall()=="Put"){
+                bdryCondition0 = K*exp(-r*(T-timeGrids));
+            }
+        }else if(barrierType=="Up-and-Out"){
+            x0 = log(K/3); x1 = log(barrier);
+            bdryCondition1 = rebate*exp(-r*(T-timeGrids));
+            if(option.getPutCall()=="Put"){
+                bdryCondition0 = K*exp(-r*(T-timeGrids));
+            }
+        }else if(barrierType=="Down-and-In"){
+            x0 = log(barrier); x1 = log(3*K);
+            Option vnlaOption(option); vnlaOption.setType("European");
+            Pricer vnlaPricer(vnlaOption,market);
+            vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
+            matrix vnlaSpaceGrids = vnlaFullCalc[0];
+            matrix vnlaPriceMatrix = vnlaFullCalc[2];
+            int bdry0Idx = abs(vnlaSpaceGrids-x0).minIdx()[1];
+            bdryCondition0 = vnlaPriceMatrix.getCol(bdry0Idx);
+            if(option.getPutCall()=="Call"){
+                bdryCondition1 = exp(x1)*exp(-q*(T-timeGrids))-K*exp(-r*(T-timeGrids));
+            }
+        }else if(barrierType=="Down-and-Out"){
+            x0 = log(barrier); x1 = log(3*K);
+            bdryCondition0 = rebate*exp(-r*(T-timeGrids));
+            if(option.getPutCall()=="Call"){
+                bdryCondition1 = exp(x1)*exp(-q*(T-timeGrids))-K*exp(-r*(T-timeGrids));
+            }
+        }
     }else return {};
     dx = (x1-x0)/m; dx2 = dx*dx;
     spaceGrids.setRange(x0,x1,m,true);
-    payoffs = option.calcPayoffs(spaceGrids.apply(exp));
+    payoffs = option.calcPayoffs(exp(spaceGrids));
     priceMatrix.setRow(n,payoffs);
     priceMatrix.setCol(0,bdryCondition0);
     priceMatrix.setCol(m,bdryCondition1);
@@ -1412,7 +1460,7 @@ double Pricer::ClosedFormGreek(string var, int derivOrder){
             else if(var=="time" && derivOrder==1)
                 greek = -S0*normalPDF(d1)*sig/(2*sqrt_T)+r*K*exp(-r*T)*normalCDF(-d2);
         }
-    }
+    }else if(option.getType()=="Digital"){}
     resetOriginal();
     logMessage("ending calculation ClosedFormGreek, return "+to_string(greek));
     return greek;
@@ -2145,9 +2193,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         double O10 = hPricer1.calcPrice("Closed Form");
         int idxK, idxK0, idxK1, idxT, idxT0, idxT1;
         if(!flatImpVolSurface){
-            idxK = (log(getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
-            idxK0 = (log(hPricer0.getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
-            idxK1 = (log(hPricer1.getVariable("strike"))-impVolSurfaceSet[0]).apply(abs).minIdx()[1];
+            idxK = abs(log(getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
+            idxK0 = abs(log(hPricer0.getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
+            idxK1 = abs(log(hPricer1.getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
         }
         for(int i=0; i<numSim; i++){
             setVariable("currentPrice",S0);
@@ -2157,9 +2205,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer1.setVariable("currentPrice",S0);
             hPricer1.setVariable("maturity",Th1);
             if(!flatImpVolSurface){
-                idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
                 setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                 hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                 hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
@@ -2208,9 +2256,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 hPricer1.setVariable("currentPrice",S);
                 hPricer1.setVariable("maturity",Th1-t*dt);
                 if(!flatImpVolSurface){
-                    idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                    idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                    idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                    idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                    idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                    idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
                     setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                     hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                     hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
@@ -2269,9 +2317,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer1.setVariable("currentPrice",S1);
             hPricer1.setVariable("maturity",Th1-n*dt);
             if(!flatImpVolSurface){
-                idxT = (getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                idxT0 = (hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
-                idxT1 = (hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).apply(abs).minIdx()[1];
+                idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
                 setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                 hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                 hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
