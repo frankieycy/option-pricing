@@ -79,12 +79,13 @@ public:
     matrix mean(int axis, string method="Arithmetic") const;
     matrix inverse() const;
     matrix transpose() const;
+    matrix T() const {return transpose();}
     matrix dot(const matrix& M) const;
     matrix apply(double (*f)(double)) const;
     matrix apply(const function<double(double)>& f) const;
     matrix sample(int n, bool replace=true) const;
     matrix concat(const matrix& M, int axis=0) const;
-    matrix chol() const;
+    matrix chol() const; // Choleskey
     /**** operators ****/
     friend ostream& operator<<(ostream& out, const matrix& M);
     friend bool operator==(const matrix& M1, const matrix& M2);
@@ -114,6 +115,8 @@ public:
     friend matrix operator<=(const matrix& M, double a);
     friend matrix operator||(const matrix& M1, const matrix& M2);
     friend matrix operator&&(const matrix& M1, const matrix& M2);
+    friend matrix max(const matrix& M1, const matrix& M2);
+    friend matrix min(const matrix& M1, const matrix& M2);
 };
 
 const matrix NULL_VECTOR, NULL_MATRIX;
@@ -128,6 +131,40 @@ matrix abs(const matrix& M){
 
 matrix sqrt(const matrix& M){
     return M.apply(sqrt);
+}
+
+double max(const matrix& M){
+    return M.getMax();
+}
+
+matrix max(const matrix& M, double a){
+    return M.maxWith(a);
+}
+
+matrix max(const matrix& M1, const matrix& M2){
+    assert(M1.rows==M2.rows && M1.cols==M2.cols);
+    matrix A = M1;
+    for(int row=0; row<A.rows; row++)
+        for(int col=0; col<A.cols; col++)
+            A.m[row][col] = max(M1.m[row][col],M2.m[row][col]);
+    return A;
+}
+
+double min(const matrix& M){
+    return M.getMin();
+}
+
+matrix min(const matrix& M, double a){
+    return M.minWith(a);
+}
+
+matrix min(const matrix& M1, const matrix& M2){
+    assert(M1.rows==M2.rows && M1.cols==M2.cols);
+    matrix A = M1;
+    for(int row=0; row<A.rows; row++)
+        for(int col=0; col<A.cols; col++)
+            A.m[row][col] = min(M1.m[row][col],M2.m[row][col]);
+    return A;
 }
 
 /**** constructors ****/
