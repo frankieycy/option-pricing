@@ -1054,7 +1054,28 @@ double Pricer::BlackScholesClosedForm(){
             price = exp(-r*T)*normalCDF(d2);
         else if(option.getPutCall()=="Put")
             price = exp(-r*T)*normalCDF(-d2);
-    }else if(option.getType()=="Barrier"){}
+    }else if(option.getType()=="Barrier"){
+    }else if(option.getType()=="American"){
+        vector<string> nature = option.getNature();
+        if(nature.size()>0){
+            string matyType = nature[0];
+            if(matyType=="Perpetual"){
+                if(option.getPutCall()=="Put"){
+                    double K   = getVariable("strike");
+                    double r   = getVariable("riskFreeRate");
+                    double S0  = getVariable("currentPrice");
+                    double q   = getVariable("dividendYield");
+                    double sig = getVariable("volatility");
+                    double sig2 = sig*sig;
+                    double k = sig2/(2*r);
+                    double s = K/(1+k);
+                    double B = k*pow(s,1+1/k);
+                    if(S0<s) price = K-S0; // stopped
+                    else price = B*pow(S0,-1/k); // continue
+                }
+            }
+        }
+    }
     logMessage("ending calculation BlackScholesClosedForm, return "+to_string(price));
     return price;
 }
