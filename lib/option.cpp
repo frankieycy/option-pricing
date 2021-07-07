@@ -7,6 +7,7 @@ using namespace std;
 
 #define GUI true
 #define LOG true
+#define INF 1e3
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
@@ -1056,23 +1057,20 @@ double Pricer::BlackScholesClosedForm(){
             price = exp(-r*T)*normalCDF(-d2);
     }else if(option.getType()=="Barrier"){
     }else if(option.getType()=="American"){
-        vector<string> nature = option.getNature();
-        if(nature.size()>0){
-            string matyType = nature[0];
-            if(matyType=="Perpetual"){
-                if(option.getPutCall()=="Put"){
-                    double K   = getVariable("strike");
-                    double r   = getVariable("riskFreeRate");
-                    double S0  = getVariable("currentPrice");
-                    double q   = getVariable("dividendYield");
-                    double sig = getVariable("volatility");
-                    double sig2 = sig*sig;
-                    double k = sig2/(2*r);
-                    double s = K/(1+k);
-                    double B = k*pow(s,1+1/k);
-                    if(S0<s) price = K-S0; // stopped
-                    else price = B*pow(S0,-1/k); // continue
-                }
+        double T = getVariable("maturity");
+        if(T==INF){
+            if(option.getPutCall()=="Put"){
+                double K   = getVariable("strike");
+                double r   = getVariable("riskFreeRate");
+                double S0  = getVariable("currentPrice");
+                double q   = getVariable("dividendYield");
+                double sig = getVariable("volatility");
+                double sig2 = sig*sig;
+                double k = sig2/(2*r);
+                double s = K/(1+k);
+                double B = k*pow(s,1+1/k);
+                if(S0<s) price = K-S0; // stopped
+                else price = B*pow(S0,-1/k); // continue
             }
         }
     }
@@ -1353,7 +1351,7 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
 
 vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim, string method){
     int m = numSpace;
-    double inf = rightLim;
+    double x1 = rightLim;
     double K = getVariable("strike");
     double T = getVariable("maturity");
     double r = getVariable("riskFreeRate");
@@ -1361,8 +1359,8 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
     double q = getVariable("dividendYield");
     double k = log(K/S0);
     double x0 = 1e-5;
-    double du = (inf-x0)/m;
-    matrix spaceGrids; spaceGrids.setRange(x0,inf,m,true);
+    double du = (x1-x0)/m;
+    matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
     if(method=="RN Prob"){
         auto f0 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u)/(i*u)).getReal();};
         auto f1 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u-i)/(i*u*charFunc(-i))).getReal();};
