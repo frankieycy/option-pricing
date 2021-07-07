@@ -209,8 +209,8 @@ public:
     double NumIntegrationPricer(double z=5, double dz=1e-3);
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     vector<matrix> BlackScholesPDESolverWithFullCalc(const SimConfig& config, int numSpace, string method="implicit");
-    vector<double> _FourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim, string method="RN Prob");
-    double FourierInversionPricer(int numSpace, double rightLim, string method="RN Prob");
+    vector<double> _FourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim=INF, string method="RN Prob");
+    double FourierInversionPricer(int numSpace, double rightLim=INF, string method="RN Prob");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
     matrix varyPriceWithVariable(string var, matrix varVector,
@@ -1394,7 +1394,20 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim, string meth
         double Mu = (mu-sig2/2)*T;
         double Sig2 = sig2*T;
         charFunc = [Mu,Sig2](complx u){return exp(i*Mu*u-Sig2*u*u/2);};
-    }else if(dynamics=="jump-diffusion"){}
+    }else if(dynamics=="jump-diffusion"){
+        vector<double> dynParams = stock.getDynParams();
+        double mu = stock.getDriftRate();
+        double sig = stock.getVolatility();
+        double sig2 = sig*sig;
+        double lamJ = dynParams[0];
+        double muJ = dynParams[1];
+        double sigJ = dynParams[2];
+        double sigJ2 = sigJ*sigJ;
+        double Mu = ((mu-sig2/2)-lamJ*(exp(muJ+sigJ2/2)-1))*T;
+        double Sig2 = sig2*T;
+        double LamJ = lamJ*T;
+        charFunc = [Mu,Sig2,LamJ,muJ,sigJ2](complx u){return exp(i*Mu*u-Sig2*u*u/2+LamJ*(exp(i*muJ*u-sigJ2*u*u/2)-1));};
+    }else if(dynamics=="variance-gamma"){}
     vector<double> fiCalc = _FourierInversionPricer(charFunc,numSpace,rightLim,method);
     if(method=="RN Prob"){
         double Q0 = fiCalc[0];
@@ -1429,7 +1442,7 @@ double Pricer::calcPrice(string method, const SimConfig& config, int numSim, int
     }else if(method=="PDE Solver"){
         price = BlackScholesPDESolver(config,numSpace);
     }else if(method=="Fourier Inversion"){
-        price = FourierInversionPricer(numSpace,1e3);
+        price = FourierInversionPricer(numSpace);
     }
     return price;
 }
