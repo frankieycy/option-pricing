@@ -66,6 +66,7 @@ public:
     vector<int> maxIdx() const;
     vector<int> minIdx() const;
     vector<int> find(double a) const;
+    vector<int> find(double a, string method) const;
     matrix maxWith(double a) const;
     matrix minWith(double a) const;
     double sum() const;
@@ -503,6 +504,12 @@ vector<int> matrix::find(double a) const {
                 break;
             }
     return idx;
+}
+
+vector<int> matrix::find(double a, string method) const {
+    if(method=="exact") return find(a);
+    else if(method=="closest") return abs(*this-a).minIdx();
+    return {};
 }
 
 matrix matrix::maxWith(double a) const {

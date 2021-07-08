@@ -437,7 +437,7 @@ double Option::calcPayoff(double stockPrice, matrix priceSeries, vector<matrix> 
         if(priceSeries.isEmpty()) return NAN;
         else S = priceSeries.getLastEntry();
         double chTime = params[0];
-        vector<int> chTimeIdx = abs(timeVector-chTime).minIdx();
+        vector<int> chTimeIdx = timeVector.find(chTime,"closest");
         string chPutCall;
         if(priceSeries.getEntry(chTimeIdx)<discStrike) chPutCall = "Put";
         else chPutCall = "Call";
@@ -1230,7 +1230,7 @@ double Pricer::BlackScholesPDESolver(const SimConfig& config, int numSpace, stri
     vector<matrix> fullCalc = BlackScholesPDESolverWithFullCalc(config,numSpace,method);
     matrix spaceGrids = fullCalc[0];
     matrix priceMatrix = fullCalc[2];
-    vector<int> idx = abs(x-spaceGrids).minIdx();
+    vector<int> idx = spaceGrids.find(x,"closest");
     price = priceMatrix.getEntry(idx);
     logMessage("ending calculation BlackScholesPDESolver, return "+to_string(price));
     return price;
@@ -1280,7 +1280,7 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
             vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
             matrix vnlaSpaceGrids = vnlaFullCalc[0];
             matrix vnlaPriceMatrix = vnlaFullCalc[2];
-            int bdry1Idx = abs(vnlaSpaceGrids-log(barrier)).minIdx()[1];
+            int bdry1Idx = vnlaSpaceGrids.find(log(barrier),"closest")[1];
             bdryCondition1 = vnlaPriceMatrix.getCol(bdry1Idx);
         }else if(barrierType=="Up-and-Out"){
             x0 = log(K/3); x1 = log(barrier);
@@ -1295,7 +1295,7 @@ vector<matrix> Pricer::BlackScholesPDESolverWithFullCalc(const SimConfig& config
             vector<matrix> vnlaFullCalc = vnlaPricer.BlackScholesPDESolverWithFullCalc(config,numSpace,method);
             matrix vnlaSpaceGrids = vnlaFullCalc[0];
             matrix vnlaPriceMatrix = vnlaFullCalc[2];
-            int bdry0Idx = abs(vnlaSpaceGrids-log(barrier)).minIdx()[1];
+            int bdry0Idx = vnlaSpaceGrids.find(log(barrier),"closest")[1];
             bdryCondition0 = vnlaPriceMatrix.getCol(bdry0Idx);
         }else if(barrierType=="Down-and-Out"){
             x0 = log(barrier); x1 = log(3*K);
@@ -1385,7 +1385,7 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
         }
         fft(F);
         matrix kGrids; kGrids.setRange(-b,b,m);
-        int i = abs(kGrids-k).minIdx()[1]; complx I = F[i];
+        int i = kGrids.find(k)[1]; complx I = F[i];
         double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*I.getReal()*du;
         return {lwCall};
     }
@@ -2251,9 +2251,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
         double O10 = hPricer1.calcPrice("Closed Form");
         int idxK, idxK0, idxK1, idxT, idxT0, idxT1;
         if(!flatImpVolSurface){
-            idxK = abs(log(getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
-            idxK0 = abs(log(hPricer0.getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
-            idxK1 = abs(log(hPricer1.getVariable("strike"))-impVolSurfaceSet[0]).minIdx()[1];
+            idxK = impVolSurfaceSet[0].find(log(getVariable("strike")),"closest")[1];
+            idxK0 = impVolSurfaceSet[0].find(log(hPricer0.getVariable("strike")),"closest")[1];
+            idxK1 = impVolSurfaceSet[0].find(log(hPricer1.getVariable("strike")),"closest")[1];
         }
         for(int i=0; i<numSim; i++){
             setVariable("currentPrice",S0);
@@ -2263,9 +2263,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer1.setVariable("currentPrice",S0);
             hPricer1.setVariable("maturity",Th1);
             if(!flatImpVolSurface){
-                idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT = impVolSurfaceSet[1].find(log(getVariable("maturity")),"closest")[1];
+                idxT0 = impVolSurfaceSet[1].find(log(hPricer0.getVariable("maturity")),"closest")[1];
+                idxT1 = impVolSurfaceSet[1].find(log(hPricer1.getVariable("maturity")),"closest")[1];
                 setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                 hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                 hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
@@ -2314,9 +2314,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
                 hPricer1.setVariable("currentPrice",S);
                 hPricer1.setVariable("maturity",Th1-t*dt);
                 if(!flatImpVolSurface){
-                    idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                    idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                    idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                    idxT = impVolSurfaceSet[1].find(log(getVariable("maturity")),"closest")[1];
+                    idxT0 = impVolSurfaceSet[1].find(log(hPricer0.getVariable("maturity")),"closest")[1];
+                    idxT1 = impVolSurfaceSet[1].find(log(hPricer1.getVariable("maturity")),"closest")[1];
                     setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                     hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                     hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
@@ -2375,9 +2375,9 @@ Backtest Pricer::runBacktest(const SimConfig& config, int numSim,
             hPricer1.setVariable("currentPrice",S1);
             hPricer1.setVariable("maturity",Th1-n*dt);
             if(!flatImpVolSurface){
-                idxT = abs(getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                idxT0 = abs(hPricer0.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
-                idxT1 = abs(hPricer1.getVariable("maturity")-impVolSurfaceSet[1]).minIdx()[1];
+                idxT = impVolSurfaceSet[1].find(log(getVariable("maturity")),"closest")[1];
+                idxT0 = impVolSurfaceSet[1].find(log(hPricer0.getVariable("maturity")),"closest")[1];
+                idxT1 = impVolSurfaceSet[1].find(log(hPricer1.getVariable("maturity")),"closest")[1];
                 setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT,idxK));
                 hPricer0.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT0,idxK0));
                 hPricer1.setVariable("volatility",impVolSurfaceSet[2].getEntry(idxT1,idxK1));
