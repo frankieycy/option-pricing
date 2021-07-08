@@ -48,6 +48,6 @@ int main() {
     /**** jump-diffusion model ************************************************/
     // TO DO
     /**** Fourier inversion ***************************************************/
-    pricer.FourierInversionPricer(1e5,1e3);
+    pricer.FourierInversionPricer(2e4,INF);
     return 0;
 }

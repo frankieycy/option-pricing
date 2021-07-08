@@ -29,7 +29,9 @@ public:
     double getFirstEntry() const;
     double getLastEntry() const;
     matrix getRow(int row) const;
+    vector<double> getRowVector(int row) const;
     matrix getCol(int col) const;
+    vector<double> getColVector(int col) const;
     matrix submatrix(int row0=0, int row1=-1, int col0=0, int col1=-1) const;
     matrix submatrix(int i0, int i1, string mode) const;
     matrix getFirstRow() const;
@@ -68,6 +70,7 @@ public:
     matrix minWith(double a) const;
     double sum() const;
     double sum(vector<double> weights) const;
+    double sum(matrix weights) const;
     double prod() const;
     double mean(string method="Arithmetic") const;
     double wmean(vector<double> weights, string method="Arithmetic") const;
@@ -131,6 +134,11 @@ matrix abs(const matrix& M){
 
 matrix sqrt(const matrix& M){
     return M.apply(sqrt);
+}
+
+matrix pow(double a, const matrix& M){
+    auto f = [a](double x){return pow(a,x);};
+    return M.apply(f);
 }
 
 double max(const matrix& M){
@@ -228,15 +236,23 @@ double matrix::getLastEntry() const {
 }
 
 matrix matrix::getRow(int row) const {
+    return matrix(getRowVector(row));
+}
+
+vector<double> matrix::getRowVector(int row) const {
     assert(row>=0 && row<rows);
-    return matrix(m[row]);
+    return m[row];
 }
 
 matrix matrix::getCol(int col) const {
+    return matrix(getColVector(col));
+}
+
+vector<double> matrix::getColVector(int col) const {
     assert(col>=0 && col<cols);
     vector<double> v;
     for(int row=0; row<rows; row++) v.push_back(m[row][col]);
-    return matrix(v);
+    return v;
 }
 
 matrix matrix::submatrix(int row0, int row1, int col0, int col1) const {
@@ -519,6 +535,15 @@ double matrix::sum(vector<double> weights) const {
     for(int row=0; row<rows; row++)
         for(int col=0; col<cols; col++)
             a += m[row][col]*weights[row*cols+col];
+    return a;
+}
+
+double matrix::sum(matrix weights) const {
+    assert(rows==weights.rows && cols==weights.cols);
+    double a = 0;
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            a += m[row][col]*weights.m[row][col];
     return a;
 }
 

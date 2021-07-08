@@ -1368,10 +1368,27 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
         double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum()*du; // stock numeraire ITM prob
         return {Q0,Q1};
     }else if(method=="Lewis"){
+        matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
+        w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
         auto f = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i/2)).getReal()/(u*u+.25);};
-        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*spaceGrids.apply(f).sum()*du;
+        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*spaceGrids.apply(f).sum(w)*du;
         return {lwCall};
-    }else if(method=="FFT"){}
+    }else if(method=="FFT"){
+        du = x1/m;
+        double dk = 2*M_PI/x1;
+        double b = m*dk/2;
+        vector<complx> F(m);
+        for(int n=0; n<m; n++){
+            double u = n*du;
+            double w = (n==0||n==m-1)?1:(n%2?4:2);
+            F[n] = w/3*exp(-i*b*n*du)*charFunc(u-i/2)/(u*u+.25);
+        }
+        fft(F);
+        matrix kGrids; kGrids.setRange(-b,b,m);
+        int i = abs(kGrids-k).minIdx()[1]; complx I = F[i];
+        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*I.getReal()*du;
+        return {lwCall};
+    }
     return {};
 }
 
@@ -1419,13 +1436,13 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim, string meth
             if(option.getPutCall()=="Call") price = exp(-r*T)*Q0;
             else if(option.getPutCall()=="Put") price = exp(-r*T)*(1-Q0);
         }
-    }else if(method=="Lewis"){
+    }else if(method=="Lewis" || method=="FFT"){
         double lwCall = fiCalc[0];
         if(option.getType()=="European"){
             if(option.getPutCall()=="Call") price = lwCall;
             else if(option.getPutCall()=="Put") price = lwCall-S0*exp(-q*T)+K*exp(-r*T);
         }
-    }else if(method=="FFT"){}
+    }
     logMessage("ending calculation FourierInversionPricer, return "+to_string(price));
     return price;
 }

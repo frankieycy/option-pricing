@@ -63,6 +63,29 @@ complx exp(complx c){
     return exp(c.x)*complx(cos(c.y),sin(c.y));
 }
 
+void fft(vector<complx>& x, bool invert=false){
+    int n = x.size();
+    if(n==1) return;
+    vector<complx> x0(n/2), x1(n/2);
+    for(int i=0; 2*i<n; i++){
+        x0[i] = x[2*i];
+        x1[i] = x[2*i+1];
+    }
+    fft(x0,invert);
+    fft(x1,invert);
+    double a = 2*M_PI/n*(invert?-1:1);
+    complx w(1), wn = exp(i*a);
+    for(int i=0; 2*i<n; i++){
+        x[i] = x0[i]+w*x1[i];
+        x[i+n/2] = x0[i]-w*x1[i];
+        if(invert){
+            x[i] /= 2;
+            x[i+n/2] /= 2;
+        }
+        w *= wn;
+    }
+}
+
 /**** accessors ****/
 
 void complx::print(bool useRect=true) const {
