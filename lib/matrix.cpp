@@ -177,12 +177,13 @@ matrix min(const matrix& M1, const matrix& M2){
 }
 
 double interp(vector<double> x, vector<matrix> coord, matrix data, string method="closest"){
-    assert(x.size()==coord.size());
     int n = x.size();
+    assert(n==coord.size());
+    assert(n==1||n==2);
     vector<int> idx;
     if(method=="exact" || method=="closest"){
-        if(n==1) idx = {0,coord[0].find(x,method)[1]};
-        else idx = {coord[0].find(x,method)[1],coord[1].find(x,method)[1]};
+        if(n==1) idx = {0,coord[0].find(x[0],method)[1]};
+        else idx = {coord[0].find(x[0],method)[1],coord[1].find(x[1],method)[1]};
         return data.getEntry(idx);
     }else if(method=="linear"){}
     return NAN;
