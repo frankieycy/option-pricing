@@ -54,6 +54,13 @@ double mathFunc(double x, string type, vector<double> vec){
     return fx;
 }
 
+template <class T1, class T2>
+vector<T1> apply(const function<T1(T2)>& f, const vector<T2>& vec){
+    vector<T1> v(vec.size());
+    for(int k=0; k<v.size(); k++) v[k] = f(vec[k]);
+    return v;
+}
+
 template <class T>
 ostream& operator<<(ostream& out, const vector<T>& vec){
     // print elements of a vector

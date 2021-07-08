@@ -176,6 +176,18 @@ matrix min(const matrix& M1, const matrix& M2){
     return A;
 }
 
+double interp(vector<double> x, vector<matrix> coord, matrix data, string method="closest"){
+    assert(x.size()==coord.size());
+    int n = x.size();
+    vector<int> idx;
+    if(method=="exact" || method=="closest"){
+        if(n==1) idx = {0,coord[0].find(x,method)[1]};
+        else idx = {coord[0].find(x,method)[1],coord[1].find(x,method)[1]};
+        return data.getEntry(idx);
+    }else if(method=="linear"){}
+    return NAN;
+}
+
 /**** constructors ****/
 
 matrix::matrix():rows(0),cols(0){}

@@ -210,6 +210,7 @@ public:
     double BlackScholesPDESolver(const SimConfig& config, int numSpace, string method="implicit");
     vector<matrix> BlackScholesPDESolverWithFullCalc(const SimConfig& config, int numSpace, string method="implicit");
     vector<double> _FourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim=INF, string method="RN Prob");
+    vector<matrix> _fastFourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim=INF);
     double FourierInversionPricer(int numSpace, double rightLim=INF, string method="RN Prob");
     double calcPrice(string method="Closed Form", const SimConfig& config=NULL_CONFIG,
         int numSim=0, int numSpace=0);
@@ -1374,22 +1375,38 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
         double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*spaceGrids.apply(f).sum(w)*du;
         return {lwCall};
     }else if(method=="FFT"){
-        du = x1/m;
-        double dk = 2*M_PI/x1;
-        double b = m*dk/2;
-        vector<complx> F(m);
-        for(int n=0; n<m; n++){
-            double u = n*du;
-            double w = (n==0||n==m-1)?1:(n%2?4:2);
-            F[n] = w/3*exp(-i*b*n*du)*charFunc(u-i/2)/(u*u+.25);
-        }
-        fft(F);
-        matrix kGrids; kGrids.setRange(-b,b,m);
-        int i = kGrids.find(k)[1]; complx I = F[i];
-        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*I.getReal()*du;
+        vector<matrix> fftCalc = _fastFourierInversionPricer(charFunc,numSpace,rightLim);
+        matrix kGrids = fftCalc[0];
+        matrix lwCalls = fftCalc[1];
+        int i = kGrids.find(k,"closest")[1];
+        double lwCall = lwCalls.getEntry(0,i);
         return {lwCall};
     }
     return {};
+}
+
+vector<matrix> Pricer::_fastFourierInversionPricer(const function<complx(complx)>& charFunc, int numSpace, double rightLim){
+    int m = numSpace;
+    double x1 = rightLim;
+    double K = getVariable("strike");
+    double T = getVariable("maturity");
+    double r = getVariable("riskFreeRate");
+    double S0 = getVariable("currentPrice");
+    double q = getVariable("dividendYield");
+    double du = x1/m;
+    double dk = 2*M_PI/x1;
+    double b = m*dk/2;
+    vector<complx> F(m);
+    for(int n=0; n<m; n++){
+        double u = n*du;
+        double w = (n==0||n==m-1)?1:(n%2?4:2);
+        F[n] = w/3*exp(-i*b*n*du)*charFunc(u-i/2)/(u*u+.25);
+    }
+    fft(F);
+    matrix kGrids; kGrids.setRange(-b,b,m);
+    function<double(complx)> f = [S0,K,T,r,q,du](complx I){return S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*I.getReal()*du;};
+    matrix lwCalls = apply(f,F);
+    return {kGrids,lwCalls};
 }
 
 double Pricer::FourierInversionPricer(int numSpace, double rightLim, string method){
