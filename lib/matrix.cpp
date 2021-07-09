@@ -25,7 +25,7 @@ public:
     int getCols() const {return cols;}
     int getEntries() const {return rows*cols;}
     double getEntry(int row, int col) const {return m[row][col];}
-    double getEntry(vector<int> idx) const {return m[idx[0]][idx[1]];}
+    double getEntry(const vector<int>& idx) const {return m[idx[0]][idx[1]];}
     double getFirstEntry() const;
     double getLastEntry() const;
     matrix getRow(int row) const;
@@ -70,11 +70,11 @@ public:
     matrix maxWith(double a) const;
     matrix minWith(double a) const;
     double sum() const;
-    double sum(vector<double> weights) const;
-    double sum(matrix weights) const;
+    double sum(const vector<double>& weights) const;
+    double sum(const matrix& weights) const;
     double prod() const;
     double mean(string method="Arithmetic") const;
-    double wmean(vector<double> weights, string method="Arithmetic") const;
+    double wmean(const vector<double>& weights, string method="Arithmetic") const;
     double var(int k=1) const;
     double stdev(int k=1) const;
     double cov(const matrix& M, int k=1) const;
@@ -549,7 +549,7 @@ double matrix::sum() const {
     return a;
 }
 
-double matrix::sum(vector<double> weights) const {
+double matrix::sum(const vector<double>& weights) const {
     assert(rows*cols==weights.size());
     double a = 0;
     for(int row=0; row<rows; row++)
@@ -558,7 +558,7 @@ double matrix::sum(vector<double> weights) const {
     return a;
 }
 
-double matrix::sum(matrix weights) const {
+double matrix::sum(const matrix& weights) const {
     assert(rows==weights.rows && cols==weights.cols);
     double a = 0;
     for(int row=0; row<rows; row++)
@@ -581,7 +581,7 @@ double matrix::mean(string method) const {
     else return 0;
 }
 
-double matrix::wmean(vector<double> weights, string method) const {
+double matrix::wmean(const vector<double>& weights, string method) const {
     double weightSum = 0;
     for(auto w:weights) weightSum += w;
     if(method=="Arithmetic") return sum(weights)/(weightSum);

@@ -1,6 +1,8 @@
 #ifndef UTIL
 #define UTIL
 #include <iostream>
+#include <iomanip>
+#include <functional>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>

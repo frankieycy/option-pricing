@@ -63,6 +63,22 @@ complx exp(complx c){
     return exp(c.x)*complx(cos(c.y),sin(c.y));
 }
 
+complx pow(complx c, double n){
+    double mod = c.modulus(); mod = pow(mod,n);
+    double arg = c.argument(); arg = fmod(arg*n,2*M_PI);
+    return mod*complx(cos(arg),sin(arg));
+}
+
+complx log(complx c){
+    double mod = c.modulus();
+    double arg = c.argument();
+    return complx(log(mod),arg);
+}
+
+complx sqrt(complx c){
+    return pow(c,.5);
+}
+
 void fft(vector<complx>& x, bool invert=false){
     int n = x.size();
     if(n==1) return;
