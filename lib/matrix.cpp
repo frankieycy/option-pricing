@@ -15,6 +15,7 @@ public:
     matrix(); // default consructor
     matrix(const matrix& M); // copy consructor
     matrix(int rows, int cols, double a=0);
+    matrix(int rows, int cols, string type, const vector<double>& params={});
     matrix(const vector<double>& v);
     matrix(const vector<vector<double>>& M);
     template <int _cols> matrix(const double (&v)[_cols]);
@@ -53,6 +54,7 @@ public:
     matrix setIdentity(int rows);
     matrix setUniformRand(double min=0, double max=1);
     matrix setNormalRand(double mu=0, double sig=1);
+    matrix setPoissonRand(double lambda=1);
     matrix setRow(int row, const matrix& vec);
     matrix setCol(int col, const matrix& vec);
     matrix setEntry(int row, int col, double a);
@@ -142,6 +144,11 @@ matrix pow(double a, const matrix& M){
     return M.apply(f);
 }
 
+matrix pow(const matrix& M, double a){
+    auto f = [a](double x){return pow(x,a);};
+    return M.apply(f);
+}
+
 double max(const matrix& M){
     return M.getMax();
 }
@@ -197,6 +204,13 @@ matrix::matrix(const matrix& M):rows(M.rows),cols(M.cols),m(M.m){}
 
 matrix::matrix(int rows, int cols, double a):rows(rows),cols(cols){
     for(int row=0; row<rows; row++) m.push_back(vector<double>(cols,a));
+}
+
+matrix::matrix(int rows, int cols, string type, const vector<double>& params):rows(rows),cols(cols){
+    *this = matrix(rows,cols);
+    if(type=="identity") (*this).setIdentity();
+    else if(type=="uniform rand") (*this).setUniformRand(params[0],params[1]);
+    else if(type=="normal rand") (*this).setNormalRand(params[0],params[1]);
 }
 
 matrix::matrix(const vector<double>& v):rows(1),cols(v.size()){
@@ -404,9 +418,16 @@ matrix matrix::setNormalRand(double mu, double sig){
     return *this;
 }
 
+matrix matrix::setPoissonRand(double lambda){
+    for(int row=0; row<rows; row++)
+        for(int col=0; col<cols; col++)
+            m[row][col] = poissonRand(lambda);
+    return *this;
+}
+
 matrix matrix::setRow(int row, const matrix& vec){
     assert(vec.rows==1 && cols==vec.cols);
-    for(int col=0; col<vec.cols; col++) m[row][col] = vec.m[0][col];
+    m[row] = vec.m[0];
     return *this;
 }
 

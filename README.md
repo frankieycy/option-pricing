@@ -21,13 +21,12 @@
 * ok, Exotic option pricing with Monte Carlo
 * ok, stochastic vol model: Heston
 * ok, Heston model construct imp vol surface
-* stochastic vol model: GARCH
-* local vol model: CEV
-* jump-diffusion model: Merton
+* ok, jump-diffusion model: Merton
+* ok, stochastic vol model: GARCH
+* ok, local vol model: CEV
 * model param calibration
 * visualize Girsanov change of measure
 * American option pricing with Monte Carlo
-* forward/future pricing
 * facade design pattern: optionlib.cpp (wrapper)
 * deterministic (non-constant) interest rate extension (PDE)
 * deterministic (non-constant) volatility extension (PDE)

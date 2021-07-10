@@ -16,11 +16,23 @@ using namespace std;
 
 inline void seperator(int length=20){cout << string(length,'-') << endl;}
 inline double uniformRand(double min=0, double max=1){return min+(max-min)*rand()/RAND_MAX;}
+inline double exponentialRand(double lambda){return -log(uniformRand())/lambda;} // lambda: intensity
 inline double normalRand(double mu=0, double sig=1){return sqrt(-2*log(uniformRand()))*cos(2*M_PI*uniformRand());}
 inline double normalPDF(double x, double mu=0, double sig=1){return exp(-(x-mu)*(x-mu)/(2*sig*sig))/(sqrt(2*M_PI)*sig);}
 inline double normalCDF(double x, double mu=0, double sig=1){return erfc(-M_SQRT1_2*x)/2;}
 inline double stdNormalPDF(double x){return normalPDF(x);}
 inline double stdNormalCDF(double x){return normalCDF(x);}
+
+int poissonRand(double lambda=1){
+    int n = 0;
+    double prod = 1;
+    double thres = exp(-lambda);
+    while(prod>thres){
+        prod *= uniformRand();
+        n += 1;
+    }
+    return n;
+}
 
 double normalRand_(double mu=0, double sig=1){
     double n = normalRand(mu,sig);

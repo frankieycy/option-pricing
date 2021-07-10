@@ -233,7 +233,7 @@ public:
     vector<matrix> modelImpliedVolSurface(const SimConfig& config, int numSpace,
         const function<double(double)>& impVolFunc0, const function<double(double)>& impVolFunc1,
         double lambdaT, double eps=1e-5);
-    vector<matrix> modelImpliedVolSurfaceFromFile(string input, const SimConfig& config, int numSpace); // TO DO
+    vector<matrix> modelImpliedVolSurfaceFromFile(string input, const SimConfig& config, int numSpace);
     Backtest runBacktest(const SimConfig& config, int numSim=1,
         string strategy="simple-delta", int hedgeFreq=1, double mktImpVol=0, double mktPrice=0,
         const vector<double>& stratParams={}, const vector<Option>& hOptions={}, const vector<matrix>& impVolSurfaceSet={},
@@ -656,8 +656,26 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             simPriceMatrix.setRow(i,simPriceVector);
             simTimeVector.setEntry(0,i,i*dt);
         }
-    }else if(dynamics=="jump-diffusion"){
-        // TO DO
+    }else if(dynamics=="jump-diffusion"){ // Merton
+        double sig0 = volatility;
+        double lamJ = dynParams[0];
+        double muJ  = dynParams[1];
+        double sigJ = dynParams[2];
+        matrix poiRandomVector(1,numSim), jmpRandomVector(1,numSim);
+        matrix simPoiMatrix(n+1,numSim), simJmpMatrix(n+1,numSim);
+        for(int i=1; i<n+1; i++){
+            if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            else randomVector = randomMatrix.getRow(i);
+            poiRandomVector.setPoissonRand(lamJ*dt);
+            for(int j=0; j<numSim; j++) jmpRandomVector.setEntry(0,j,
+                matrix(1,poiRandomVector.getEntry(0,j),"normal rand",{muJ,sigJ}).sum());
+            simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector+jmpRandomVector);
+            simPriceMatrix.setRow(i,simPriceVector);
+            simPoiMatrix.setRow(i,poiRandomVector);
+            simJmpMatrix.setRow(i,jmpRandomVector);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
+        return {simPriceMatrix,simPoiMatrix,simJmpMatrix};
     }else if(dynamics=="Heston"){
         double sig0             = volatility;
         double reversionRate    = dynParams[0];
@@ -670,7 +688,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
         matrix simVolMatrix(n+1,numSim), simVarMatrix(n+1,numSim);
         simVolMatrix.setRow(0,currentVol);
         simVarMatrix.setRow(0,currentVar);
-        // assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
+        assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
         for(int i=1; i<n+1; i++){
             if(randomMatrix.isEmpty()) randomVector.setNormalRand();
             else randomVector = randomMatrix.getRow(i);
@@ -687,6 +705,42 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             simTimeVector.setEntry(0,i,i*dt);
         }
         return {simPriceMatrix,simVolMatrix,simVarMatrix};
+    }else if(dynamics=="GARCH"){
+        double sig0             = volatility;
+        double reversionRate    = dynParams[0];
+        double longRunVar       = dynParams[1];
+        double volOfVol         = dynParams[2];
+        double brownianCor0     = dynParams[3];
+        double brownianCor1     = sqrt(1-brownianCor0*brownianCor0);
+        matrix volRandomVector(1,numSim);
+        matrix currentVol(1,numSim,sig0), currentVar(1,numSim,sig0*sig0);
+        matrix simVolMatrix(n+1,numSim), simVarMatrix(n+1,numSim);
+        simVolMatrix.setRow(0,currentVol);
+        simVarMatrix.setRow(0,currentVar);
+        for(int i=1; i<n+1; i++){
+            if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            else randomVector = randomMatrix.getRow(i);
+            volRandomVector.setNormalRand();
+            volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
+            currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar*sqrt_dt*volRandomVector;
+            currentVar  = abs(currentVar);
+            currentVol  = sqrt(currentVar);
+            simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
+            simPriceMatrix.setRow(i,simPriceVector);
+            simVolMatrix.setRow(i,currentVol);
+            simVarMatrix.setRow(i,currentVar);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
+        return {simPriceMatrix,simVolMatrix,simVarMatrix};
+    }else if(dynamics=="CEV"){
+        double gamma = dynParams[0];
+        for(int i=1; i<n+1; i++){
+            if(randomMatrix.isEmpty()) randomVector.setNormalRand();
+            else randomVector = randomMatrix.getRow(i);
+            simPriceVector += simPriceVector*driftRate*dt+pow(simPriceVector,gamma)*volatility*sqrt_dt*randomVector;
+            simPriceMatrix.setRow(i,simPriceVector);
+            simTimeVector.setEntry(0,i,i*dt);
+        }
     }
     return {simPriceMatrix};
 }
@@ -824,11 +878,8 @@ vector<vector<matrix>> Market::simulateCorrelatedPricesWithFullCalc(const SimCon
             stocks[j].setSimTimeVector(simTimeVector);
             stocks[j].setSimPriceMatrix(simPriceMatrixSet[j]);
         }
-    }else if(dynamics=="jump-diffusion"){
-        // TO DO
-    }else if(dynamics=="Heston"){
-        // TO DO
-    }
+    }else if(dynamics=="jump-diffusion"){} // TO DO
+    else if(dynamics=="Heston"){} // TO DO
     return {simPriceMatrixSet};
 }
 
@@ -1195,11 +1246,8 @@ double Pricer::MultiStockMonteCarloPricer(const SimConfig& config, int numSim, s
             price = exp(-r*T)*payoffs.mean();
             err = exp(-r*T)*payoffs.stdev()/sqrt(numSim);
         }
-    }else if(method=="antithetic variates"){
-        // TO DO
-    }else if(method=="control variates"){
-        // TO DO
-    }
+    }else if(method=="antithetic variates"){} // TO DO
+    else if(method=="control variates"){} // TO DO
     tmp = {err};
     logMessage("ending calculation MonteCarloPricer, return "+to_string(price)+" with error "+to_string(err));
     return price;
