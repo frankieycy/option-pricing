@@ -668,7 +668,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             else randomVector = randomMatrix.getRow(i);
             poiRandomVector.setPoissonRand(lamJ*dt);
             for(int j=0; j<numSim; j++) jmpRandomVector.setEntry(0,j,
-                matrix(1,poiRandomVector.getEntry(0,j),"normal rand",{muJ,sigJ}).sum());
+                matrix(1,poiRandomVector.getEntry(0,j),"normal rand",{muJ*dt,sigJ*sqrt_dt}).sum());
             simPriceVector += simPriceVector*(driftRate*dt+volatility*sqrt_dt*randomVector+jmpRandomVector);
             simPriceMatrix.setRow(i,simPriceVector);
             simPoiMatrix.setRow(i,poiRandomVector);
@@ -1173,13 +1173,21 @@ double Pricer::MonteCarloPricer(const SimConfig& config, int numSim, string meth
     double err = NAN;
     matrix simPriceMatrix, simTimeVector;
     stock.setDriftRate(r-q);
-    // handle exceptions
+    // handle exceptions ================
+    string dynamics = stock.getDynamics();
     string optionType = option.getType();
     if(optionType=="Chooser"){
         double K = option.getStrike();
         double t = option.getParams()[0];
         option.setDiscStrike(K*exp(-r*(T-t)));
     }
+    if(dynamics=="jump-diffusion"){
+        vector<double> params = stock.getDynParams();
+        double lamJ = params[0];
+        double muJ = params[1];
+        stock.setDriftRate(r-q-lamJ*muJ);
+    }
+    // ==================================
     if(method=="simple"){
         simPriceMatrix = stock.simulatePrice(config,numSim);
         simTimeVector = stock.getSimTimeVector();
