@@ -211,6 +211,7 @@ matrix::matrix(int rows, int cols, string type, const vector<double>& params):ro
     if(type=="identity") (*this).setIdentity();
     else if(type=="uniform rand") (*this).setUniformRand(params[0],params[1]);
     else if(type=="normal rand") (*this).setNormalRand(params[0],params[1]);
+    else if(type=="poisson rand") (*this).setPoissonRand(params[0]);
 }
 
 matrix::matrix(const vector<double>& v):rows(1),cols(v.size()){

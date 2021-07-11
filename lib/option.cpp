@@ -1429,7 +1429,7 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
         matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
         w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
         auto f = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i/2)).getReal()/(u*u+.25);};
-        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*spaceGrids.apply(f).sum(w)*du;
+        double lwCall = S0-sqrt(S0*K)*exp(-r*T)/M_PI*spaceGrids.apply(f).sum(w)*du;
         return {lwCall};
     }else if(method=="FFT"){
         vector<matrix> fftCalc = _fastFourierInversionPricer(charFunc,numSpace,rightLim);
@@ -1461,8 +1461,8 @@ vector<matrix> Pricer::_fastFourierInversionPricer(const function<complx(complx)
     }
     fft(F);
     matrix kGrids; kGrids.setRange(-b,b,m);
-    function<double(complx)> f = [S0,K,T,r,q,du](complx I){return S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q/2)*T)/M_PI*I.getReal()*du;};
-    matrix lwCalls = apply(f,F);
+    function<double(complx)> f = [](complx c){return c.getReal();};
+    matrix lwCalls = S0*(1-exp(kGrids-r*T)/M_PI*matrix(apply(f,F))*du);
     return {kGrids,lwCalls};
 }
 

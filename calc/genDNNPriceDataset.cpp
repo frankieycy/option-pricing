@@ -5,11 +5,11 @@ int main() {
     /**** DNN price dataset ***************************************************/
     srand(time(NULL));
     string dataFolder = "dnn_data/";
-    int numSamples = 1e5;
+    int numSamples = 1e4;
     vector<bool> calcSwitch = {
-        /* GBM */   true,
-        /* HES */   false,
-        /* VG */    false,
+        /* GBM   */ false,
+        /* HES   */ true,
+        /* VG    */ false,
         /* VGHES */ false
     };
     double M0 = 0.8, M1 = 1.2;          // moneyness
@@ -63,7 +63,7 @@ int main() {
             Market market = Market(r,stock);
             Option option = Option("European","Call",K,T);
             Pricer pricer = Pricer(option,market);
-            double fiPrice = pricer.FourierInversionPricer(8192,INF,"FFT");
+            double fiPrice = pricer.FourierInversionPricer(4096,INF,"FFT");
             f2 << "HES-" << i << ","  << M << "," << T << "," << r << "," << q << "," << sig << "," << kappa << "," << theta << "," << zeta << "," << rho << "," << fiPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: HES-" << i << endl;
         }

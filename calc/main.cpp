@@ -45,8 +45,6 @@ int main() {
     // result[0].printToCsvFile("test_price.csv");
     // result[1].printToCsvFile("test_vol.csv");
     // result[2].printToCsvFile("test_var.csv");
-    /**** jump-diffusion model ************************************************/
-    // TO DO
     /**** Fourier inversion ***************************************************/
     pricer.FourierInversionPricer(16384,INF,"FFT");
     return 0;
