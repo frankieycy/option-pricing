@@ -10,11 +10,9 @@ int main() {
     SimConfig config    = SimConfig(1,200);
     double bsPrice      = pricer.BlackScholesClosedForm();
     double mcPrice      = pricer.MonteCarloPricer(config,1e4);
+    double fiPrice      = pricer.FourierInversionPricer(1e4);
     cout << "Black-Scholes Price (Lognormal): " << bsPrice << endl;
     cout << "Monte-Carlo Price (Heston): " << mcPrice << endl;
-    // vector<matrix> result = stock.simulatePriceWithFullCalc(config,10);
-    // result[0].printToCsvFile("test_price.csv");
-    // result[1].printToCsvFile("test_vol.csv");
-    // result[2].printToCsvFile("test_var.csv");
+    cout << "Fourier-Inversion Price (Heston): " << fiPrice << endl;
     return 0;
 }

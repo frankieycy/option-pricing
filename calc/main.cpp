@@ -2,11 +2,11 @@
 using namespace std;
 
 int main() {
-    Option option       = Option("European","Call",100,1);
-    Stock  stock        = Stock(100,0,0.05,0.1);
-    Market market       = Market(0.02,stock);
-    Pricer pricer       = Pricer(option,market);
-    SimConfig config    = SimConfig(1,50);
+    // Option option       = Option("European","Call",100,1);
+    // Stock  stock        = Stock(100,0,0.05,0.1);
+    // Market market       = Market(0.02,stock);
+    // Pricer pricer       = Pricer(option,market);
+    // SimConfig config    = SimConfig(1,50);
     /**** price ***************************************************************/
     // pricer.calcPrice("Closed Form");
     // pricer.calcPrice("Binomial Tree",config);
@@ -46,6 +46,13 @@ int main() {
     // result[1].printToCsvFile("test_vol.csv");
     // result[2].printToCsvFile("test_var.csv");
     /**** Fourier inversion ***************************************************/
-    pricer.FourierInversionPricer(16384,INF,"FFT");
+    Option option = Option("European","Call",100,2);
+    Stock  stock  = Stock(95,0.15,0.2,0.3);
+    Market market = Market(0.1,stock);
+    Pricer pricer = Pricer(option,market);
+    pricer.BlackScholesClosedForm();
+    pricer.FourierInversionPricer(2e4,INF,"RN Prob");
+    pricer.FourierInversionPricer(2e4,INF,"Lewis");
+    pricer.FourierInversionPricer(2e4,INF,"FFT");
     return 0;
 }

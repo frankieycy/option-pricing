@@ -1415,21 +1415,23 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
     double r = getVariable("riskFreeRate");
     double S0 = getVariable("currentPrice");
     double q = getVariable("dividendYield");
-    double k = log(K/S0);
+    double k = log(S0/K)+(r-q)*T;
     double x0 = 1e-5;
     double du = (x1-x0)/m;
     matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
     if(method=="RN Prob"){
-        auto f0 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u)/(i*u)).getReal();};
-        auto f1 = [k,charFunc](double u){return (exp(-i*u*k)*charFunc(u-i)/(i*u*charFunc(-i))).getReal();};
-        double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum()*du; // cash numeraire ITM prob
-        double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum()*du; // stock numeraire ITM prob
+        matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
+        w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
+        auto f0 = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u)/(i*u)).getReal();};
+        auto f1 = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i)/(i*u)).getReal();};
+        double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum(w)*du; // cash numeraire ITM prob
+        double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum(w)*du; // stock numeraire ITM prob
         return {Q0,Q1};
     }else if(method=="Lewis"){
         matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
         w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
         auto f = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i/2)).getReal()/(u*u+.25);};
-        double lwCall = S0-sqrt(S0*K)*exp(-r*T)/M_PI*spaceGrids.apply(f).sum(w)*du;
+        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q)*T/2)/M_PI*spaceGrids.apply(f).sum(w)*du;
         return {lwCall};
     }else if(method=="FFT"){
         vector<matrix> fftCalc = _fastFourierInversionPricer(charFunc,numSpace,rightLim);
@@ -1462,7 +1464,7 @@ vector<matrix> Pricer::_fastFourierInversionPricer(const function<complx(complx)
     fft(F);
     matrix kGrids; kGrids.setRange(-b,b,m);
     function<double(complx)> f = [](complx c){return c.getReal();};
-    matrix lwCalls = S0*(1-exp(kGrids-r*T)/M_PI*matrix(apply(f,F))*du);
+    matrix lwCalls = S0*exp(-q*T)*(1-exp(-kGrids/2)/M_PI*matrix(apply(f,F))*du);
     return {kGrids,lwCalls};
 }
 

@@ -8,8 +8,10 @@ int main() {
     Market market       = Market(0.1,stock);
     Pricer pricer       = Pricer(option,market);
     SimConfig config    = SimConfig(1,200);
+    double bsPrice      = pricer.BlackScholesClosedForm();
     double mcPrice      = pricer.MonteCarloPricer(config,1e4);
     double fiPrice      = pricer.FourierInversionPricer(1e4);
+    cout << "Black-Scholes Price (Lognormal): " << bsPrice << endl;
     cout << "Monte-Carlo Price (Jump-Diffusion): " << mcPrice << endl;
     cout << "Fourier-Inversion Price (Jump-Diffusion): " << fiPrice << endl;
     return 0;
