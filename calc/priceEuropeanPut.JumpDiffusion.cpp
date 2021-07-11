@@ -3,7 +3,7 @@ using namespace std;
 
 int main() {
     /**** Jump-diffusion model ************************************************/
-    Option option       = Option("European","Call",100,1);
+    Option option       = Option("European","Put",80,1);
     Stock  stock        = Stock(100,0,0.05,0.2,{1,-0.05,0.1},"jump-diffusion");
     Market market       = Market(0.1,stock);
     Pricer pricer       = Pricer(option,market);

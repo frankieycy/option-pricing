@@ -38,6 +38,7 @@ int main() {
             Option option = Option("European","Call",K,T);
             Pricer pricer = Pricer(option,market);
             double bsPrice = pricer.BlackScholesClosedForm();
+            cout << "GBM-" << i << " Option Details: " << option << "; Stock Details: " << stock << endl;
             f1 << "GBM-" << i << "," << M << "," << T << "," << r << "," << q << "," << sig << "," << bsPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: GBM-" << i << endl;
         }
@@ -63,7 +64,8 @@ int main() {
             Market market = Market(r,stock);
             Option option = Option("European","Call",K,T);
             Pricer pricer = Pricer(option,market);
-            double fiPrice = pricer.FourierInversionPricer(4096,INF,"FFT");
+            double fiPrice = pricer.FourierInversionPricer(4e3,INF,"Lewis");
+            cout << "HES-" << i << " Option Details: " << option << "; Stock Details: " << stock << endl;
             f2 << "HES-" << i << ","  << M << "," << T << "," << r << "," << q << "," << sig << "," << kappa << "," << theta << "," << zeta << "," << rho << "," << fiPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: HES-" << i << endl;
         }
