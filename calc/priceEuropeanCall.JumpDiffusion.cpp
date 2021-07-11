@@ -11,8 +11,8 @@ int main() {
     double bsPrice      = pricer.BlackScholesClosedForm();
     double mcPrice      = pricer.MonteCarloPricer(config,1e4);
     double fiPrice      = pricer.FourierInversionPricer(1e4);
-    cout << "Black-Scholes Price (Lognormal): " << bsPrice << endl;
-    cout << "Monte-Carlo Price (Jump-Diffusion): " << mcPrice << endl;
-    cout << "Fourier-Inversion Price (Jump-Diffusion): " << fiPrice << endl;
+    cout << "Black-Scholes Price (Lognormal): "             << bsPrice << endl;
+    cout << "Monte-Carlo Price (Jump-Diffusion): "          << mcPrice << endl;
+    cout << "Fourier-Inversion Price (Jump-Diffusion): "    << fiPrice << endl;
     return 0;
 }

@@ -12,8 +12,8 @@ int main() {
     SimConfig config    = SimConfig(1,200);
     double bsPrice      = pricer.BlackScholesClosedForm();
     double mcPrice      = pricer.MultiStockMonteCarloPricer(config,1e4);
-    cout << "Option Details: " << option << endl;
+    cout << "Option Details: "      << option << endl;
     cout << "Black-Scholes Price: " << bsPrice << endl;
-    cout << "Monte-Carlo Price: " << mcPrice << endl;
+    cout << "Monte-Carlo Price: "   << mcPrice << endl;
     return 0;
 }

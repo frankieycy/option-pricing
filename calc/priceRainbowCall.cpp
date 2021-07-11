@@ -11,7 +11,7 @@ int main() {
     Pricer pricer       = Pricer(option,market);
     SimConfig config    = SimConfig(1,200);
     double mcPrice      = pricer.MultiStockMonteCarloPricer(config,1e4);
-    cout << "Option Details: " << option << endl;
-    cout << "Monte-Carlo Price: " << mcPrice << endl;
+    cout << "Option Details: "      << option << endl;
+    cout << "Monte-Carlo Price: "   << mcPrice << endl;
     return 0;
 }

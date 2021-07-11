@@ -1415,7 +1415,7 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
     double r = getVariable("riskFreeRate");
     double S0 = getVariable("currentPrice");
     double q = getVariable("dividendYield");
-    double k = log(S0/K)+(r-q)*T;
+    double k = log(S0/K)+(r-q)*T; // forward log moneyness
     double x0 = 1e-5;
     double du = (x1-x0)/m;
     matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
@@ -1481,29 +1481,26 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim, string meth
     function<complx(complx)> charFunc;
     string dynamics = stock.getDynamics();
     if(dynamics=="lognormal"){
-        double mu = stock.getDriftRate();
         double sig = stock.getVolatility();
         double sig2 = sig*sig;
-        double Mu = (mu-sig2/2)*T;
+        double Mu = -sig2/2*T;
         double Sig2 = sig2*T;
         charFunc = [Mu,Sig2](complx u){return exp(i*Mu*u-Sig2*u*u/2);};
     }else if(dynamics=="jump-diffusion"){
         vector<double> dynParams = stock.getDynParams();
-        double mu = stock.getDriftRate();
         double sig = stock.getVolatility();
         double sig2 = sig*sig;
         double lamJ = dynParams[0]; // jump intesity
         double muJ = dynParams[1];  // jump mean
         double sigJ = dynParams[2]; // jump s.d.
         double sigJ2 = sigJ*sigJ;
-        double Mu = ((mu-sig2/2)-lamJ*(exp(muJ+sigJ2/2)-1))*T;
+        double Mu = (-sig2/2-lamJ*(exp(muJ+sigJ2/2)-1))*T;
         double Sig2 = sig2*T;
         double LamJ = lamJ*T;
         charFunc = [Mu,Sig2,LamJ,muJ,sigJ2](complx u){return exp(i*Mu*u-Sig2*u*u/2+LamJ*(exp(i*muJ*u-sigJ2*u*u/2)-1));};
     }else if(dynamics=="variance-gamma"){}
     else if(dynamics=="Heston"){
         vector<double> dynParams = stock.getDynParams();
-        double mu = stock.getDriftRate();
         double sig = stock.getVolatility();
         double sig2 = sig*sig;
         double kappa = dynParams[0]; // reversion rate
@@ -1511,11 +1508,11 @@ double Pricer::FourierInversionPricer(int numSpace, double rightLim, string meth
         double sigma = dynParams[2]; // vol of vol
         double rho = dynParams[3];   // Brownian cor
         double sigma2 = sigma*sigma;
-        charFunc = [mu,sig2,kappa,theta,sigma,sigma2,rho,T](complx u){
+        charFunc = [sig2,kappa,theta,sigma,sigma2,rho,T](complx u){
             complx xi = kappa-i*sigma*rho*u;
             complx d = sqrt(xi*xi+sigma2*(u*u+i*u));
             complx g1 = (xi+d)/(xi-d), g2 = 1/g1;
-            return exp(i*u*mu*T+kappa*theta/sigma2*((xi-d)*T-2*log((1-g2*exp(-d*T))/(1-g2)))+sig2/sigma2*(xi-d)*(1-exp(-d*T))/(1-g2*exp(-d*T)));
+            return exp(kappa*theta/sigma2*((xi-d)*T-2*log((1-g2*exp(-d*T))/(1-g2)))+sig2/sigma2*(xi-d)*(1-exp(-d*T))/(1-g2*exp(-d*T)));
         };
     }
     vector<double> fiCalc = _FourierInversionPricer(charFunc,numSpace,rightLim,method);
