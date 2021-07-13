@@ -8,7 +8,7 @@ int main() {
     int dn = 1e3;
     vector<bool> calcSwitch = {
         /* HES */ false,
-        /* MER */ true
+        /* MER */ false
     };
     string dataFolder = "data-conv/";
     if(calcSwitch[0]){

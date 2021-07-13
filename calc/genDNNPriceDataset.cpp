@@ -9,7 +9,7 @@ int main() {
     vector<bool> calcSwitch = {
         /* GBM   */ false,
         /* HES   */ false,
-        /* MER   */ true,
+        /* MER   */ false,
     };
     string PC = "Call";
     double M0 = 0.8, M1 = 1.2;          // moneyness
