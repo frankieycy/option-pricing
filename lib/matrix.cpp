@@ -692,6 +692,7 @@ matrix matrix::transpose() const {
 }
 
 matrix matrix::dot(const matrix& M) const {
+    assert(cols==M.rows);
     matrix A(rows,M.cols);
     for(int row=0; row<rows; row++)
         for(int col=0; col<M.cols; col++){
@@ -784,18 +785,18 @@ bool operator!=(const matrix& M1, const matrix& M2){
 
 matrix operator+(const matrix& M1, const matrix& M2){
     assert(M1.rows==M2.rows && M1.cols==M2.cols);
-    matrix A = M1;
+    matrix A(M1.rows,M1.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
-            A.m[row][col] += M2.m[row][col];
+            A.m[row][col] = M1.m[row][col]+M2.m[row][col];
     return A;
 }
 
 matrix operator+(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
-            A.m[row][col] += a;
+            A.m[row][col] = M.m[row][col]+a;
     return A;
 }
 
@@ -845,10 +846,10 @@ matrix operator*(const matrix& M1, const matrix& M2){
 }
 
 matrix operator*(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
-            A.m[row][col] *= a;
+            A.m[row][col] = M.m[row][col]*a;
     return A;
 }
 
@@ -874,10 +875,10 @@ matrix operator/(const matrix& M1, const matrix& M2){
 }
 
 matrix operator/(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
-            A.m[row][col] /= a;
+            A.m[row][col] = M.m[row][col]/a;
     return A;
 }
 
@@ -886,7 +887,7 @@ matrix operator/=(matrix& M, double a){
 }
 
 matrix operator>(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
             A.m[row][col] = M.m[row][col]>a;
@@ -894,7 +895,7 @@ matrix operator>(const matrix& M, double a){
 }
 
 matrix operator>=(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
             A.m[row][col] = M.m[row][col]>=a;
@@ -902,7 +903,7 @@ matrix operator>=(const matrix& M, double a){
 }
 
 matrix operator<(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
             A.m[row][col] = M.m[row][col]<a;
@@ -910,7 +911,7 @@ matrix operator<(const matrix& M, double a){
 }
 
 matrix operator<=(const matrix& M, double a){
-    matrix A = M;
+    matrix A(M.rows,M.cols);
     for(int row=0; row<A.rows; row++)
         for(int col=0; col<A.cols; col++)
             A.m[row][col] = M.m[row][col]<=a;

@@ -4,8 +4,7 @@ using namespace std;
 int main() {
     /**** Heston model imp vol ************************************************/
     string dataFolder = "data/";
-    int m = 1e4; // num of MC sims
-    double dt = 0.005; // step size
+    int m = 4e3; // num of steps
     double K0 = 50, K1 = 120, dK = 5;
     double T0 = 0.2, T1 = 1.2, dT = 0.2;
     double r        = 0.02;
@@ -31,20 +30,18 @@ int main() {
     for(double T:MaturitySet){
         for(string PC:PutCallSet){
             for(double K:StrikeSet){
-                int n = T/dt;
                 ostringstream oss;
                 oss << "HES" << fixed << setprecision(2) << T << ((PC=="Call")?"C":"P") << K;
                 string name = oss.str();
-                SimConfig config    = SimConfig(T,n);
-                Option option       = Option("European",PC,K,T,{},"",name);
+                Option option       = Option("European",PC,K,T,{},{},name);
                 Pricer pricer       = Pricer(option,market);
                 double bsPrice      = pricer.BlackScholesClosedForm();
-                double mcPrice      = pricer.MonteCarloPricer(config,m);
+                double fiPrice      = pricer.FourierInversionPricer(m,INF,"Lewis");
                 cout << "Contract Name: " << name << endl;
                 cout << "Black-Scholes Price (Lognormal): " << bsPrice << endl;
-                cout << "Monte-Carlo Price (Heston): " << mcPrice << endl;
+                cout << "Fourier-Inversion Price (Heston): " << fiPrice << endl;
                 f1 << "\"" << name << "\":" << pricer << ",";
-                f2 << name << "," << "European" << "," << PC << "," << K << "," << T << "," << mcPrice << endl;
+                f2 << name << "," << "European" << "," << PC << "," << K << "," << T << "," << fiPrice << endl;
             }
         }
     }
