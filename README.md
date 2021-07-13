@@ -24,6 +24,7 @@
 * ok, jump-diffusion model: Merton
 * ok, stochastic vol model: GARCH
 * ok, local vol model: CEV
+* boost FFT & MC efficiency
 * model param calibration
 * visualize Girsanov change of measure
 * American option pricing with Monte Carlo
