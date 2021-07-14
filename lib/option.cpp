@@ -8,6 +8,7 @@ using namespace std;
 #define GUI true
 #define LOG true
 #define INF 1e3
+#define USE_LOOP true
 
 inline void logMessage(string msg){if(LOG) cout << getCurrentTime() << " [LOG] " << msg << endl;}
 
@@ -688,7 +689,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
         matrix simVolMatrix(n+1,numSim), simVarMatrix(n+1,numSim);
         simVolMatrix.setRow(0,currentVol);
         simVarMatrix.setRow(0,currentVar);
-        assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
+        // assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
         for(int i=1; i<n+1; i++){
             if(randomMatrix.isEmpty()) randomVector.setNormalRand();
             else randomVector = randomMatrix.getRow(i);
@@ -1418,27 +1419,47 @@ vector<double> Pricer::_FourierInversionPricer(const function<complx(complx)>& c
     double k = log(S0/K)+(r-q)*T; // forward log moneyness
     double x0 = 1e-5;
     double du = (x1-x0)/m;
-    matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
     if(method=="RN Prob"){
-        matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
-        w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
+        double Q0,Q1;
         auto f0 = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u)/(i*u)).getReal();};
         auto f1 = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i)/(i*u)).getReal();};
-        double Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum(w)*du; // cash numeraire ITM prob
-        double Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum(w)*du; // stock numeraire ITM prob
+        if(USE_LOOP){
+            double I0 = 0, I1 = 0;
+            for(int n=0; n<m; n++){
+                I0 += f0(x0+n*du)*((n==0||n==m-1)?1:(n%2?4:2));
+                I1 += f1(x0+n*du)*((n==0||n==m-1)?1:(n%2?4:2));
+            }
+            Q0 = .5+1/M_PI*I0/3*du; // cash numeraire ITM prob
+            Q1 = .5+1/M_PI*I1/3*du; // stock numeraire ITM prob
+        }else{
+            matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
+            matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
+            w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
+            Q0 = .5+1/M_PI*spaceGrids.apply(f0).sum(w)*du; // cash numeraire ITM prob
+            Q1 = .5+1/M_PI*spaceGrids.apply(f1).sum(w)*du; // stock numeraire ITM prob
+        }
         return {Q0,Q1};
     }else if(method=="Lewis"){
-        matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
-        w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
         auto f = [k,charFunc](double u){return (exp(i*u*k)*charFunc(u-i/2)).getReal()/(u*u+.25);};
-        double lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q)*T/2)/M_PI*spaceGrids.apply(f).sum(w)*du;
+        double lwCall;
+        if(USE_LOOP){
+            double I = 0;
+            for(int n=0; n<m; n++) I += f(x0+n*du)*((n==0||n==m-1)?1:(n%2?4:2));
+            lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q)*T/2)/M_PI*I/3*du;
+        }else{
+            matrix spaceGrids; spaceGrids.setRange(x0,x1,m,true);
+            matrix w; w.setRange(0,m+1); w = 3+pow(-1,w+1);
+            w.setEntry(0,0,1); w.setEntry(0,m,1); w /= 3;
+            lwCall = S0*exp(-q*T)-sqrt(S0*K)*exp(-(r+q)*T/2)/M_PI*spaceGrids.apply(f).sum(w)*du;
+        }
         return {lwCall};
     }else if(method=="FFT"){
         vector<matrix> fftCalc = _fastFourierInversionPricer(charFunc,numSpace,rightLim);
         matrix kGrids = fftCalc[0];
         matrix lwCalls = fftCalc[1];
-        vector<int> idx = kGrids.find(k,"closest");
-        double lwCall = lwCalls.getEntry(idx);
+        double lwCall = interp({k},{kGrids},lwCalls,"linear");
+        // vector<int> idx = kGrids.find(k,"closest");
+        // double lwCall = lwCalls.getEntry(idx);
         return {lwCall};
     }
     return {};
@@ -1455,6 +1476,7 @@ vector<matrix> Pricer::_fastFourierInversionPricer(const function<complx(complx)
     double du = x1/m;
     double dk = 2*M_PI/x1;
     double b = m*dk/2;
+    matrix kGrids, lwCalls; kGrids.setRange(-b,b,m);
     vector<complx> F(m);
     for(int n=0; n<m; n++){
         double u = n*du;
@@ -1462,9 +1484,17 @@ vector<matrix> Pricer::_fastFourierInversionPricer(const function<complx(complx)
         F[n] = w/3*exp(-i*b*n*du)*charFunc(u-i/2)/(u*u+.25);
     }
     fft(F);
-    matrix kGrids; kGrids.setRange(-b,b,m);
-    function<double(complx)> f = [](complx c){return c.getReal();};
-    matrix lwCalls = S0*exp(-q*T)*(1-exp(-kGrids/2)/M_PI*matrix(apply(f,F))*du);
+    if(USE_LOOP){
+        lwCalls = matrix(1,m);
+        double mult0 = S0*exp(-q*T);
+        double mult1 = du/M_PI;
+        double b_2 = b/2, dk_2 = dk/2;
+        for(int n=0; n<m; n++)
+            lwCalls.setEntry(0,n,mult0*(1-mult1*exp(b_2-n*dk_2)*F[n].getReal()));
+    }else{
+        function<double(complx)> f = [](complx c){return c.getReal();};
+        lwCalls = S0*exp(-q*T)*(1-exp(-kGrids/2)/M_PI*matrix(apply(f,F))*du);
+    }
     return {kGrids,lwCalls};
 }
 

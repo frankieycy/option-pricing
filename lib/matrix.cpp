@@ -183,7 +183,7 @@ matrix min(const matrix& M1, const matrix& M2){
     return A;
 }
 
-double interp(vector<double> x, vector<matrix> coord, matrix data, string method="closest"){
+double interp(const vector<double>& x, const vector<matrix>& coord, const matrix& data, string method="closest"){
     int n = x.size();
     assert(n==coord.size());
     assert(n==1||n==2);
@@ -192,7 +192,41 @@ double interp(vector<double> x, vector<matrix> coord, matrix data, string method
         if(n==1) idx = {0,coord[0].find(x[0],method)[1]};
         else idx = {coord[0].find(x[0],method)[1],coord[1].find(x[1],method)[1]};
         return data.getEntry(idx);
-    }else if(method=="linear"){}
+    }else if(method=="linear"){
+        if(n==1){
+            int m0 = coord[0].getCols();
+            double x0 = x[0];
+            for(int k=1; k<m0; k++){
+                double c0 = coord[0].getEntry(0,k-1);
+                double c1 = coord[0].getEntry(0,k);
+                double d0 = data.getEntry(0,k-1);
+                double d1 = data.getEntry(0,k);
+                if(x0<=c1) return d0+(d1-d0)*(x0-c0)/(c1-c0);
+            }
+        }else{
+            int m0 = coord[0].getCols();
+            int m1 = coord[1].getCols();
+            double x0 = x[0]; double x1 = x[1];
+            for(int k=1; k<m0; k++){
+                for(int l=1; l<m1; l++){
+                    double c00 = coord[0].getEntry(0,k-1);
+                    double c01 = coord[0].getEntry(0,k);
+                    double c10 = coord[1].getEntry(0,l-1);
+                    double c11 = coord[1].getEntry(0,l);
+                    double d00 = data.getEntry(k-1,l-1);
+                    double d10 = data.getEntry(k,l-1);
+                    double d01 = data.getEntry(k-1,l);
+                    double d11 = data.getEntry(k,l);
+                    if(x0<=c01 && x1<=c11){
+                        matrix c0({c01-x0,x0-c00});
+                        matrix c1({c11-x1,x1-c10});
+                        matrix d({{d00,d10},{d01,d11}});
+                        return c0.dot(d).dot(c1).getEntry(0,0)/((c01-c00)*(c11-c10));
+                    }
+                }
+            }
+        }
+    }
     return NAN;
 }
 
