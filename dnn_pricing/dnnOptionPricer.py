@@ -1,6 +1,8 @@
+import torch
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.stats import linregress
 from sklearn.metrics import mean_squared_error
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -8,177 +10,185 @@ from torch.utils.data import random_split
 from torch import Tensor
 from torch.nn import Linear
 from torch.nn import Sigmoid
+from torch.nn import Identity
 from torch.nn import LeakyReLU
 from torch.nn import Module
+from torch.nn import ModuleList
 from torch.optim import SGD
 from torch.nn import MSELoss
 from torch.nn.init import xavier_uniform_
 plt.switch_backend("Agg")
 
+load_folder = "dnn_data/"
+data_folder = "test-0715/"
+
 class CSVDataset(Dataset):
-    # load the dataset
     def __init__(self, path):
-        # load the csv file as a dataframe
         df = pd.read_csv(path)
         df = df.drop(columns=["index"])
-        # store the inputs and outputs
         self.X = df.values[:, :-1].astype("float32")
         self.y = df.values[:, -1].astype("float32")
-        # ensure target has the right shape
         self.y = self.y.reshape((len(self.y), 1))
 
-    # number of rows in the dataset
     def __len__(self):
         return len(self.X)
 
-    # get a row at an index
     def __getitem__(self, idx):
         return [self.X[idx], self.y[idx]]
 
-    # get indexes for train and test rows
-    def get_splits(self, n_test=0.33):
-        # determine sizes
+    def get_splits(self, n_test=0.3):
         test_size = round(n_test * len(self.X))
         train_size = len(self.X) - test_size
-        # calculate the split
         return random_split(self, [train_size, test_size])
 
-# model definition
 class MLP(Module):
-    # define model elements
-    def __init__(self, n_inputs):
+    def __init__(self, n_inputs, model_dim, act_list=[]):
         super(MLP, self).__init__()
-        # input to first hidden layer
-        self.hidden1 = Linear(n_inputs, 50)
-        xavier_uniform_(self.hidden1.weight)
-        self.act1 = Sigmoid()
-        # second hidden layer
-        self.hidden2 = Linear(50, 50)
-        xavier_uniform_(self.hidden2.weight)
-        self.act2 = Sigmoid()
-        # third hidden layer and output
-        self.hidden3 = Linear(50, 1)
-        xavier_uniform_(self.hidden3.weight)
-
-        # print model state_dict
-        print("model state_dict:")
+        self.depth = len(model_dim)
+        if not act_list: act_list = [Sigmoid()]
+        if len(act_list) == 1: act_list = act_list * (self.depth-1) + [Identity()]
+        self.act = act_list
+        self.hidden = ModuleList()
+        print("model activations:", self.act)
+        for i in range(self.depth):
+            nodes_in = n_inputs if i == 0 else model_dim[i-1]
+            nodes_out = model_dim[i]
+            self.hidden.append(Linear(nodes_in, nodes_out))
+        for layer in self.hidden:
+            xavier_uniform_(layer.weight)
+        print("model state_dict:", "None" if not self.state_dict() else "")
         for param_tensor in self.state_dict():
-            print(param_tensor, "\t", self.state_dict()[param_tensor].size())
+            print(param_tensor, ">>", self.state_dict()[param_tensor].size())
 
-    # forward propagate input
     def forward(self, X):
-        # input to first hidden layer
-        X = self.hidden1(X)
-        X = self.act1(X)
-        # second hidden layer
-        X = self.hidden2(X)
-        X = self.act2(X)
-        # third hidden layer and output
-        X = self.hidden3(X)
+        for i in range(self.depth):
+            X = self.hidden[i](X)
+            X = self.act[i](X)
         return X
 
-    # save model state_dict
     def save(self, path):
         torch.save(self.state_dict(), path)
 
-# prepare the dataset
+    def load(self, path):
+        self.load_state_dict(torch.load(path))
+        self.eval()
+
 def prepare_data(path):
-    # load the dataset
     dataset = CSVDataset(path)
-    # calculate split
     train, test = dataset.get_splits()
-    # prepare data loaders
-    train_dl = DataLoader(train, batch_size=32, shuffle=True)
-    test_dl = DataLoader(test, batch_size=1024, shuffle=False)
+    train_dl = DataLoader(train, batch_size=100, shuffle=True)
+    test_dl = DataLoader(test, batch_size=1000, shuffle=False)
+    print("train/test dataset size:", len(train_dl.dataset), len(test_dl.dataset))
     return train_dl, test_dl
 
-# train the model
-def train_model(train_dl, model, n_epochs=100):
-    # define the optimization
+def train_model(train_dl, model, n_epochs=100,
+    save_log=False, log_name="train_loss.log",
+    plot_loss=False, plot_name="train_loss.png"):
+    loss_log = dict()
     criterion = MSELoss()
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
-    # enumerate epochs
     for epoch in range(n_epochs):
-        print("starting epoch", epoch)
-        # enumerate mini batches
+        epoch_name = "epoch-%d" % epoch
+        print("running", epoch_name, end="")
+        loss_log[epoch_name] = list()
         for i, (inputs, targets) in enumerate(train_dl):
-            # clear the gradients
             optimizer.zero_grad()
-            # compute the model output
             yhat = model(inputs)
-            # calculate loss
             loss = criterion(yhat, targets)
-            # credit assignment
             loss.backward()
-            # update model weights
             optimizer.step()
+            loss_log[epoch_name].append(loss.item())
+            if i % 50 == 0: print(" >> %.4f" % loss.item(), end="")
+        print(" >>", epoch_name, "completes")
+    if save_log: pd.DataFrame.from_dict(loss_log).to_csv(log_name, index=False)
+    if plot_loss:
+        loss_val = np.log(np.concatenate(list(loss_log.values())))
+        loss_idx = np.arange(len(loss_val))
+        n_batch = len(loss_val) // n_epochs # mini-batches per epoch
+        fig = plt.figure(figsize=(5,5))
+        plt.scatter(loss_idx, loss_val, s=0.5, c="k")
+        for i in range(n_epochs):
+            y = loss_val[(i*n_batch):((i+1)*n_batch)]
+            y_mean = np.mean(y); y_sd = np.std(y)
+            y_min = y_mean-2*y_sd
+            y_max = y_mean+y_sd
+            plt.plot([(i+1)*n_batch, (i+1)*n_batch], [y_min, y_max], c="gray", linestyle="--", alpha=0.75)
+        plt.title("n_epochs: %d, n_batch: %d" % (n_epochs, n_batch))
+        plt.xlim([0, 1.01*loss_idx[-1]])
+        plt.xlabel("Mini-batch")
+        plt.ylabel("Log-loss function")
+        fig.tight_layout()
+        fig.savefig(plot_name)
+        plt.close()
+    return loss_log
 
 def make_predictions(test_dl, model):
     predictions, actuals = list(), list()
     for i, (inputs, targets) in enumerate(test_dl):
-        # evaluate the model on the test set
         yhat = model(inputs)
-        # retrieve numpy array
         yhat = yhat.detach().numpy()
         actual = targets.numpy()
         actual = actual.reshape((len(actual), 1))
-        # store
         predictions.append(yhat)
         actuals.append(actual)
     predictions, actuals = np.vstack(predictions), np.vstack(actuals)
     return predictions, actuals
 
-# evaluate the model
 def evaluate_model(test_dl, model):
     predictions, actuals = make_predictions(test_dl, model)
-    # calculate mse
     mse = mean_squared_error(actuals, predictions)
-    return mse
+    rmse = np.sqrt(mse)
+    r2 = 1-mse/np.var(actuals)
+    eval = {"MSE": mse, "RMSE": rmse, "R2": r2}
+    print("model eval:", eval)
+    return eval
 
-def plot_predictions(test_dl, model, name):
+def plot_predictions(test_dl, model, plot_name="pred.png"):
     predictions, actuals = make_predictions(test_dl, model)
     fig = plt.figure(figsize=(5,5))
     plt.scatter(actuals, predictions, s=0.5, c="k")
-    lims = [
-        np.min([plt.xlim(), plt.ylim()]),  # min of both axes
-        np.max([plt.xlim(), plt.ylim()]),  # max of both axes
-    ]
+    lims = [np.min([plt.xlim(), plt.ylim()]), np.max([plt.xlim(), plt.ylim()])]
     plt.plot(lims, lims, c="gray", linestyle="--", alpha=0.75)
     plt.xlabel("Actual")
     plt.ylabel("Predicted")
     fig.tight_layout()
-    fig.savefig(name)
+    fig.savefig(plot_name)
     plt.close()
 
-# prediction for one row of data
 def predict(row, model):
-    # convert row to data
     row = Tensor([row])
-    # make prediction
     yhat = model(row)
-    # retrieve numpy array
     yhat = yhat.detach().numpy()
     return yhat
 
 def main():
-    path = "dnn_data/EuropeanCall_GBM.100000smpl.csv"
-    # prepare the data
-    train_dl, test_dl = prepare_data(path)
-    print(len(train_dl.dataset), len(test_dl.dataset))
-    # define the network
-    model = MLP(n_inputs=5)
-    # train the model
-    train_model(train_dl, model, n_epochs=2)
-
-    # evaluate the model
-    mse = evaluate_model(test_dl, model)
-    print("MSE: %.6f, RMSE: %.6f" % (mse, np.sqrt(mse)))
-    # # make a single prediction (expect class=1)
-    row = test_dl.dataset[0][0]
-    yhat = predict(row, model)
-    print("Predicted: %.6f" % yhat)
-
-    plot_predictions(test_dl, model, "test.png")
+    n_inputs = 5
+    n_epochs = 20
+    depth0, depth1 = 3, 7
+    width0, width1, delta_width = 20, 140, 20
+    data_path = load_folder+"EuropeanCall_GBM.100000smpl.csv"
+    train_dl, test_dl = prepare_data(data_path)
+    eval_log = dict()
+    for depth in range(depth0, depth1):
+        for width in range(width0, width1, delta_width):
+            model_args = {
+                "n_inputs": n_inputs,
+                "n_epochs": n_epochs,
+                "width":    width,
+                "depth":    depth,
+            }
+            model_args["model_dim"] = [model_args["width"]] * (model_args["depth"]-1) + [1]
+            model_name = str(model_args["n_epochs"]) + "ep|" + ",".join(map(str, model_args["model_dim"]))
+            print("running model <%s>" % model_name)
+            model = MLP(n_inputs=model_args["n_inputs"], model_dim=model_args["model_dim"])
+            train_loss = train_model(train_dl, model, n_epochs=model_args["n_epochs"],
+                save_log=True, log_name=data_folder+"loss_"+model_name+".log",
+                plot_loss=True, plot_name=data_folder+"loss_"+model_name+".png")
+            eval = evaluate_model(test_dl, model)
+            plot_predictions(test_dl, model,
+                plot_name=data_folder+"pred_"+model_name+".png")
+            eval_log[model_name] = eval
+    pd.DataFrame.from_dict(eval_log).T.to_csv(data_folder+"eval.csv")
 
 if __name__=="__main__":
     main()
