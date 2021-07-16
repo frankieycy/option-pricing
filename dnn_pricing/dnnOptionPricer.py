@@ -20,7 +20,13 @@ from torch.nn.init import xavier_uniform_
 plt.switch_backend("Agg")
 
 load_folder = "dnn_data/"
-data_folder = "test-0715/"
+data_folder = "test-0716/"
+
+def smoother(y, box_pts):
+    y_smooth = y
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode="same")
+    return y_smooth
 
 class CSVDataset(Dataset):
     def __init__(self, path):
@@ -45,8 +51,9 @@ class MLP(Module):
     def __init__(self, n_inputs, model_dim, act_list=[]):
         super(MLP, self).__init__()
         self.depth = len(model_dim)
-        if not act_list: act_list = [Sigmoid()]
+        if not act_list: act_list = [LeakyReLU()]
         if len(act_list) == 1: act_list = act_list * (self.depth-1) + [Identity()]
+        self.name = self.get_name(model_dim, act_list)
         self.act = act_list
         self.hidden = ModuleList()
         print("model activations:", self.act)
@@ -59,6 +66,18 @@ class MLP(Module):
         print("model state_dict:", "None" if not self.state_dict() else "")
         for param_tensor in self.state_dict():
             print(param_tensor, ">>", self.state_dict()[param_tensor].size())
+
+    def get_name(self, model_dim, act_list):
+        act_abrv = {
+            "Identity":     "i",
+            "Sigmoid":      "s",
+            "Tanh":         "t",
+            "ReLU":         "r",
+            "LeakyReLU":    "l",
+        }
+        name = ",".join(map(str, model_dim)) + "|" + \
+            ",".join(map(lambda x: act_abrv[str(x).split("(")[0]], act_list))
+        return name
 
     def forward(self, X):
         for i in range(self.depth):
@@ -81,16 +100,22 @@ def prepare_data(path):
     print("train/test dataset size:", len(train_dl.dataset), len(test_dl.dataset))
     return train_dl, test_dl
 
-def train_model(train_dl, model, n_epochs=100,
+def train_model(train_dl, model, n_epochs=100, vald_set=None,
     save_log=False, log_name="train_loss.log",
     plot_loss=False, plot_name="train_loss.png"):
     loss_log = dict()
+    if vald_set:
+        loss_vald = dict()
+        inputs_vald, targets_vald = vald_set
+        actual_vald = targets_vald.numpy()
+        actual_vald = actual_vald.reshape((len(actual_vald), 1))
     criterion = MSELoss()
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
     for epoch in range(n_epochs):
         epoch_name = "epoch-%d" % epoch
         print("running", epoch_name, end="")
         loss_log[epoch_name] = list()
+        loss_batch0 = 1
         for i, (inputs, targets) in enumerate(train_dl):
             optimizer.zero_grad()
             yhat = model(inputs)
@@ -98,28 +123,28 @@ def train_model(train_dl, model, n_epochs=100,
             loss.backward()
             optimizer.step()
             loss_log[epoch_name].append(loss.item())
-            if i % 50 == 0: print(" >> %.4f" % loss.item(), end="")
+            if i == 0: loss_batch0 = loss.item()
+            if i % 50 == 0: print(" >> %.2f%%" % (loss.item() / loss_batch0 * 100), end="")
+        if vald_set:
+            yhat_vald = model(inputs_vald)
+            yhat_vald = yhat_vald.detach().numpy()
+            loss_vald[epoch_name] = mean_squared_error(actual_vald, yhat_vald)
         print(" >>", epoch_name, "completes")
     if save_log: pd.DataFrame.from_dict(loss_log).to_csv(log_name, index=False)
     if plot_loss:
+        box_pts = 100
         loss_val = np.log(np.concatenate(list(loss_log.values())))
         loss_idx = np.arange(len(loss_val))
-        loss_mean = list()
         n_batch = len(loss_val) // n_epochs # mini-batches per epoch
         fig = plt.figure(figsize=(5,5))
         plt.scatter(loss_idx, loss_val, s=0.5, c="k")
-        for i in range(n_epochs):
-            y = loss_val[(i*n_batch):((i+1)*n_batch)]
-            y_mean = np.mean(y); y_sd = np.std(y)
-            y_min = y_mean-2*y_sd
-            y_max = y_mean+y_sd
-            plt.plot([(i+1)*n_batch, (i+1)*n_batch], [y_min, y_max], c="gray", linestyle="--", alpha=0.75)
-            loss_mean.append(y_mean)
-        plt.plot(np.arange(n_epochs)*n_batch, loss_mean, c="red", linestyle="--", alpha=0.75)
-        plt.title("n_epochs: %d, n_batch: %d" % (n_epochs, n_batch))
+        plt.plot(loss_idx[box_pts:-box_pts], smoother(loss_val, 100)[box_pts:-box_pts], c="r", linestyle="--", alpha=0.75, label="train loss")
+        if vald_set: plt.plot(np.arange(1, n_epochs+1)*n_batch, np.log(list(loss_vald.values())), c="b", linestyle="--", alpha=0.75, label="vald loss")
+        plt.title("model: %s\nn_epochs: %d, n_batch: %d" % (model.name, n_epochs, n_batch))
         plt.xlim([0, 1.01*loss_idx[-1]])
         plt.xlabel("Mini-batch")
         plt.ylabel("Log-loss function")
+        plt.legend()
         fig.tight_layout()
         fig.savefig(plot_name)
         plt.close()
@@ -152,6 +177,7 @@ def plot_predictions(test_dl, model, plot_name="pred.png"):
     plt.scatter(actuals, predictions, s=0.5, c="k")
     lims = [np.min([plt.xlim(), plt.ylim()]), np.max([plt.xlim(), plt.ylim()])]
     plt.plot(lims, lims, c="gray", linestyle="--", alpha=0.75)
+    plt.title("model: %s" % model.name)
     plt.xlabel("Actual")
     plt.ylabel("Predicted")
     fig.tight_layout()
@@ -164,9 +190,35 @@ def predict(row, model):
     yhat = yhat.detach().numpy()
     return yhat
 
-def main():
+def main1():
+    # prototype: <100,100,100,100,1|l,l,l,l,i>
     n_inputs = 5
-    n_epochs = 20
+    n_epochs = 1000
+    depth = 5
+    width = 100
+    model_args = {
+        "n_inputs": n_inputs,
+        "n_epochs": n_epochs,
+        "width":    width,
+        "depth":    depth,
+    }
+    data_path = load_folder+"EuropeanCall_GBM.100000smpl.csv"
+    train_dl, test_dl = prepare_data(data_path)
+    model_args["model_dim"] = [model_args["width"]] * (model_args["depth"]-1) + [1]
+    model = MLP(n_inputs=model_args["n_inputs"], model_dim=model_args["model_dim"])
+    model_name = str(model_args["n_epochs"]) + "ep|" + model.name
+    print("running model <%s>" % model_name)
+    train_loss = train_model(train_dl, model,
+        n_epochs=model_args["n_epochs"], vald_set=next(iter(test_dl)),
+        save_log=True, log_name=data_folder+"loss_%s.log"%model_name,
+        plot_loss=True, plot_name=data_folder+"loss_%s.png"%model_name)
+    eval = evaluate_model(test_dl, model)
+    plot_predictions(test_dl, model,
+        plot_name=data_folder+"pred_%s.png"%model_name)
+
+def main2():
+    n_inputs = 5
+    n_epochs = 200
     depth0, depth1 = 3, 7
     width0, width1, delta_width = 20, 140, 20
     data_path = load_folder+"EuropeanCall_GBM.100000smpl.csv"
@@ -181,17 +233,18 @@ def main():
                 "depth":    depth,
             }
             model_args["model_dim"] = [model_args["width"]] * (model_args["depth"]-1) + [1]
-            model_name = str(model_args["n_epochs"]) + "ep|" + ",".join(map(str, model_args["model_dim"]))
-            print("running model <%s>" % model_name)
             model = MLP(n_inputs=model_args["n_inputs"], model_dim=model_args["model_dim"])
+            model_name = str(model_args["n_epochs"]) + "ep|" + model.name
+            print("running model <%s>" % model_name)
             train_loss = train_model(train_dl, model, n_epochs=model_args["n_epochs"],
-                save_log=True, log_name=data_folder+"loss_"+model_name+".log",
-                plot_loss=True, plot_name=data_folder+"loss_"+model_name+".png")
+                save_log=True, log_name=data_folder+"loss_%s.log"%model_name,
+                plot_loss=True, plot_name=data_folder+"loss_%s.png"%model_name)
             eval = evaluate_model(test_dl, model)
             plot_predictions(test_dl, model,
-                plot_name=data_folder+"pred_"+model_name+".png")
+                plot_name=data_folder+"pred_%s.png"%model_name)
             eval_log[model_name] = eval
     pd.DataFrame.from_dict(eval_log).T.to_csv(data_folder+"eval.csv")
 
 if __name__=="__main__":
-    main()
+    main1()
+    # main2()
