@@ -104,6 +104,7 @@ def train_model(train_dl, model, n_epochs=100,
     if plot_loss:
         loss_val = np.log(np.concatenate(list(loss_log.values())))
         loss_idx = np.arange(len(loss_val))
+        loss_mean = list()
         n_batch = len(loss_val) // n_epochs # mini-batches per epoch
         fig = plt.figure(figsize=(5,5))
         plt.scatter(loss_idx, loss_val, s=0.5, c="k")
@@ -113,6 +114,8 @@ def train_model(train_dl, model, n_epochs=100,
             y_min = y_mean-2*y_sd
             y_max = y_mean+y_sd
             plt.plot([(i+1)*n_batch, (i+1)*n_batch], [y_min, y_max], c="gray", linestyle="--", alpha=0.75)
+            loss_mean.append(y_mean)
+        plt.plot(np.arange(n_epochs)*n_batch, loss_mean, c="red", linestyle="--", alpha=0.75)
         plt.title("n_epochs: %d, n_batch: %d" % (n_epochs, n_batch))
         plt.xlim([0, 1.01*loss_idx[-1]])
         plt.xlabel("Mini-batch")

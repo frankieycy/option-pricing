@@ -33,7 +33,7 @@ int main() {
             Market market = Market(r,stock);
             Option option = Option("European",PC,K,T);
             Pricer pricer = Pricer(option,market);
-            double bsPrice = pricer.BlackScholesClosedForm();
+            double bsPrice = pricer.BlackScholesClosedForm()/K;
             cout << "GBM-" << i << " Option Details: " << option << "; Stock Details: " << stock << endl;
             f1 << fixed << setprecision(6) << "GBM-" << i << "," << M << "," << T << "," << r << "," << q << "," << sig << "," << bsPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: GBM-" << i << endl;
@@ -64,7 +64,7 @@ int main() {
             Market market = Market(r,stock);
             Option option = Option("European",PC,K,T);
             Pricer pricer = Pricer(option,market);
-            double fiPrice = pricer.FourierInversionPricer(4e3,INF,"Lewis");
+            double fiPrice = pricer.FourierInversionPricer(8e3,INF,"Lewis")/K;
             cout << "HES-" << i << " Option Details: " << option << "; Stock Details: " << stock << endl;
             f2 << fixed << setprecision(6) << "HES-" << i << ","  << M << "," << T << "," << r << "," << q << "," << sig << "," << kappa << "," << theta << "," << zeta << "," << rho << "," << fiPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: HES-" << i << endl;
@@ -93,7 +93,7 @@ int main() {
             Market market = Market(r,stock);
             Option option = Option("European",PC,K,T);
             Pricer pricer = Pricer(option,market);
-            double fiPrice = pricer.FourierInversionPricer(4e3,INF,"Lewis");
+            double fiPrice = pricer.FourierInversionPricer(8e3,INF,"Lewis")/K;
             cout << "MER-" << i << " Option Details: " << option << "; Stock Details: " << stock << endl;
             f3 << fixed << setprecision(6) << "MER-" << i << ","  << M << "," << T << "," << r << "," << q << "," << sig << "," << lamJ << "," << muJ << "," << sigJ << "," << fiPrice << endl;
             cout << getCurrentTime() << " [LOG] finish generating sample: MER-" << i << endl;

@@ -125,6 +125,7 @@ public:
     double calcLognormalPrice(double z, double time);
     matrix calcLognormalPriceVector(const matrix& z, double time);
     matrix simulatePrice(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
+    vector<matrix> simulatePriceWithFullCalc_loop(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
     vector<matrix> simulatePriceWithFullCalc(const SimConfig& config, int numSim=1, const matrix& randomMatrix=NULL_MATRIX);
     matrix bootstrapPrice(const matrix& priceSeries, const SimConfig& config, int numSim=1);
     matrix generatePriceTree(const SimConfig& config);
@@ -635,8 +636,82 @@ matrix Stock::calcLognormalPriceVector(const matrix& z, double time){
 }
 
 matrix Stock::simulatePrice(const SimConfig& config, int numSim, const matrix& randomMatrix){
-    vector<matrix> fullCalc = simulatePriceWithFullCalc(config,numSim,randomMatrix);
+    vector<matrix> fullCalc = USE_LOOP?
+        simulatePriceWithFullCalc_loop(config,numSim,randomMatrix):
+        simulatePriceWithFullCalc(config,numSim,randomMatrix);
     return fullCalc[0]; // simPriceMatrix
+}
+
+vector<matrix> Stock::simulatePriceWithFullCalc_loop(const SimConfig& config, int numSim, const matrix& randomMatrix){
+    const int n = config.iters;
+    const int m = numSim;
+    double dt = config.stepSize;
+    double sqrt_dt = sqrt(dt);
+    double *simTimeVector_ = new double[n+1];
+    double *simPriceMatrix_ = new double[(n+1)*m];
+    bool nullInputRandMatrix = randomMatrix.isEmpty();
+    simTimeVector_[0] = 0;
+    if(dynamics=="lognormal"){
+        double mult0 = 1+driftRate*dt;
+        double mult1 = volatility*sqrt_dt;
+        for(int j=0; j<m; j++) simPriceMatrix_[j] = currentPrice;
+        for(int i=1; i<n+1; i++){
+            for(int j=0; j<m; j++){
+                double r0 = nullInputRandMatrix?normalRand_():randomMatrix.getEntry(i,j);
+                double S0 = simPriceMatrix_[(i-1)*m+j];
+                double S1 = S0*(mult0+mult1*r0);
+                simPriceMatrix_[i*m+j] = S1;
+            }
+            simTimeVector_[i] = i*dt;
+        }
+    }else if(dynamics=="Heston"){
+        double sig0             = volatility;
+        double reversionRate    = dynParams[0];
+        double longRunVar       = dynParams[1];
+        double volOfVol         = dynParams[2];
+        double brownianCor0     = dynParams[3];
+        double brownianCor1     = sqrt(1-brownianCor0*brownianCor0);
+        double *simVolMatrix_ = new double[(n+1)*m];
+        double *simVarMatrix_ = new double[(n+1)*m];
+        double mult0 = 1+driftRate*dt, mult1;
+        for(int j=0; j<m; j++){
+            simPriceMatrix_[j] = currentPrice;
+            simVolMatrix_[j] = sig0;
+            simVarMatrix_[j] = sig0*sig0;
+        }
+        // assert(2*reversionRate*longRunVar>volOfVol*volOfVol); // Feller condition
+        for(int i=1; i<n+1; i++){
+            for(int j=0; j<m; j++){
+                double r0 = nullInputRandMatrix?normalRand_():randomMatrix.getEntry(i,j);
+                double r1 = normalRand_();
+                double S0 = simPriceMatrix_[(i-1)*m+j];
+                double currentVar = simVarMatrix_[(i-1)*m+j], currentVol;
+                currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*sqrt(currentVar)*sqrt_dt*(brownianCor0*r0+brownianCor1*r1);
+                currentVar  = max(currentVar,0.);
+                currentVol  = sqrt(currentVar);
+                mult1 = currentVol*sqrt_dt;
+                double S1 = S0*(mult0+mult1*r0);
+                simPriceMatrix_[i*m+j] = S1;
+                simVolMatrix_[i*m+j] = currentVol;
+                simVarMatrix_[i*m+j] = currentVar;
+            }
+            simTimeVector_[i] = i*dt;
+        }
+        simTimeVector = matrix(1,n+1,simTimeVector_);
+        simPriceMatrix = matrix(n+1,m,simPriceMatrix_);
+        matrix simVolMatrix = matrix(n+1,m,simVolMatrix_);
+        matrix simVarMatrix = matrix(n+1,m,simVarMatrix_);
+        delete[] simTimeVector_;
+        delete[] simPriceMatrix_;
+        delete[] simVolMatrix_;
+        delete[] simVarMatrix_;
+        return {simPriceMatrix,simVolMatrix,simVarMatrix};
+    }
+    simTimeVector = matrix(1,n+1,simTimeVector_);
+    simPriceMatrix = matrix(n+1,m,simPriceMatrix_);
+    delete[] simTimeVector_;
+    delete[] simPriceMatrix_;
+    return {simPriceMatrix};
 }
 
 vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int numSim, const matrix& randomMatrix){
@@ -697,7 +772,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
             // currentVar += reversionRate*(longRunVar-max(currentVar,0.))*dt+volOfVol*sqrt(max(currentVar,0.))*sqrt_dt*volRandomVector;
             currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*sqrt(currentVar)*sqrt_dt*volRandomVector;
-            currentVar  = abs(currentVar);
+            currentVar  = max(currentVar,0.);
             currentVol  = sqrt(currentVar);
             simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
             simPriceMatrix.setRow(i,simPriceVector);
@@ -724,7 +799,7 @@ vector<matrix> Stock::simulatePriceWithFullCalc(const SimConfig& config, int num
             volRandomVector.setNormalRand();
             volRandomVector = brownianCor0*randomVector+brownianCor1*volRandomVector;
             currentVar += reversionRate*(longRunVar-currentVar)*dt+volOfVol*currentVar*sqrt_dt*volRandomVector;
-            currentVar  = abs(currentVar);
+            currentVar  = max(currentVar,0.);
             currentVol  = sqrt(currentVar);
             simPriceVector += simPriceVector*(driftRate*dt+currentVol*sqrt_dt*randomVector);
             simPriceMatrix.setRow(i,simPriceVector);

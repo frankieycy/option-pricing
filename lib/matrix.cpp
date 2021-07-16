@@ -18,6 +18,8 @@ public:
     matrix(int rows, int cols, string type, const vector<double>& params={});
     matrix(const vector<double>& v);
     matrix(const vector<vector<double>>& M);
+    matrix(int rows, int cols, double *M);
+    matrix(int rows, int cols, double **M);
     template <int _cols> matrix(const double (&v)[_cols]);
     template <int _rows, int _cols> matrix(const double (&M)[_rows][_cols]);
     /**** accessors ****/
@@ -259,6 +261,22 @@ matrix::matrix(const vector<double>& v):rows(1),cols(v.size()){
 matrix::matrix(const vector<vector<double>>& M):rows(M.size()),cols(M[0].size()){
     for(int row=0; row<rows; row++) assert(M[row].size()==cols);
     m = M;
+}
+
+matrix::matrix(int rows, int cols, double *M):rows(rows),cols(cols){
+    for(int row=0; row<rows; row++){
+        vector<double> vec;
+        vec.assign(M+row*cols,M+(row+1)*cols);
+        m.push_back(vec);
+    }
+}
+
+matrix::matrix(int rows, int cols, double **M):rows(rows),cols(cols){
+    for(int row=0; row<rows; row++){
+        vector<double> vec;
+        vec.assign(M[row],M[row]+cols);
+        m.push_back(vec);
+    }
 }
 
 template <int _cols>
