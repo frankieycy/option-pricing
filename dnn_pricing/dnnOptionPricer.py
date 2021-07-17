@@ -192,7 +192,7 @@ def predict(row, model):
     return yhat
 
 def main1():
-    # prototype: <100,100,100,100,1|l,l,l,l,i>
+    # prototype: <120,120,120,120,120,1|l,l,l,l,l,i>
     n_inputs = 5
     n_epochs = 500
     depth = 6
