@@ -20,7 +20,7 @@ from torch.nn.init import xavier_uniform_
 plt.switch_backend("Agg")
 
 load_folder = "dnn_data/"
-data_folder = "test-0716/"
+data_folder = "test-0717/"
 
 def smoother(y, box_pts):
     y_smooth = y
@@ -101,6 +101,7 @@ def prepare_data(path):
     return train_dl, test_dl
 
 def train_model(train_dl, model, n_epochs=100, vald_set=None,
+    lr=0.01, momentum=0.9,
     save_log=False, log_name="train_loss.log",
     plot_loss=False, plot_name="train_loss.png"):
     loss_log = dict()
@@ -110,7 +111,7 @@ def train_model(train_dl, model, n_epochs=100, vald_set=None,
         actual_vald = targets_vald.numpy()
         actual_vald = actual_vald.reshape((len(actual_vald), 1))
     criterion = MSELoss()
-    optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9)
+    optimizer = SGD(model.parameters(), lr=lr, momentum=momentum)
     for epoch in range(n_epochs):
         epoch_name = "epoch-%d" % epoch
         print("running", epoch_name, end="")
@@ -193,9 +194,9 @@ def predict(row, model):
 def main1():
     # prototype: <100,100,100,100,1|l,l,l,l,i>
     n_inputs = 5
-    n_epochs = 1000
-    depth = 5
-    width = 100
+    n_epochs = 500
+    depth = 6
+    width = 120
     model_args = {
         "n_inputs": n_inputs,
         "n_epochs": n_epochs,
@@ -208,13 +209,14 @@ def main1():
     model = MLP(n_inputs=model_args["n_inputs"], model_dim=model_args["model_dim"])
     model_name = str(model_args["n_epochs"]) + "ep|" + model.name
     print("running model <%s>" % model_name)
-    train_loss = train_model(train_dl, model,
+    train_loss = train_model(train_dl, model, lr=0.1,
         n_epochs=model_args["n_epochs"], vald_set=next(iter(test_dl)),
         save_log=True, log_name=data_folder+"loss_%s.log"%model_name,
         plot_loss=True, plot_name=data_folder+"loss_%s.png"%model_name)
     eval = evaluate_model(test_dl, model)
     plot_predictions(test_dl, model,
         plot_name=data_folder+"pred_%s.png"%model_name)
+    model.save(data_folder+"model_%s.pt"%model_name)
 
 def main2():
     n_inputs = 5
