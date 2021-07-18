@@ -1,0 +1,77 @@
+Gbm put calibration under different minimization methods
+
+initial objective: 6.868051664134034
+using method Nelder-Mead
+params: [0.21546875]
+objective: 6.731850438345304
+using method Powell
+params: [0.2154891]
+objective: 6.731850399083168
+using method COBYLA
+params: [0.21558086]
+objective: 6.731853992997851
+
+Gbm call calibration under different minimization methods
+
+initial objective: 5.072589837756422
+using method Nelder-Mead
+params: [0.16367188]
+objective: 3.8627662241380367
+using method Powell
+params: [0.16366962]
+objective: 3.862765750379424
+using method COBYLA
+params: [0.16356719]
+objective: 3.8627765314537537
+
+Merton put calibration under different minimization methods
+
+initial objective: 10.36094942879816
+using method Nelder-Mead
+params: [0.17151546 1.12247462 0.10837124 0.05494519]
+objective: 6.4849991226099135
+using method Powell
+params: [ 0.05557684  0.64628819 -0.03051313  0.30891579]
+objective: 5.629234594537098
+using method COBYLA
+params: [ 0.05326636  0.65409727 -0.03171914  0.30828395]
+objective: 5.629511560710035
+
+Merton call calibration under different minimization methods
+
+initial objective: 14.128172520193203
+using method Nelder-Mead
+params: [ 0.08454932  0.68137934 -0.14803701  0.13071758]
+objective: 3.342730860007632
+using method Powell
+params: [ 0.06462324  0.33818109 -0.21205753  0.2500078 ]
+objective: 3.5026590186496485
+using method COBYLA
+params: [ 0.07838252  0.90503712 -0.1276526   0.11451638]
+objective: 3.3674879165319225
+
+Heston put calibration under different minimization methods
+
+initial objective: 7.527090924736272
+using method Nelder-Mead
+params: [ 0.14294561  1.84320996  0.07317877 -0.02692959 -0.40631107]
+objective: 6.2212245738875955
+using method Powell
+params: [ 0.04538429  2.27430948  0.08126959  0.13789064 -0.91094551]
+objective: 6.128816126889603
+using method COBYLA
+params: [ 0.02980197  2.18469218  0.08623377  0.26658284 -0.44829848]
+objective: 6.213661333153228
+
+Heston call calibration under different minimization methods
+
+initial objective: 4.013464521974254
+using method Nelder-Mead
+params: [ 0.14836916  0.66304691  0.0680975   0.48761702 -0.65135713]
+objective: 3.313023758828946
+using method Powell
+params: [ 0.15182468  1.12138606  0.04178745  0.20569562 -1.18580852]
+objective: 3.209692306412288
+using method COBYLA
+params: [ 0.14916193  0.83663081  0.06301192  0.58304154 -0.54309511]
+objective: 3.328468441305359
