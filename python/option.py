@@ -12,12 +12,12 @@ plt.switch_backend("Agg")
 LOG = True
 
 onDate = getPrevBDay()
-stockList = ["IBM","JPM","DIS"]
+stockList = ["SPY"]
 # stockList = stock_info.tickers_dow()
 
-exeFolder = "../exe/"
-dataFolder = "../data/"
-plotFolder = "assets/"
+exeFolder = "exe/"
+dataFolder = "data/"
+plotFolder = "python/assets/"
 
 def logMessage(msg):
     if LOG:
@@ -65,8 +65,13 @@ def generateImpliedVolSurfaceInputFiles(stock, zeroBond="^IRX", zeroBondMaturity
     currentPrice = stock_info.get_data(stock,onDate).iloc[0]["close"]
     discountRate = stock_info.get_data(zeroBond,onDate).iloc[0]["close"]
     try:
-        dividendYield = stock_info.get_quote_table(stock)["Forward Dividend & Yield"]
-        dividendYield = float(re.sub("[()%]","",dividendYield.split()[1]))/100
+        quote_table = stock_info.get_quote_table(stock)
+        if "Forward Dividend & Yield" in quote_table: # single name
+            dividendYield = quote_table["Forward Dividend & Yield"]
+            dividendYield = float(re.sub("[()%]","",dividendYield.split()[1]))/100
+        elif "Yield" in quote_table: # index ETF
+            dividendYield = quote_table["Yield"]
+            dividendYield = float(re.sub("[%]","",dividendYield))/100
     except: dividendYield = 0
 
     riskFreeRate = calcRiskFreeRate(discountRate,zeroBondMaturity)

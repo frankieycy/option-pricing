@@ -9,9 +9,9 @@ plt.switch_backend("Agg")
 
 LOG = True
 
-exeFolder = "../exe/"
-dataFolder = "../data-VolArbStrat/"
-plotFolder = "../plot-VolArbStrat/"
+exeFolder = "exe/"
+dataFolder = "data-VolArbStrat/"
+plotFolder = "plot-VolArbStrat/"
 
 BacktestData = {
     "labels": [

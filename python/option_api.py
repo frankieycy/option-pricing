@@ -11,7 +11,7 @@ onDate = getRecentBDay()
 codeList = ["US.IBM","US.JPM","US.DIS"]
 expirationDateEnd = "2021-12-31"
 
-dataFolder = "../bkts_data/"
+dataFolder = "bkts_data/"
 
 optionChainData = {} # master data dict
 optionChainDataFrames = {}
