@@ -1,38 +1,7 @@
 ## Option Pricing Library
 
-* last update: 210704
+* last update: 211119
 * C++ option pricing library that implements the classical models
-
-## To-Do List
-
-* last, option.cpp commenting
-* last, use const pointer args for class methods
-* last, header files and makefile
-* ok, organize library files into lib/
-* ok, printToCsvFile: support header
-* ok, Black-Scholes PDE solver (calc matrix of price surface)
-* ok, pricer demo examples on a vanilla call (put in demo/)
-* ok, backtest functions in Pricer for option hedging strategies
-* ok, implement DGT-neutral strategy
-* ok, vol surface modeling
-* ok, vol arb research on delta-hedged strategy
-* ok, broker API wrappers for market quotes
-* ok, antithetic variate, control variate
-* ok, Exotic option pricing with Monte Carlo
-* ok, stochastic vol model: Heston
-* ok, Heston model construct imp vol surface
-* ok, jump-diffusion model: Merton
-* ok, stochastic vol model: GARCH
-* ok, local vol model: CEV
-* boost FFT & MC efficiency
-* model param calibration
-* visualize Girsanov change of measure
-* American option pricing with Monte Carlo
-* facade design pattern: optionlib.cpp (wrapper)
-* deterministic (non-constant) interest rate extension (PDE)
-* deterministic (non-constant) volatility extension (PDE)
-* (app.py) visualization of implied vol surface in table format
-* (app.py) visualization of Greeks vs strike
 
 ## Single-Asset Option Pricing Examples
 
@@ -186,9 +155,8 @@ Asset prices may admit dynamics other than the usual constant vol drift-diffusio
 ##### 1. Heston Model
 ##### 2. Jump-Diffusion Model
 
-## Some Classical Exercises
-
-##### 1. Real Stock Implied Vol
-##### 2. Delta-Hedging
-##### 3. Girsanov Change of Measure
-##### 4. Heston Implied Vol
+## Dynamic Hedging Simulation
+## Real Stock Implied Vol
+## Arbitrage-free Smoothing of Price Surface (Fengler)
+## Backing out Local Vol from Implied Vol
+## Calibration of Stochastic Vol Models
