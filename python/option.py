@@ -12,12 +12,12 @@ plt.switch_backend("Agg")
 LOG = True
 
 onDate = getPrevBDay()
-stockList = ["SPY"]
+stockList = ["IBM","JPM"]
 # stockList = stock_info.tickers_dow()
 
-exeFolder = "exe/"
+exeFolder = "../exe/"
 dataFolder = "data/"
-plotFolder = "python/assets/"
+plotFolder = "assets/"
 
 def logMessage(msg):
     if LOG:
