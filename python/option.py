@@ -6,11 +6,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.linalg import block_diag
-from scipy.stats import norm
 from mpl_toolkits import mplot3d
 from yahoo_fin import stock_info, options
 from util import *
-# plt.switch_backend("Agg")
+plt.switch_backend("Agg")
 
 LOG = True
 
@@ -22,6 +21,8 @@ stockList = ["SPY"]
 exeFolder = "../exe/"
 dataFolder = "data/"
 plotFolder = "assets/"
+
+#### helper functions ##########################################################
 
 def logMessage(msg):
     if LOG:
@@ -38,6 +39,8 @@ def calcRiskFreeRate(discountRate, maturity):
 def getDateFromContractName(name):
     return name[-15:-9]
 
+#### core functions ############################################################
+
 def printPricerVariablesToCsvFile(fileName, pricerVariables):
     file = open(fileName,"w")
     for var in pricerVariables:
@@ -48,7 +51,7 @@ def printPricerVariablesToCsvFile(fileName, pricerVariables):
 
 def printOptionChainsToCsvFile(fileName, optionChains, optionPriceType="mid"):
     file = open(fileName,"w")
-    optionDates = optionChains.keys()
+    optionDates = list(optionChains.keys())
     for date in optionDates:
         daysFromToday = bDaysBetween(onDate,date)
         maturity = daysFromToday/252
@@ -94,7 +97,7 @@ def arbitrageFreeSmoothing(optionChains, pricerVariables, weightType="uniform", 
         nextMaturity = optionDates[nOptionDates-idx] if idx>0 else None
         for putCall in ["puts","calls"]:
             chain = optionChains[maturity][putCall]
-            mid = (chain["Bid"]+chain["Ask"])/2
+            mid = chain["Mid"] if "Mid" in chain else (chain["Bid"]+chain["Ask"])/2
             u = chain["Strike"]
             mid,u = mid.values,u.values
 
@@ -167,8 +170,13 @@ def arbitrageFreeSmoothing(optionChains, pricerVariables, weightType="uniform", 
 
             prob = cvx.Problem(objective, constraints)
             try:
-                prob.solve(verbose=verbose); x = x.value
-                chain["Arb-Free Price"] = x[:n]
+                prob.solve(solver=cvx.OSQP, verbose=verbose, max_iter=int(1e6))
+                if 'optimal' not in prob.status:
+                    prob.solve(solver=cvx.ECOS, verbose=verbose, max_iters=int(1e6))
+                logMessage([putCall, " price smoothing status: ", prob.status])
+                if 'optimal' not in prob.status: raise Exception('OSQP and ECOS solvers fail to converge.')
+                x = x.value; chain["Arb-Free Price"] = x[:n]
+                # print(f'{putCall} price:',x[:n],f'{putCall} gamma:',x[n:],sep='\n')
 
                 g = x[:n] # dim n
                 gamma = np.concatenate([[0],x[n:],[0]]) # dim n
@@ -187,8 +195,12 @@ def arbitrageFreeSmoothing(optionChains, pricerVariables, weightType="uniform", 
                     'd': np.copy(d),
                     'u': np.copy(u),
                 }
-            except Exception:
-                chain["Arb-Free Price"] = mid # midprice fallback
+
+            #### midprice fallback
+            except Exception as err:
+                logMessage(err)
+                logMessage("adopting midprice fallback")
+                chain["Arb-Free Price"] = mid
                 splineParameters[maturity][putCall] = {}
 
     return optionChains
@@ -206,7 +218,7 @@ def generateImpliedVolSurfaceInputFiles(stock, optionPriceType="mid", zeroBond="
         elif "Yield" in quote_table: # index ETF
             dividendYield = quote_table["Yield"]
             dividendYield = float(re.sub("[%]","",dividendYield))/100
-    except: dividendYield = 0
+    except Exception: dividendYield = 0
 
     riskFreeRate = calcRiskFreeRate(discountRate,zeroBondMaturity)
     pricerVariables = {
@@ -240,36 +252,40 @@ def smoother(y, box_pts):
 def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter", angle=[20,80]):
     logMessage(["starting plotImpliedVolSurface on stock ",stock,
         ", fileName ",fileName,", figName ",figName])
-    impVolSurface = np.loadtxt(fileName,delimiter=",",usecols=(3,4,5))
-    strike   = impVolSurface[:,0]
-    maturity = impVolSurface[:,1]
-    impVol   = impVolSurface[:,2]
-    idx      = impVol<1
-    strike   = strike[idx]
-    maturity = maturity[idx]
-    impVol   = impVol[idx]
-    fig = plt.figure(figsize=(6,6))
-    ax = plt.axes(projection="3d")
-    if smooth:
-        impVolSmooth = []
-        for m in np.unique(maturity):
-            maturityIdx = np.argwhere(maturity==m).flatten()
-            box_pts = math.ceil(len(maturityIdx)/10)
-            impVolSmooth.append(smoother(impVol[maturityIdx],box_pts))
-        impVol = np.concatenate(impVolSmooth)
-    if plot=="scatter": ax.scatter3D(strike,maturity,impVol,c="k",marker=".")
-    elif plot=="trisurf":
-        surf = ax.plot_trisurf(strike,maturity,impVol,cmap="binary",linewidth=1)
-        cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
-    ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
-    ax.set_xlabel("Strike")
-    ax.set_ylabel("Maturity (Year)")
-    ax.set_zlabel("Implied vol")
-    ax.set_zlim(0,1)
-    ax.view_init(angle[0],angle[1])
-    fig.tight_layout()
-    plt.savefig(figName)
-    plt.close()
+    dataCols = ["Contract Name","Type","Put/Call","Strike","Maturity (Year)","Implied Vol"]
+    impVolSurfacePC = pd.read_csv(fileName)
+    impVolSurfacePC.columns = dataCols
+    for putCall in ["Put","Call"]:
+        impVolSurface = impVolSurfacePC[impVolSurfacePC["Put/Call"]==putCall]
+        strike   = impVolSurface["Strike"].values
+        maturity = impVolSurface["Maturity (Year)"].values
+        impVol   = impVolSurface["Implied Vol"].values
+        idx      = impVol<1
+        strike   = strike[idx]
+        maturity = maturity[idx]
+        impVol   = impVol[idx]
+        fig = plt.figure(figsize=(6,6))
+        ax = plt.axes(projection="3d")
+        if smooth:
+            impVolSmooth = []
+            for m in np.unique(maturity):
+                maturityIdx = np.argwhere(maturity==m).flatten()
+                box_pts = math.ceil(len(maturityIdx)/10)
+                impVolSmooth.append(smoother(impVol[maturityIdx],box_pts))
+            impVol = np.concatenate(impVolSmooth)
+        if plot=="scatter": ax.scatter3D(strike,maturity,impVol,c="k",marker=".")
+        elif plot=="trisurf":
+            surf = ax.plot_trisurf(strike,maturity,impVol,cmap="binary",linewidth=1)
+            cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
+        ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
+        ax.set_xlabel("Strike")
+        ax.set_ylabel("Maturity (Year)")
+        ax.set_zlabel("Implied vol")
+        ax.set_zlim(0,1)
+        ax.view_init(angle[0],angle[1])
+        fig.tight_layout()
+        plt.savefig(figName % putCall)
+        plt.close()
     logMessage("ending plotImpliedVolSurface")
 
 def callExecutable(name):
@@ -278,21 +294,21 @@ def callExecutable(name):
     proc.wait()
     logMessage("ending callExecutable")
 
-def impliedVolSurfaceGenerator(stock):
+def impliedVolSurfaceGenerator(stock, optionPriceType="mid"):
     logMessage(["starting impliedVolSurfaceGenerator on stock ",stock,
         ", onDate ",onDate])
     try:
-        generateImpliedVolSurfaceInputFiles(stock)
+        generateImpliedVolSurfaceInputFiles(stock,optionPriceType)
         callExecutable("./"+
             exeFolder+"genImpliedVolSurface")
         makeDirectory(plotFolder)
         plotImpliedVolSurface(stock,
             dataFolder+"option_vol.csv",
-            plotFolder+"option_vol_"+
+            plotFolder+"option_vol_%s_"+
                 stock+"_"+onDate+".png",
-            smooth=True,plot="trisurf")
+            smooth=False,plot="scatter")
     except Exception: pass
-    logMessage("ending impliedVolSurfaceGenerator")
+    finally: logMessage("ending impliedVolSurfaceGenerator")
 
 def optionChainsWithGreeksGenerator(stock):
     logMessage(["starting optionChainsWithGreeksGenerator on stock ",stock,
@@ -314,13 +330,66 @@ def optionChainsWithGreeksGenerator(stock):
         data.to_csv(dataFolder+"option_chain"+"_"
             +stock+"_"+onDate+".csv")
     except Exception: pass
-    logMessage("ending optionChainsWithGreeksGenerator")
+    finally: logMessage("ending optionChainsWithGreeksGenerator")
+
+#### main ######################################################################
 
 def main():
     for stock in stockList:
-        impliedVolSurfaceGenerator(stock)
+        impliedVolSurfaceGenerator(stock,optionPriceType="arb-free")
         optionChainsWithGreeksGenerator(stock)
+
+#### tests #####################################################################
+
+def test_rawDownload():
+    optionDates = options.get_expiration_dates("SPY")
+    optionChains = []
+    for date in optionDates:
+        chainPC = options.get_options_chain("SPY",date)
+        for putCall in ["puts","calls"]:
+            chain = chainPC[putCall]
+            chain["Maturity"] = date
+            chain["Put/Call"] = putCall
+            chain = chain[["Maturity","Put/Call","Contract Name","Last Trade Date","Strike","Last Price","Bid","Ask","Change","% Change","Volume","Open Interest","Implied Volatility"]]
+            optionChains.append(chain)
+    optionChains = pd.concat(optionChains)
+    optionChains.to_csv("../bkts_data/yfin_option_chain_SPY_2021-11-19.csv", index=False)
+
+def test_arbitrageFreeSmoothing():
+    '''
+    All maturities within ../bkts_data/yfin_option_chain_SPY_2021-11-19.csv
+    ['November 22, 2021', 'November 24, 2021', 'November 26, 2021', 'November 29, 2021', 'December 1, 2021', 'December 3, 2021', 'December 6, 2021', 'December 8, 2021', 'December 10, 2021', 'December 13, 2021', 'December 15, 2021', 'December 17, 2021', 'December 20, 2021', 'December 23, 2021', 'December 31, 2021', 'January 21, 2022', 'February 18, 2022', 'March 18, 2022', 'March 31, 2022', 'April 14, 2022', 'May 20, 2022', 'June 17, 2022', 'June 30, 2022', 'September 16, 2022', 'September 30, 2022', 'December 16, 2022', 'January 20, 2023', 'March 17, 2023', 'June 16, 2023', 'December 15, 2023', 'January 19, 2024']
+    '''
+    pricerVariables = {
+        'stockName': 'SPY',
+        'currentPrice': 468.8900146484375,
+        'riskFreeRate': 0.031668539893479,
+        'dividendYield': 0.013000000000000001
+    }
+    optionChainsRaw = pd.read_csv("../bkts_data/yfin_option_chain_SPY_2021-11-19.csv")
+    optionDates = list(optionChainsRaw["Maturity"].unique())
+    # optionDates = ['December 31, 2021','March 31, 2022']
+    # optionDates = ['January 21, 2022', 'February 18, 2022', 'March 18, 2022', 'March 31, 2022', 'April 14, 2022', 'May 20, 2022', 'June 17, 2022', 'June 30, 2022', 'September 16, 2022', 'September 30, 2022', 'December 16, 2022']
+    optionChains = {}
+    for date in optionDates:
+        optionChains[date] = {}
+        for putCall in ["puts","calls"]:
+            idx = (optionChainsRaw["Maturity"]==date) & (optionChainsRaw["Put/Call"]==putCall)
+            optionChains[date][putCall] = optionChainsRaw[idx]
+    arbitrageFreeSmoothing(optionChains, pricerVariables, verbose=False)
+
+def test_plotImpliedVolSurface():
+    stock = "SPY"
+    plotImpliedVolSurface(stock,
+        dataFolder+"option_vol.csv",
+        plotFolder+"option_vol_%s_"+
+            stock+"_"+onDate+".png",
+        smooth=False,plot="scatter")
+
+################################################################################
 
 if __name__ == "__main__":
     # main()
-    generateImpliedVolSurfaceInputFiles("SPY","arb-free")
+    # test_rawDownload()
+    # test_arbitrageFreeSmoothing()
+    test_plotImpliedVolSurface()
