@@ -181,7 +181,7 @@ def arbitrageFreeSmoothing(fileName, optionChains, pricerVariables, weightType="
             b = np.concatenate([[0],(g[1:]-g[:-1])/h-h/6*(2*gamma[:-1]+gamma[1:]),[0]])
             c = np.concatenate([[0],gamma[:-1]/2,[0]])
             d = np.concatenate([[0],(gamma[1:]-gamma[:-1])/(6*h),[0]])
-            b[0], b[-1] = b[1], (g[-1]-g[-2])/h[-1]+h[-1]/6*(gamma[-3]+2*gamma[-1])
+            b[0], b[-1] = b[1], (g[-1]-g[-2])/h[-1]+h[-1]/6*(gamma[-2]+2*gamma[-1])
             a[0], a[-1] = g[0]-b[0]*u[0], g[-1]
             u = np.concatenate([[0],u])
 
@@ -351,7 +351,7 @@ def interpolatePrice(strike, maturity, putCall, splineParameters):
     optionDates = list(splineParameters.keys())
     optionMaturities = np.array([bDaysBetween(onDate,date)/252 for date in optionDates])
     j,n = np.argmax(optionMaturities>maturity)-1,len(optionDates)
-    j = min(max(j,0),n-2)
+    j = n-2 if j==-1 else max(j,0)
     intPrice0 = splinePrice(strike, optionDates[j], putCall)
     intPrice1 = splinePrice(strike, optionDates[j+1], putCall)
     intPrice = intPrice0+(intPrice1-intPrice0)*(maturity-optionMaturities[j])/(optionMaturities[j+1]-optionMaturities[j])
@@ -436,6 +436,7 @@ def test_arbitrageFreeSmoothing():
     optionDates = list(optionChainsRaw["Maturity"].unique())
     # optionDates = ['December 31, 2021','March 31, 2022']
     # optionDates = ['January 21, 2022', 'February 18, 2022', 'March 18, 2022', 'March 31, 2022', 'April 14, 2022', 'May 20, 2022', 'June 17, 2022', 'June 30, 2022', 'September 16, 2022', 'September 30, 2022', 'December 16, 2022']
+    if maxMaturity: optionDates = [date for date in optionDates if bDaysBetween(date,maxMaturity)>0]
     optionChains = {}
     for date in optionDates:
         optionChains[date] = {}
@@ -479,6 +480,6 @@ def test_interpolatePriceSurface():
 if __name__ == "__main__":
     # main()
     # test_rawDownload()
-    # test_arbitrageFreeSmoothing()
     # test_plotImpliedVolSurface()
+    # test_arbitrageFreeSmoothing()
     test_interpolatePriceSurface()
