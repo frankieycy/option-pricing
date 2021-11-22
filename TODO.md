@@ -31,6 +31,7 @@
 
 ## To-Do List (2021 Fall)
 
-* (option.py) implement arb-free price surface smoothing
-* (option.cpp) back out local vol from implied vol surface
-* (option.cpp) calibrate stochastic vol models (e.g. Heston)
+* ok, implement arb-free price surface smoothing (Fengler)
+* interpolate price surface via splines, calibrate IVS
+* back out local vol from IVS
+* calibrate stochastic vol models (e.g. Heston)
