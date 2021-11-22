@@ -357,6 +357,25 @@ def interpolatePrice(strike, maturity, putCall, splineParameters):
     intPrice = intPrice0+(intPrice1-intPrice0)*(maturity-optionMaturities[j])/(optionMaturities[j+1]-optionMaturities[j])
     return max(intPrice,0)
 
+def interpolateConvexity(strike, maturity, putCall, splineParameters):
+    intCvx = 0
+    def splineConvexity(K, T, PC):
+        a_spl = splineParameters[T][PC]['a']
+        b_spl = splineParameters[T][PC]['b']
+        c_spl = splineParameters[T][PC]['c']
+        d_spl = splineParameters[T][PC]['d']
+        u_spl = splineParameters[T][PC]['u']
+        j = np.argmax(K<u_spl)-1
+        return max(2*c_spl[j]+6*d_spl[j]*(K-u_spl[j]),0)
+    optionDates = list(splineParameters.keys())
+    optionMaturities = np.array([bDaysBetween(onDate,date)/252 for date in optionDates])
+    j,n = np.argmax(optionMaturities>maturity)-1,len(optionDates)
+    j = n-2 if j==-1 else max(j,0)
+    intCvx0 = splineConvexity(strike, optionDates[j], putCall)
+    intCvx1 = splineConvexity(strike, optionDates[j+1], putCall)
+    intCvx = intCvx0+(intCvx1-intCvx0)*(maturity-optionMaturities[j])/(optionMaturities[j+1]-optionMaturities[j])
+    return max(intCvx,0)
+
 def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
     strikeGridType="current strike", pricerVariables=None):
     splineParamsDf = pd.read_csv(fileName)
@@ -397,6 +416,48 @@ def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
             })
 
     return optionChains
+
+def calibrateRiskNeutralDistribution(fileName, initStrikeGrid, stockName="",
+    strikeGridType="current strike", pricerVariables=None):
+    riskFreeRate = 0
+    if pricerVariables: riskFreeRate = pricerVariables["riskFreeRate"]
+    splineParamsDf = pd.read_csv(fileName)
+    splineParameters, riskNeutralDists = {}, {}
+    optionDates = list(splineParamsDf["Maturity"].unique())
+
+    for date in optionDates:
+        splineParameters[date] = {}
+        for putCall in ["puts","calls"]:
+            idx = (splineParamsDf["Maturity"]==date) & (splineParamsDf["Put/Call"]==putCall)
+            splineParameters[date][putCall] = {
+                'a': splineParamsDf[idx]['a'].to_numpy(),
+                'b': splineParamsDf[idx]['b'].to_numpy(),
+                'c': splineParamsDf[idx]['c'].to_numpy(),
+                'd': splineParamsDf[idx]['d'].to_numpy(),
+                'u': splineParamsDf[idx]['u'].to_numpy(),
+            }
+
+    for date in optionDates:
+        logMessage("===================================================================")
+        logMessage(["calibrating risk-neutral distribution on ",date])
+        logMessage("===================================================================")
+        if strikeGridType == "current strike":
+            strikeGrid = initStrikeGrid
+        elif strikeGridType == "forward strike":
+            pass
+        fmtDate = parseStringDateToFormat(date,"%Y%m%d")
+        maturity = bDaysBetween(onDate,date)/252
+        riskNeutralDists[date] = {}
+        for putCall in ["puts","calls"]:
+            pc = 'P' if putCall=="puts" else 'C'
+            rateFactor = np.exp(riskFreeRate*maturity)
+            density = [rateFactor*interpolateConvexity(strike,maturity,putCall,splineParameters) for strike in strikeGrid]
+            riskNeutralDists[date][putCall] = pd.DataFrame({
+                'Strike':   strikeGrid,
+                'Density':  density,
+            })
+
+    return riskNeutralDists
 
 #### main ######################################################################
 
@@ -475,6 +536,37 @@ def test_interpolatePriceSurface():
             stock+"_"+onDate+".png",
         smooth=False,plot="scatter")
 
+def test_calibrateRiskNeutralDistribution():
+    stock = "SPY"
+    pricerVariables = {
+        'stockName': 'SPY',
+        'currentPrice': 468.8900146484375,
+        'riskFreeRate': 0.031668539893479,
+        'dividendYield': 0.013000000000000001
+    }
+    initStrikeGrid = np.arange(400,600,2)
+    riskNeutralDists = calibrateRiskNeutralDistribution(dataFolder+"spline_params.csv",
+        initStrikeGrid,stockName=stock,pricerVariables=pricerVariables)
+    optionDates = list(riskNeutralDists.keys())
+    for date in optionDates:
+        fmtDate = parseStringDateToFormat(date,"%Y%m%d")
+        for putCall in ["puts","calls"]:
+            density = riskNeutralDists[date][putCall]
+            strikeGrid = density["Strike"]
+            prob = density["Density"]
+            prob_smoothed = smoother(prob,10)
+            fig = plt.figure(figsize=(6,3))
+            plt.plot(strikeGrid,prob_smoothed,c='k')
+            plt.scatter(strikeGrid,prob,c='k')
+            plt.xlim((strikeGrid.min(),strikeGrid.max()))
+            plt.ylim([0,0.2])
+            plt.xlabel("Strike")
+            plt.ylabel("Risk-neutral density")
+            plt.title(f"Calibrated to {putCall} on {date}")
+            fig.tight_layout()
+            plt.savefig(dataFolder+f"RNdist_{fmtDate}_{putCall}.png")
+            plt.close()
+
 ################################################################################
 
 if __name__ == "__main__":
@@ -482,4 +574,5 @@ if __name__ == "__main__":
     # test_rawDownload()
     # test_plotImpliedVolSurface()
     # test_arbitrageFreeSmoothing()
-    test_interpolatePriceSurface()
+    # test_interpolatePriceSurface()
+    test_calibrateRiskNeutralDistribution()
