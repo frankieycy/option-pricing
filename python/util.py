@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from dateutil import parser
 from datetime import datetime
 from pandas.tseries.offsets import BDay
 
@@ -28,3 +29,6 @@ def bDaysBetween(d1, d2):
 def bDaysFromToday(date):
     today = datetime.today().strftime("%Y-%m-%d")
     return bDaysBetween(today,date)
+
+def parseStringDateToFormat(date, fmt):
+    return parser.parse(date).strftime(fmt)

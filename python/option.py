@@ -70,7 +70,7 @@ def printOptionChainsToCsvFile(fileName, optionChains, optionPriceType="mid"):
                     (name,type,strike,maturity,price))
     file.close()
 
-def arbitrageFreeSmoothing(optionChains, pricerVariables, weightType="uniform", penalty=1e-7, verbose=False):
+def arbitrageFreeSmoothing(fileName, optionChains, pricerVariables, weightType="uniform", penalty=1e-7, verbose=False):
     S, r, q = pricerVariables["currentPrice"], pricerVariables["riskFreeRate"], pricerVariables["dividendYield"]
     nOptionDates = len(optionChains)
     optionDates = list(optionChains.keys())
@@ -128,80 +128,84 @@ def arbitrageFreeSmoothing(optionChains, pricerVariables, weightType="uniform", 
             y = np.concatenate([w*mid,np.zeros(n-2)])
 
             objective = cvx.Minimize(-y@x+.5*cvx.quad_form(x,B))
-            constraints = []
+            constr_spline = [A.T@x == 0]
+            constr_strike = [x[n:] >= 0]
             if putCall == "puts":
-                constraints += [
-                    A.T@x == 0,
-                    #### strike arbitrage
-                    x[n:] >= 0,
-                    #### derivative bound
+                constr_deriv = [
                     (x[1]-x[0])/h[0]-h[0]/6*x[n] >= 0,
                     (x[n-1]-x[n-2])/h[-1]+h[-1]/6*x[-1] <= 1/rateFactor[maturity],
-                    #### price bound
-                    x[n-1] <= u[-1]/rateFactor[maturity],
-                    x[n-1] >= u[-1]/rateFactor[maturity]-S/yieldFactor[maturity],
-                    x[0] >= 0
                 ]
-                #### calendar arbitrage
-                # if idx > 0:
-                #     for i in range(n):
-                #         fwdStrike = u[i]*driftFactor[nextMaturity]/driftFactor[maturity]
-                #         bnd = splinePrice(fwdStrike, nextMaturity, putCall)*yieldFactor[nextMaturity]/yieldFactor[maturity]
-                #         constraints += [x[i] <= bnd]
+                constr_calendar = []
+                if idx > 0:
+                    for i in range(n):
+                        fwdStrike = u[i]*driftFactor[nextMaturity]/driftFactor[maturity]
+                        bnd = splinePrice(fwdStrike, nextMaturity, putCall)*yieldFactor[nextMaturity]/yieldFactor[maturity]
+                        constr_calendar += [x[i] <= bnd]
             elif putCall == "calls":
-                constraints += [
-                    A.T@x == 0,
-                    #### strike arbitrage
-                    x[n:] >= 0,
-                    #### derivative bound
+                constr_deriv = [
                     (x[1]-x[0])/h[0]-h[0]/6*x[n] >= -1/rateFactor[maturity],
                     (x[n-1]-x[n-2])/h[-1]+h[-1]/6*x[-1] <= 0,
-                    #### price bound
-                    x[0] <= S/yieldFactor[maturity],
-                    x[0] >= S/yieldFactor[maturity]-u[0]/rateFactor[maturity],
-                    x[n-1] >= 0
                 ]
-                #### calendar arbitrage
-                # if idx > 0:
-                #     for i in range(n):
-                #         fwdStrike = u[i]*driftFactor[nextMaturity]/driftFactor[maturity]
-                #         bnd = splinePrice(fwdStrike, nextMaturity, putCall)*yieldFactor[nextMaturity]/yieldFactor[maturity]
-                #         constraints += [x[i] <= bnd]
+                constr_calendar = []
+                if idx > 0:
+                    for i in range(n):
+                        fwdStrike = u[i]*driftFactor[nextMaturity]/driftFactor[maturity]
+                        bnd = splinePrice(fwdStrike, nextMaturity, putCall)*yieldFactor[nextMaturity]/yieldFactor[maturity]
+                        constr_calendar += [x[i] <= bnd]
 
-            prob = cvx.Problem(objective, constraints)
-            try:
+            constraintsDict = {
+                'spline':   constr_spline,
+                'strike':   constr_strike,
+                'deriv':    constr_deriv,
+                'calendar': constr_calendar,
+            }
+            constraintsLabel = ['spline','strike','deriv','calendar']
+
+            for i in range(4,0,-1):
+                logMessage([putCall," price solver constraints: ",constraintsLabel[:i]])
+                constraints = []
+                for label in constraintsLabel[:i]:
+                    constraints += constraintsDict[label]
+                prob = cvx.Problem(objective, constraints)
                 prob.solve(solver=cvx.OSQP, verbose=verbose, max_iter=int(1e6))
                 if 'optimal' not in prob.status:
                     prob.solve(solver=cvx.ECOS, verbose=verbose, max_iters=int(1e6))
                 logMessage([putCall, " price smoothing status: ", prob.status])
-                if 'optimal' not in prob.status: raise Exception('OSQP and ECOS solvers fail to converge.')
-                x = x.value; chain["Arb-Free Price"] = x[:n]
-                # print(f'{putCall} price:',x[:n],f'{putCall} gamma:',x[n:],sep='\n')
+                if 'optimal' in prob.status: break
 
-                g = x[:n] # dim n
-                gamma = np.concatenate([[0],x[n:],[0]]) # dim n
-                a = np.concatenate([[0],g[:-1],[0]])
-                b = np.concatenate([[0],(g[1:]-g[:-1])/h-h/6*(2*gamma[:-1]+gamma[1:]),[0]])
-                c = np.concatenate([[0],gamma[:-1]/2,[0]])
-                d = np.concatenate([[0],(gamma[1:]-gamma[:-1])/(6*h),[0]])
-                b[0], b[-1] = b[1], (g[-1]-g[-2])/h[-1]+h[-1]/6*(gamma[-3]+2*gamma[-1])
-                a[0], a[-1] = g[0]-b[0]*u[0], g[-1]
-                u = np.concatenate([[0],u])
+            #### DEBUG: strange behavior in interpolated prices
+            x = x.value
+            g = x[:n] # dim n
+            gamma = np.concatenate([[0],x[n:],[0]]) # dim n
+            a = np.concatenate([[0],g[:-1],[0]])
+            b = np.concatenate([[0],(g[1:]-g[:-1])/h-h/6*(2*gamma[:-1]+gamma[1:]),[0]])
+            c = np.concatenate([[0],gamma[:-1]/2,[0]])
+            d = np.concatenate([[0],(gamma[1:]-gamma[:-1])/(6*h),[0]])
+            b[0], b[-1] = b[1], (g[-1]-g[-2])/h[-1]+h[-1]/6*(gamma[-3]+2*gamma[-1])
+            a[0], a[-1] = g[0]-b[0]*u[0], g[-1]
+            u = np.concatenate([[0],u])
 
-                splineParameters[maturity][putCall] = {
-                    'a': np.copy(a),
-                    'b': np.copy(b),
-                    'c': np.copy(c),
-                    'd': np.copy(d),
-                    'u': np.copy(u),
-                }
+            splineParameters[maturity][putCall] = {
+                'a': np.copy(a),
+                'b': np.copy(b),
+                'c': np.copy(c),
+                'd': np.copy(d),
+                'u': np.copy(u),
+            }
 
-            #### midprice fallback
-            except Exception as err:
-                logMessage(err)
-                logMessage("adopting midprice fallback")
-                chain["Arb-Free Price"] = mid
-                splineParameters[maturity][putCall] = {}
+            chain["Arb-Free Price"] = x[:n]
+
+    splineParamsDf = []
+    for date in optionDates:
+        splineParamsPC = splineParameters[date]
+        for putCall in ["puts","calls"]:
+            spline = pd.DataFrame(splineParamsPC[putCall])
+            spline["Maturity"] = date
+            spline["Put/Call"] = putCall
+            spline = spline[["Maturity","Put/Call","u","a","b","c","d"]]
+            splineParamsDf.append(spline)
+    splineParamsDf = pd.concat(splineParamsDf)
+    splineParamsDf.to_csv(fileName, index=False)
 
     return optionChains
 
@@ -228,15 +232,15 @@ def generateImpliedVolSurfaceInputFiles(stock, optionPriceType="mid", zeroBond="
         "dividendYield": dividendYield,
     }
 
+    makeDirectory(dataFolder)
     optionDates = options.get_expiration_dates(stock)
     if maxMaturity: optionDates = [date for date in optionDates if bDaysBetween(date,maxMaturity)>0]
     optionChains = {}
     for date in optionDates:
         optionChains[date] = options.get_options_chain(stock,date)
     if optionPriceType == "arb-free":
-        optionChains = arbitrageFreeSmoothing(optionChains, pricerVariables)
+        optionChains = arbitrageFreeSmoothing(dataFolder+"spline_params.csv",optionChains,pricerVariables)
 
-    makeDirectory(dataFolder)
     printPricerVariablesToCsvFile(dataFolder+"pricer_var.csv",pricerVariables)
     printOptionChainsToCsvFile(dataFolder+"option_data.csv",optionChains,optionPriceType)
     logMessage(["ending generateImpliedVolSurfaceInputFiles with ",
@@ -332,6 +336,68 @@ def optionChainsWithGreeksGenerator(stock):
     except Exception: pass
     finally: logMessage("ending optionChainsWithGreeksGenerator")
 
+#### calibration ###############################################################
+
+def interpolatePrice(strike, maturity, putCall, splineParameters):
+    intPrice = 0
+    def splinePrice(K, T, PC):
+        a_spl = splineParameters[T][PC]['a']
+        b_spl = splineParameters[T][PC]['b']
+        c_spl = splineParameters[T][PC]['c']
+        d_spl = splineParameters[T][PC]['d']
+        u_spl = splineParameters[T][PC]['u']
+        j = np.argmax(K<u_spl)-1
+        return max(a_spl[j]+b_spl[j]*(K-u_spl[j])+c_spl[j]*(K-u_spl[j])**2+d_spl[j]*(K-u_spl[j])**3,0)
+    optionDates = list(splineParameters.keys())
+    optionMaturities = np.array([bDaysBetween(onDate,date)/252 for date in optionDates])
+    j,n = np.argmax(optionMaturities>maturity)-1,len(optionDates)
+    j = min(max(j,0),n-2)
+    intPrice0 = splinePrice(strike, optionDates[j], putCall)
+    intPrice1 = splinePrice(strike, optionDates[j+1], putCall)
+    intPrice = intPrice0+(intPrice1-intPrice0)*(maturity-optionMaturities[j])/(optionMaturities[j+1]-optionMaturities[j])
+    return max(intPrice,0)
+
+def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
+    strikeGridType="current strike", pricerVariables=None):
+    splineParamsDf = pd.read_csv(fileName)
+    splineParameters, optionChains = {}, {}
+    optionDates = list(splineParamsDf["Maturity"].unique())
+
+    for date in optionDates:
+        splineParameters[date] = {}
+        for putCall in ["puts","calls"]:
+            idx = (splineParamsDf["Maturity"]==date) & (splineParamsDf["Put/Call"]==putCall)
+            splineParameters[date][putCall] = {
+                'a': splineParamsDf[idx]['a'].to_numpy(),
+                'b': splineParamsDf[idx]['b'].to_numpy(),
+                'c': splineParamsDf[idx]['c'].to_numpy(),
+                'd': splineParamsDf[idx]['d'].to_numpy(),
+                'u': splineParamsDf[idx]['u'].to_numpy(),
+            }
+
+    for date in optionDates:
+        logMessage("===================================================================")
+        logMessage(["interpolating arbitrage-free price surface on ",date])
+        logMessage("===================================================================")
+        if strikeGridType == "current strike":
+            strikeGrid = initStrikeGrid
+        elif strikeGridType == "forward strike":
+            pass
+        fmtDate = parseStringDateToFormat(date,"%Y%m%d")
+        maturity = bDaysBetween(onDate,date)/252
+        optionChains[date] = {}
+        for putCall in ["puts","calls"]:
+            pc = 'P' if putCall=="puts" else 'C'
+            contractNames = ["ARB_%s%s%s%08d"%(stockName,fmtDate,pc,1e3*strike) for strike in strikeGrid]
+            arbFreePrices = [interpolatePrice(strike,maturity,putCall,splineParameters) for strike in strikeGrid]
+            optionChains[date][putCall] = pd.DataFrame({
+                'Contract Name':    contractNames,
+                'Strike':           strikeGrid,
+                'Arb-Free Price':   arbFreePrices,
+            })
+
+    return optionChains
+
 #### main ######################################################################
 
 def main():
@@ -376,10 +442,32 @@ def test_arbitrageFreeSmoothing():
         for putCall in ["puts","calls"]:
             idx = (optionChainsRaw["Maturity"]==date) & (optionChainsRaw["Put/Call"]==putCall)
             optionChains[date][putCall] = optionChainsRaw[idx]
-    arbitrageFreeSmoothing(optionChains, pricerVariables, verbose=False)
+    makeDirectory(dataFolder)
+    arbitrageFreeSmoothing(dataFolder+"spline_params.csv",optionChains,pricerVariables,verbose=False)
 
 def test_plotImpliedVolSurface():
     stock = "SPY"
+    plotImpliedVolSurface(stock,
+        dataFolder+"option_vol.csv",
+        plotFolder+"option_vol_%s_"+
+            stock+"_"+onDate+".png",
+        smooth=False,plot="scatter")
+
+def test_interpolatePriceSurface():
+    stock = "SPY"
+    pricerVariables = {
+        'stockName': 'SPY',
+        'currentPrice': 468.8900146484375,
+        'riskFreeRate': 0.031668539893479,
+        'dividendYield': 0.013000000000000001
+    }
+    initStrikeGrid = np.arange(400,600,2)
+    optionChains = interpolatePriceSurface(dataFolder+"spline_params.csv",initStrikeGrid,stockName=stock)
+    printPricerVariablesToCsvFile(dataFolder+"pricer_var.csv",pricerVariables)
+    printOptionChainsToCsvFile(dataFolder+"option_data.csv",optionChains,"arb-free")
+    callExecutable("./"+
+        exeFolder+"genImpliedVolSurface")
+    makeDirectory(plotFolder)
     plotImpliedVolSurface(stock,
         dataFolder+"option_vol.csv",
         plotFolder+"option_vol_%s_"+
@@ -392,4 +480,5 @@ if __name__ == "__main__":
     # main()
     # test_rawDownload()
     # test_arbitrageFreeSmoothing()
-    test_plotImpliedVolSurface()
+    # test_plotImpliedVolSurface()
+    test_interpolatePriceSurface()
