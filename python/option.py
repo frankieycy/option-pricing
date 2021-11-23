@@ -417,7 +417,7 @@ def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
 
     return optionChains
 
-def calibrateRiskNeutralDistribution(fileName, initStrikeGrid, stockName="",
+def calibrateRiskNeutralDistribution(fileName, initStrikeGrid=None, stockName="",
     strikeGridType="current strike", pricerVariables=None):
     riskFreeRate = 0
     if pricerVariables: riskFreeRate = pricerVariables["riskFreeRate"]
@@ -449,6 +449,7 @@ def calibrateRiskNeutralDistribution(fileName, initStrikeGrid, stockName="",
         maturity = bDaysBetween(onDate,date)/252
         riskNeutralDists[date] = {}
         for putCall in ["puts","calls"]:
+            if strikeGrid is None: strikeGrid = splineParameters[date][putCall]['u']
             pc = 'P' if putCall=="puts" else 'C'
             rateFactor = np.exp(riskFreeRate*maturity)
             density = [rateFactor*interpolateConvexity(strike,maturity,putCall,splineParameters) for strike in strikeGrid]
@@ -544,9 +545,11 @@ def test_calibrateRiskNeutralDistribution():
         'riskFreeRate': 0.031668539893479,
         'dividendYield': 0.013000000000000001
     }
-    initStrikeGrid = np.arange(400,600,2)
+    # initStrikeGrid = np.arange(400,600,2)
+    # riskNeutralDists = calibrateRiskNeutralDistribution(dataFolder+"spline_params.csv",
+    #     initStrikeGrid,stockName=stock,pricerVariables=pricerVariables)
     riskNeutralDists = calibrateRiskNeutralDistribution(dataFolder+"spline_params.csv",
-        initStrikeGrid,stockName=stock,pricerVariables=pricerVariables)
+        stockName=stock,pricerVariables=pricerVariables)
     optionDates = list(riskNeutralDists.keys())
     for date in optionDates:
         fmtDate = parseStringDateToFormat(date,"%Y%m%d")
@@ -558,7 +561,8 @@ def test_calibrateRiskNeutralDistribution():
             fig = plt.figure(figsize=(6,3))
             plt.plot(strikeGrid,prob_smoothed,c='k')
             plt.scatter(strikeGrid,prob,c='k')
-            plt.xlim((strikeGrid.min(),strikeGrid.max()))
+            # plt.xlim((strikeGrid.min(),strikeGrid.max()))
+            plt.xlim([200,600])
             plt.ylim([0,0.2])
             plt.xlabel("Strike")
             plt.ylabel("Risk-neutral density")
