@@ -271,7 +271,7 @@ def plotImpliedVolSurface(stock, fileName, figName,
         strike   = strike[idx]
         maturity = maturity[idx]
         impVol   = impVol[idx]
-        xlabel, zlabel = "Strike", "Implied vol"
+        xlabel, zlabel, zlim = "Strike", "Implied vol", (0,1)
         if strikeGridType == "log moneyness":
             S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
             fwdPrice = S*np.exp((r-q)*maturity)
@@ -279,10 +279,10 @@ def plotImpliedVolSurface(stock, fileName, figName,
             xlabel = "Log-moneyness"
         if zaxisType == "total vol":
             impVol = impVol*np.sqrt(maturity)
-            zlabel = "Total implied vol"
+            zlabel, zlim = "Total implied vol", (0,0.8)
         elif zaxisType == "total var":
             impVol = impVol**2*maturity
-            zlabel = "Total variance"
+            zlabel, zlim = "Total variance", (0,0.4)
         fig = plt.figure(figsize=(6,6))
         ax = plt.axes(projection="3d")
         if smooth:
@@ -296,21 +296,72 @@ def plotImpliedVolSurface(stock, fileName, figName,
         elif plot=="trisurf":
             surf = ax.plot_trisurf(strike,maturity,impVol,cmap="binary",linewidth=1)
             cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
-        ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
+        ax.set_title("Option "+zlabel.lower()+" surface of "+stock+" on "+onDate)
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Maturity (Year)")
         ax.set_zlabel(zlabel)
-        ax.set_zlim(0,1)
+        ax.set_zlim(zlim)
         ax.view_init(angle[0],angle[1])
         fig.tight_layout()
         plt.savefig(figName % putCall)
         plt.close()
     logMessage("ending plotImpliedVolSurface")
 
-def plotImpliedVolCurves(stock, fileName, figName,
-    strikeGridType="strike", zaxisType="implied vol", pricerVariables=None,
-    smooth=False, plot="scatter"):
-    pass
+def plotImpliedVolCurves(stock, fileName, figName, maturityCap=1e2,
+    strikeGridType="strike", yaxisType="implied vol", pricerVariables=None,
+    smooth=False, plot="scatter", showLegend=False):
+    logMessage(["starting plotImpliedVolCurves on stock ",stock,
+        ", fileName ",fileName,", figName ",figName])
+    dataCols = ["Contract Name","Type","Put/Call","Strike","Maturity (Year)","Implied Vol"]
+    impVolSurfacePC = pd.read_csv(fileName)
+    impVolSurfacePC.columns = dataCols
+    for putCall in ["Put","Call"]:
+        impVolSurface = impVolSurfacePC[impVolSurfacePC["Put/Call"]==putCall]
+        fig = plt.figure(figsize=(8,5))
+        optionMaturities = impVolSurface["Maturity (Year)"].unique()
+        optionMaturities = optionMaturities[optionMaturities<=maturityCap]
+        grayScales = [str((i+1)/(len(optionMaturities)+5)) for i in range(len(optionMaturities))]
+        for c,T in zip(grayScales,optionMaturities):
+            idx      = impVolSurface["Maturity (Year)"]==T
+            strike   = impVolSurface[idx]["Strike"].values
+            maturity = impVolSurface[idx]["Maturity (Year)"].values
+            impVol   = impVolSurface[idx]["Implied Vol"].values
+            idx      = impVol<1
+            strike   = strike[idx]
+            maturity = maturity[idx]
+            impVol   = impVol[idx]
+            xlabel, ylabel, ylim = "Strike", "Implied vol", (0,1)
+            if strikeGridType == "log moneyness":
+                S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+                fwdPrice = S*np.exp((r-q)*maturity)
+                strike = np.log(strike/fwdPrice)
+                xlabel = "Log-moneyness"
+            if yaxisType == "total vol":
+                impVol = impVol*np.sqrt(maturity)
+                ylabel, ylim = "Total implied vol", (0,0.8)
+            elif yaxisType == "total var":
+                impVol = impVol**2*maturity
+                ylabel, ylim = "Total variance", (0,0.4)
+            if smooth:
+                impVolSmooth = []
+                for m in np.unique(maturity):
+                    maturityIdx = np.argwhere(maturity==m).flatten()
+                    box_pts = math.ceil(len(maturityIdx)/10)
+                    impVolSmooth.append(smoother(impVol[maturityIdx],box_pts))
+                impVol = np.concatenate(impVolSmooth)
+            if plot=="scatter":
+                plt.scatter(strike,impVol,c=c,label="T=%.4f"%T)
+            elif plot=="curve":
+                plt.plot(strike,impVol,c=c,label="T=%.4f"%T)
+        plt.title("Option "+ylabel.lower()+" curves of "+stock+" on "+onDate)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.ylim(ylim)
+        if showLegend: plt.legend(loc="upper right")
+        fig.tight_layout()
+        plt.savefig(figName % putCall)
+        plt.close()
+    logMessage("ending plotImpliedVolCurves")
 
 def callExecutable(name):
     logMessage(["starting callExecutable on name ",name])
@@ -568,8 +619,9 @@ def test_plotImpliedVolCurves():
         dataFolder+"option_vol.csv",
         plotFolder+"option_vol_%s_"+
             stock+"_"+onDate+".png",
+        maturityCap=0.6,
         strikeGridType="log moneyness",
-        zaxisType="total vol",
+        yaxisType="implied vol",
         pricerVariables=pricerVariables,
         smooth=False,plot="scatter")
 
