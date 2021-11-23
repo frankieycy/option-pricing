@@ -13,14 +13,15 @@ plt.switch_backend("Agg")
 
 LOG = True
 
-onDate = getPrevBDay()
+onDate = "2021-11-19"
+# onDate = getPrevBDay()
 maxMaturity = "2022-12-31"
 stockList = ["SPY"]
 # stockList = stock_info.tickers_dow()
 
 exeFolder = "../exe/"
 dataFolder = "data/"
-plotFolder = "assets/"
+plotFolder = "data/"
 
 #### helper functions ##########################################################
 
@@ -71,7 +72,7 @@ def printOptionChainsToCsvFile(fileName, optionChains, optionPriceType="mid"):
     file.close()
 
 def arbitrageFreeSmoothing(fileName, optionChains, pricerVariables, weightType="uniform", penalty=1e-7, verbose=False):
-    S, r, q = pricerVariables["currentPrice"], pricerVariables["riskFreeRate"], pricerVariables["dividendYield"]
+    S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
     nOptionDates = len(optionChains)
     optionDates = list(optionChains.keys())
     optionMaturities = {date: bDaysBetween(onDate,date)/252 for date in optionDates}
@@ -253,7 +254,9 @@ def smoother(y, box_pts):
     y_smooth = np.convolve(y, box, mode="same")
     return y_smooth
 
-def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter", angle=[20,80]):
+def plotImpliedVolSurface(stock, fileName, figName,
+    strikeGridType="strike", zaxisType="implied vol", pricerVariables=None,
+    smooth=False, plot="scatter", angle=[20,80]):
     logMessage(["starting plotImpliedVolSurface on stock ",stock,
         ", fileName ",fileName,", figName ",figName])
     dataCols = ["Contract Name","Type","Put/Call","Strike","Maturity (Year)","Implied Vol"]
@@ -268,6 +271,18 @@ def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter"
         strike   = strike[idx]
         maturity = maturity[idx]
         impVol   = impVol[idx]
+        xlabel, zlabel = "Strike", "Implied vol"
+        if strikeGridType == "log moneyness":
+            S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+            fwdPrice = S*np.exp((r-q)*maturity)
+            strike = np.log(strike/fwdPrice)
+            xlabel = "Log-moneyness"
+        if zaxisType == "total vol":
+            impVol = impVol*np.sqrt(maturity)
+            zlabel = "Total implied vol"
+        elif zaxisType == "total var":
+            impVol = impVol**2*maturity
+            zlabel = "Total variance"
         fig = plt.figure(figsize=(6,6))
         ax = plt.axes(projection="3d")
         if smooth:
@@ -282,15 +297,20 @@ def plotImpliedVolSurface(stock, fileName, figName, smooth=False, plot="scatter"
             surf = ax.plot_trisurf(strike,maturity,impVol,cmap="binary",linewidth=1)
             cbar = fig.colorbar(surf,shrink=.4,aspect=15,pad=0,orientation="horizontal")
         ax.set_title("Option implied vol surface of "+stock+" on "+onDate)
-        ax.set_xlabel("Strike")
+        ax.set_xlabel(xlabel)
         ax.set_ylabel("Maturity (Year)")
-        ax.set_zlabel("Implied vol")
+        ax.set_zlabel(zlabel)
         ax.set_zlim(0,1)
         ax.view_init(angle[0],angle[1])
         fig.tight_layout()
         plt.savefig(figName % putCall)
         plt.close()
     logMessage("ending plotImpliedVolSurface")
+
+def plotImpliedVolCurves(stock, fileName, figName,
+    strikeGridType="strike", zaxisType="implied vol", pricerVariables=None,
+    smooth=False, plot="scatter"):
+    pass
 
 def callExecutable(name):
     logMessage(["starting callExecutable on name ",name])
@@ -376,7 +396,7 @@ def interpolateConvexity(strike, maturity, putCall, splineParameters):
     intCvx = intCvx0+(intCvx1-intCvx0)*(maturity-optionMaturities[j])/(optionMaturities[j+1]-optionMaturities[j])
     return max(intCvx,0)
 
-def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
+def interpolatePriceSurface(fileName, stockName="", initStrikeGrid=None,
     strikeGridType="current strike", pricerVariables=None):
     splineParamsDf = pd.read_csv(fileName)
     splineParameters, optionChains = {}, {}
@@ -398,14 +418,20 @@ def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
         logMessage("===================================================================")
         logMessage(["interpolating arbitrage-free price surface on ",date])
         logMessage("===================================================================")
-        if strikeGridType == "current strike":
-            strikeGrid = initStrikeGrid
-        elif strikeGridType == "forward strike":
-            pass
         fmtDate = parseStringDateToFormat(date,"%Y%m%d")
         maturity = bDaysBetween(onDate,date)/252
         optionChains[date] = {}
+        if strikeGridType == "current strike": # fixed strikes over all maturities
+            strikeGrid = initStrikeGrid
+        elif strikeGridType == "forward strike": # later strikes adjusted with driftFactor
+            r,q = pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+            strikeGrid = initStrikeGrid*np.exp((r-q)*maturity)
+        elif strikeGridType == "log moneyness": # fixed log-moneyness over all maturities
+            S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+            fwdPrice = S*np.exp((r-q)*maturity)
+            strikeGrid = fwdPrice*np.exp(initStrikeGrid)
         for putCall in ["puts","calls"]:
+            if strikeGrid is None: strikeGrid = splineParameters[date][putCall]['u']
             pc = 'P' if putCall=="puts" else 'C'
             contractNames = ["ARB_%s%s%s%08d"%(stockName,fmtDate,pc,1e3*strike) for strike in strikeGrid]
             arbFreePrices = [interpolatePrice(strike,maturity,putCall,splineParameters) for strike in strikeGrid]
@@ -417,7 +443,7 @@ def interpolatePriceSurface(fileName, initStrikeGrid, stockName="",
 
     return optionChains
 
-def calibrateRiskNeutralDistribution(fileName, initStrikeGrid=None, stockName="",
+def calibrateRiskNeutralDistribution(fileName, stockName="", initStrikeGrid=None,
     strikeGridType="current strike", pricerVariables=None):
     riskFreeRate = 0
     if pricerVariables: riskFreeRate = pricerVariables["riskFreeRate"]
@@ -441,13 +467,18 @@ def calibrateRiskNeutralDistribution(fileName, initStrikeGrid=None, stockName=""
         logMessage("===================================================================")
         logMessage(["calibrating risk-neutral distribution on ",date])
         logMessage("===================================================================")
-        if strikeGridType == "current strike":
-            strikeGrid = initStrikeGrid
-        elif strikeGridType == "forward strike":
-            pass
         fmtDate = parseStringDateToFormat(date,"%Y%m%d")
         maturity = bDaysBetween(onDate,date)/252
         riskNeutralDists[date] = {}
+        if strikeGridType == "current strike": # fixed strikes over all maturities
+            strikeGrid = initStrikeGrid
+        elif strikeGridType == "forward strike": # later strikes adjusted with driftFactor
+            r,q = pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+            strikeGrid = initStrikeGrid*np.exp((r-q)*maturity)
+        elif strikeGridType == "log moneyness": # fixed log-moneyness over all maturities
+            S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
+            fwdPrice = S*np.exp((r-q)*maturity)
+            strikeGrid = fwdPrice*np.exp(initStrikeGrid)
         for putCall in ["puts","calls"]:
             if strikeGrid is None: strikeGrid = splineParameters[date][putCall]['u']
             pc = 'P' if putCall=="puts" else 'C'
@@ -510,10 +541,36 @@ def test_arbitrageFreeSmoothing():
 
 def test_plotImpliedVolSurface():
     stock = "SPY"
+    pricerVariables = {
+        'stockName': 'SPY',
+        'currentPrice': 468.8900146484375,
+        'riskFreeRate': 0.031668539893479,
+        'dividendYield': 0.013000000000000001
+    }
     plotImpliedVolSurface(stock,
         dataFolder+"option_vol.csv",
         plotFolder+"option_vol_%s_"+
             stock+"_"+onDate+".png",
+        strikeGridType="log moneyness",
+        zaxisType="total vol",
+        pricerVariables=pricerVariables,
+        smooth=False,plot="scatter")
+
+def test_plotImpliedVolCurves():
+    stock = "SPY"
+    pricerVariables = {
+        'stockName': 'SPY',
+        'currentPrice': 468.8900146484375,
+        'riskFreeRate': 0.031668539893479,
+        'dividendYield': 0.013000000000000001
+    }
+    plotImpliedVolCurves(stock,
+        dataFolder+"option_vol.csv",
+        plotFolder+"option_vol_%s_"+
+            stock+"_"+onDate+".png",
+        strikeGridType="log moneyness",
+        zaxisType="total vol",
+        pricerVariables=pricerVariables,
         smooth=False,plot="scatter")
 
 def test_interpolatePriceSurface():
@@ -524,8 +581,11 @@ def test_interpolatePriceSurface():
         'riskFreeRate': 0.031668539893479,
         'dividendYield': 0.013000000000000001
     }
-    initStrikeGrid = np.arange(400,600,2)
-    optionChains = interpolatePriceSurface(dataFolder+"spline_params.csv",initStrikeGrid,stockName=stock)
+    # initStrikeGrid = np.arange(400,600,2)
+    # optionChains = interpolatePriceSurface(dataFolder+"spline_params.csv",stock,initStrikeGrid)
+    initStrikeGrid = np.arange(-0.2,0.2,0.01)
+    optionChains = interpolatePriceSurface(dataFolder+"spline_params.csv",stock,initStrikeGrid,
+        strikeGridType="log moneyness",pricerVariables=pricerVariables)
     printPricerVariablesToCsvFile(dataFolder+"pricer_var.csv",pricerVariables)
     printOptionChainsToCsvFile(dataFolder+"option_data.csv",optionChains,"arb-free")
     callExecutable("./"+
@@ -535,6 +595,9 @@ def test_interpolatePriceSurface():
         dataFolder+"option_vol.csv",
         plotFolder+"option_vol_%s_"+
             stock+"_"+onDate+".png",
+        strikeGridType="log moneyness",
+        zaxisType="total vol",
+        pricerVariables=pricerVariables,
         smooth=False,plot="scatter")
 
 def test_calibrateRiskNeutralDistribution():
@@ -547,9 +610,9 @@ def test_calibrateRiskNeutralDistribution():
     }
     # initStrikeGrid = np.arange(400,600,2)
     # riskNeutralDists = calibrateRiskNeutralDistribution(dataFolder+"spline_params.csv",
-    #     initStrikeGrid,stockName=stock,pricerVariables=pricerVariables)
+    #     stock,initStrikeGrid,pricerVariables=pricerVariables)
     riskNeutralDists = calibrateRiskNeutralDistribution(dataFolder+"spline_params.csv",
-        stockName=stock,pricerVariables=pricerVariables)
+        stock,pricerVariables=pricerVariables)
     optionDates = list(riskNeutralDists.keys())
     for date in optionDates:
         fmtDate = parseStringDateToFormat(date,"%Y%m%d")
@@ -577,6 +640,7 @@ if __name__ == "__main__":
     # main()
     # test_rawDownload()
     # test_plotImpliedVolSurface()
+    test_plotImpliedVolCurves()
     # test_arbitrageFreeSmoothing()
     # test_interpolatePriceSurface()
-    test_calibrateRiskNeutralDistribution()
+    # test_calibrateRiskNeutralDistribution()
