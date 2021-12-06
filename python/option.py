@@ -13,9 +13,9 @@ plt.switch_backend("Agg")
 
 LOG = True
 
-onDate = "2021-11-19"
-# onDate = getPrevBDay()
-maxMaturity = "2022-12-31"
+# onDate = "2021-12-03"
+onDate = getPrevBDay()
+maxMaturity = "2022-01-31"
 stockList = ["SPY"]
 # stockList = stock_info.tickers_dow()
 
@@ -70,6 +70,22 @@ def printOptionChainsToCsvFile(fileName, optionChains, optionPriceType="mid"):
                 file.write("%s,European,%s,%.10f,%.10f,%.10f\n"%
                     (name,type,strike,maturity,price))
     file.close()
+
+def downloadOptionChainsToCsvFile(fileName, stock):
+    optionDates = options.get_expiration_dates(stock)
+    if maxMaturity: optionDates = [date for date in optionDates if bDaysBetween(date,maxMaturity)>0]
+    optionChains = []
+    for date in optionDates:
+        chainPC = options.get_options_chain(stock,date)
+        for putCall in ["puts","calls"]:
+            chain = chainPC[putCall]
+            chain["Maturity"] = date
+            chain["Put/Call"] = putCall
+            chain = chain[["Maturity","Put/Call","Contract Name","Last Trade Date","Strike","Last Price","Bid","Ask","Change","% Change","Volume","Open Interest","Implied Volatility"]]
+            optionChains.append(chain)
+    optionChains = pd.concat(optionChains)
+    optionChains.to_csv(fileName, index=False)
+    return optionChains
 
 def arbitrageFreeSmoothing(fileName, optionChains, pricerVariables, weightType="uniform", penalty=1e-7, verbose=False):
     S,r,q = pricerVariables["currentPrice"],pricerVariables["riskFreeRate"],pricerVariables["dividendYield"]
