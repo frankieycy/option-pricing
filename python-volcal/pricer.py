@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.integrate import quad
+from scipy.interpolate import splrep, splev, pchip
 plt.switch_backend("Agg")
 
 def BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impliedVol):
@@ -83,3 +84,101 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol):
         C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
         return np.exp(C*meanVol+D*currentVol)
     return charFunc
+
+def plotImpliedVol(df, figname=None, ncol=6):
+    if not figname:
+        figname = "impliedvol.png"
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+    nrow = int(np.ceil(Nexp/ncol))
+    fig, ax = plt.subplots(nrow,ncol,figsize=(15,10))
+    for i in range(nrow*ncol):
+        ix,iy = i//ncol,i%ncol
+        if i < Nexp:
+            T = Texp[i]
+            dfT = df[df["Texp"]==T]
+            k = np.log(dfT["Strike"]/dfT["Fwd"])
+            bid = dfT["Bid"]
+            ask = dfT["Ask"]
+            ax[ix,iy].scatter(k,bid,c='r',s=5)
+            ax[ix,iy].scatter(k,ask,c='b',s=5)
+            ax[ix,iy].set_title(rf"$T={np.round(T,3)}$")
+            ax[ix,iy].set_xlabel("log-strike")
+            ax[ix,iy].set_ylabel("implied vol")
+        else:
+            ax[ix,iy].axis("off")
+    fig.tight_layout()
+    plt.savefig(figname)
+    plt.close()
+
+def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
+    logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    d2 = -logStrike/totalImpVol-totalImpVol/2
+    y = norm.cdf(d2)
+    ord = np.argsort(y)
+    ymin,ymax = np.min(y),np.max(y)
+    y,d2,logStrike,totalImpVol = y[ord],d2[ord],logStrike[ord],totalImpVol[ord]
+
+    if showPlot:
+        yint = np.linspace(ymin,ymax,200)
+        fig = plt.figure(figsize=(6,4))
+        plt.scatter(y, totalImpVol, c='k', s=5)
+        plt.title(rf"$T={np.round(maturity,3)}$")
+        plt.xlabel("$y=N(d_2)$")
+        plt.ylabel("total implied vol")
+        fig.tight_layout()
+        plt.savefig("test_totalImpVolVsY.png")
+        plt.close()
+
+    # tck = splrep(y, totalImpVol**2, s=0)
+    # intTotalImpVar = lambda x: splev(x, tck, der=0)
+    pch = pchip(y, totalImpVol**2)
+    intTotalImpVar = lambda x: pch(x)
+
+    areaMid = quad(intTotalImpVar, ymin, ymax, limit=1000)[0]
+    areaMin = totalImpVol[0]**2*norm.cdf(d2[0])
+    areaMax = totalImpVol[-1]**2*norm.cdf(-d2[-1])
+    price = areaMin + areaMid + areaMax
+    return price
+
+def GammaSwapFormula(logStrike, maturity, impliedVol):
+    logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    d1 = -logStrike/totalImpVol+totalImpVol/2
+    y = norm.cdf(d1)
+    ord = np.argsort(y)
+    ymin,ymax = np.min(y),np.max(y)
+    y,d1,logStrike,totalImpVol = y[ord],d1[ord],logStrike[ord],totalImpVol[ord]
+
+    # tck = splrep(y, totalImpVol**2, s=0)
+    # intTotalImpVar = lambda x: splev(x, tck, der=0)
+    pch = pchip(y, totalImpVol**2)
+    intTotalImpVar = lambda x: pch(x)
+
+    areaMid = quad(intTotalImpVar, ymin, ymax, limit=1000)[0]
+    areaMin = totalImpVol[0]**2*norm.cdf(d1[0])
+    areaMax = totalImpVol[-1]**2*norm.cdf(-d1[-1])
+    price = areaMin + areaMid + areaMax
+    return price
+
+def LeverageSwapFormula(logStrike, impliedVol):
+    return GammaSwapFormula(logStrike, impliedVol) - VarianceSwapFormula(logStrike, impliedVol)
+
+def calcSwapCurve(df, swapFormula):
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+    curve = {c: list() for c in ["bid","mid","ask"]}
+    for T in Texp:
+        dfT = df[df["Texp"]==T]
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        bid = dfT["Bid"]
+        ask = dfT["Ask"]
+        mid = (bid+ask)/2
+        curve["bid"].append(swapFormula(k,T,bid)/T)
+        curve["mid"].append(swapFormula(k,T,mid)/T)
+        curve["ask"].append(swapFormula(k,T,ask)/T)
+    curve = pd.DataFrame(curve)
+    curve["Texp"] = Texp
+    curve = curve[["Texp","bid","mid","ask"]]
+    return curve
