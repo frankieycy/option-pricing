@@ -7,6 +7,7 @@ from scipy.interpolate import splrep, splev, pchip
 plt.switch_backend("Agg")
 
 def BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impliedVol):
+    # Black Scholes formula for call
     logMoneyness = np.log(currentPrice/strike)+riskFreeRate*maturity
     totalImpVol = impliedVol*np.sqrt(maturity)
     riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
@@ -16,6 +17,7 @@ def BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, implie
     return price
 
 def BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, impliedVol):
+    # Black Scholes formula for put
     logMoneyness = np.log(currentPrice/strike)+riskFreeRate*maturity
     totalImpVol = impliedVol*np.sqrt(maturity)
     riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
@@ -25,6 +27,7 @@ def BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, implied
     return price
 
 def BlackScholesImpliedVolCall(currentPrice, strike, maturity, riskFreeRate, price):
+    # Black Scholes implied volatility for call
     nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
     impVol0 = np.repeat(1e-10, nStrikes)
     impVol1 = np.repeat(10., nStrikes)
@@ -40,6 +43,7 @@ def BlackScholesImpliedVolCall(currentPrice, strike, maturity, riskFreeRate, pri
     return impVol2
 
 def BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, price):
+    # Black Scholes implied volatility for put
     nStrikes = len(strike) if isinstance(strike, np.ndarray) or isinstance(strike, list) else 1
     impVol0 = np.repeat(1e-10, nStrikes)
     impVol1 = np.repeat(10., nStrikes)
@@ -55,23 +59,27 @@ def BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, pric
     return impVol2
 
 def BlackScholesImpliedVolOTM(currentPrice, strike, maturity, riskFreeRate, price):
+    # Black Scholes implied volatility for OTM option
     forwardPrice = currentPrice*np.exp(riskFreeRate*maturity)
     impVol = BlackScholesImpliedVolCall(currentPrice, strike, maturity, riskFreeRate, price) if strike > forwardPrice else \
         BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, price)
     return impVol
 
 def LewisFormulaOTM(charFunc, logStrike, maturity):
+    # Lewis formula for OTM option
     integrand = lambda u: (np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25)).real
     logStrikeMinus = (logStrike<0)*logStrike
     price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
 def CharFuncImpliedVol(charFunc):
+    # Implied volatility for OTM option priced with charFunc
     def impVolFunc(logStrike, maturity):
         return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, 0, LewisFormulaOTM(charFunc, logStrike, maturity))
     return impVolFunc
 
 def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol):
+    # Characteristic function for Heston model
     def charFunc(u, maturity):
         alpha = -u**2/2-1j*u/2
         beta = meanRevRate-correlation*volOfVol*1j*u
@@ -86,6 +94,7 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol):
     return charFunc
 
 def plotImpliedVol(df, figname=None, ncol=6):
+    # Plot bid-ask implied volatilities based on df
     if not figname:
         figname = "impliedvol.png"
     Texp = df["Texp"].unique()
@@ -112,6 +121,7 @@ def plotImpliedVol(df, figname=None, ncol=6):
     plt.close()
 
 def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
+    # Fukasawa robust variance swap formula
     logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
     totalImpVol = impliedVol*np.sqrt(maturity)
     d2 = -logStrike/totalImpVol-totalImpVol/2
@@ -143,6 +153,7 @@ def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
     return price
 
 def GammaSwapFormula(logStrike, maturity, impliedVol):
+    # Fukasawa robust gamma swap formula
     logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
     totalImpVol = impliedVol*np.sqrt(maturity)
     d1 = -logStrike/totalImpVol+totalImpVol/2
@@ -162,10 +173,12 @@ def GammaSwapFormula(logStrike, maturity, impliedVol):
     price = areaMin + areaMid + areaMax
     return price
 
-def LeverageSwapFormula(logStrike, impliedVol):
-    return GammaSwapFormula(logStrike, impliedVol) - VarianceSwapFormula(logStrike, impliedVol)
+def LeverageSwapFormula(logStrike, maturity, impliedVol):
+    # Fukasawa robust leverage swap formula
+    return GammaSwapFormula(logStrike, maturity, impliedVol) - VarianceSwapFormula(logStrike, maturity, impliedVol)
 
 def calcSwapCurve(df, swapFormula):
+    # Calculate swap curves based on implied volatilities in df
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
     curve = {c: list() for c in ["bid","mid","ask"]}
@@ -182,3 +195,24 @@ def calcSwapCurve(df, swapFormula):
     curve["Texp"] = Texp
     curve = curve[["Texp","bid","mid","ask"]]
     return curve
+
+def calcFwdVarCurve(curveVS):
+    # Calculate forward variance curve based on VS curve
+    Texp = curveVS["Texp"]
+    diffTexp = curveVS["Texp"].diff()
+    price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
+    curve = price.diff()
+    curve = curve.div(diffTexp,axis=0)
+    curve.iloc[0] = price.iloc[0]/Texp.iloc[0]
+    curve["Texp"] = Texp
+    curve = curve[["Texp","bid","mid","ask"]]
+    return curve
+
+def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
+    # Smooth out forward variance curve
+    Texp = maturity
+    Nexp = len(Texp)
+    curveFunc = None
+    if fitType == "const":
+        curveFunc = lambda t: fwdVar[min(sum(Texp<t),Nexp-1)]
+    return curveFunc
