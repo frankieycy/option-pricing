@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from scipy.fftpack import fft
 from scipy.integrate import quad
-from scipy.interpolate import splrep, splev, pchip
+from scipy.interpolate import splrep, splev, pchip, interp1d
 plt.switch_backend("Agg")
 
 def BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impliedVol):
@@ -67,18 +68,36 @@ def BlackScholesImpliedVolOTM(currentPrice, strike, maturity, riskFreeRate, pric
 
 def LewisFormulaOTM(charFunc, logStrike, maturity):
     # Lewis formula for OTM option
-    integrand = lambda u: (np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25)).real
+    integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
     logStrikeMinus = (logStrike<0)*logStrike
     price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
-def CharFuncImpliedVol(charFunc):
+def LewisFFTFormulaOTM(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
+    # Lewis FFT formula for OTM option
+    du = B/N
+    u = np.arange(N)*du
+    w = np.arange(N)
+    w = 3+(-1)**(w+1)
+    w[0] = 1; w[N-1] = 1
+    dk = 2*np.pi/B
+    b = N*dk/2
+    k = -b+np.arange(N)*dk
+    I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
+    Ifft = np.real(fft(I))
+    spline = interp1d(k, Ifft, kind=interp)
+    logStrikeMinus = (logStrike<0)*logStrike
+    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * spline(logStrike)
+    return price
+
+def CharFuncImpliedVol(charFunc, FFT=False):
     # Implied volatility for OTM option priced with charFunc
+    LewisFormula = LewisFFTFormulaOTM if FFT else LewisFormulaOTM
     def impVolFunc(logStrike, maturity):
-        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, 0, LewisFormulaOTM(charFunc, logStrike, maturity))
+        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, 0, LewisFormula(charFunc, logStrike, maturity))
     return impVolFunc
 
-def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol):
+def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol, riskFreeRate=0):
     # Characteristic function for Heston model
     def charFunc(u, maturity):
         alpha = -u**2/2-1j*u/2
@@ -90,7 +109,19 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol):
         g = rm/rp
         D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
         C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-        return np.exp(C*meanVol+D*currentVol)
+        return np.exp(1j*u*riskFreeRate*maturity+C*meanVol+D*currentVol)
+    return charFunc
+
+def MertonJumpCharFunc():
+    # Characteristic function for Merton-Jump model
+    def charFunc(u, maturity):
+        pass
+    return charFunc
+
+def VarianceGammaCharFunc():
+    # Characteristic function for Variance-Gamma model
+    def charFunc(u, maturity):
+        pass
     return charFunc
 
 def plotImpliedVol(df, figname=None, ncol=6):
