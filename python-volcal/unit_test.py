@@ -127,6 +127,19 @@ def test_calcFwdVarCurve():
     plt.savefig("test_FwdVarCurve.png")
     plt.close()
 
+def test_HestonFFT():
+    vol = lambda logStrikes: np.array([CharFuncImpliedVol(HestonCharFunc(**paramsBCC),True)(k,1) for k in logStrikes]).reshape(-1)
+    k = np.arange(-0.4,0.4,0.02)
+    iv = vol(k)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("Heston 1-Year Smile (BCC Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig("test_HestonSmileBCC_FFT.png")
+    plt.close()
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_HestonSmile()
@@ -135,4 +148,5 @@ if __name__ == '__main__':
     # test_VarianceSwapFormula()
     # test_calcSwapCurve()
     # test_LevSwapCurve()
-    test_calcFwdVarCurve()
+    # test_calcFwdVarCurve()
+    test_HestonFFT()
