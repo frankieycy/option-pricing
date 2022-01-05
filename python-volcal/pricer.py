@@ -41,6 +41,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
 
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM"):
     # Lewis formula for call/put/OTM
+    # Works for scalar logStrike only
     if optionType == "call": k0 = 0
     elif optionType == "put": k0 = logStrike
     elif optionType == "OTM": k0 = (logStrike<0)*logStrike
@@ -70,13 +71,13 @@ def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cub
 def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False):
     # Implied volatility for call/put/OTM priced with charFunc
     formula = LewisFormulaFFT if FFT else LewisFormula
-    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
+    def impVolFunc(logStrike, maturity):
         return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType), optionType)
     return impVolFunc
 
 def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc, based on Lewis formula
-    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
+    def impVolFunc(logStrike, maturity):
         def objective(vol):
             integrand = lambda u:  np.real(np.exp(-1j*u*logStrike) * (charFunc(u-1j/2, maturity) - BlackScholesCharFunc(vol, riskFreeRate)(u-1j/2, maturity)) / (u**2+.25))
             return quad(integrand, 0, np.inf)[0]
@@ -90,7 +91,7 @@ def BlackScholesCharFunc(vol, riskFreeRate=0):
         return np.exp(1j*u*riskFreeRate*maturity-vol**2*maturity/2*u*(u+1j))
     return charFunc
 
-def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol, riskFreeRate=0):
+def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0):
     # Characteristic function for Heston model
     def charFunc(u, maturity):
         alpha = -u**2/2-1j*u/2
@@ -102,7 +103,7 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVol, currentVol, risk
         g = rm/rp
         D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
         C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-        return np.exp(1j*u*riskFreeRate*maturity+C*meanVol+D*currentVol)
+        return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
     return charFunc
 
 def MertonJumpCharFunc():
@@ -124,8 +125,8 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
-        price = lambda logStrikes: np.array([LewisFormulaFFT(charFunc, k, maturity, optionType) for k in logStrikes])
-        loss = np.sum(w*(price(logStrike)-optionPrice)**2)
+        price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType)
+        loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
