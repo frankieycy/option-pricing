@@ -49,7 +49,7 @@ def LewisFormula(charFunc, logStrike, maturity, optionType="OTM"):
     price = np.exp(k0) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
-def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=200):
+def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000):
     # Lewis FFT formula for call/put/OTM
     du = B/N
     u = np.arange(N)*du
@@ -106,10 +106,10 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, risk
         return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
     return charFunc
 
-def MertonJumpCharFunc():
+def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
     # Characteristic function for Merton-Jump model
     def charFunc(u, maturity):
-        pass
+        return np.exp(1j*u*riskFreeRate*maturity-vol**2*maturity/2*u*(u+1j)-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
 
 def VarianceGammaCharFunc():
@@ -140,25 +140,28 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
     nrow = int(np.ceil(Nexp/ncol))
+    ncol = min(len(Texp),6)
     fig, ax = plt.subplots(nrow,ncol,figsize=(15,10))
     for i in range(nrow*ncol):
         ix,iy = i//ncol,i%ncol
+        idx = (ix,iy) if nrow*ncol>6 else iy
+        ax_idx = ax[idx] if ncol>1 else ax
         if i < Nexp:
             T = Texp[i]
             dfT = df[df["Texp"]==T]
             k = np.log(dfT["Strike"]/dfT["Fwd"])
             bid = dfT["Bid"]
             ask = dfT["Ask"]
-            ax[ix,iy].scatter(k,bid,c='r',s=5)
-            ax[ix,iy].scatter(k,ask,c='b',s=5)
+            ax_idx.scatter(k,bid,c='r',s=5)
+            ax_idx.scatter(k,ask,c='b',s=5)
             if "Fit" in dfT:
                 fit = dfT["Fit"]
-                ax[ix,iy].scatter(k,fit,c='k',s=5)
-            ax[ix,iy].set_title(rf"$T={np.round(T,3)}$")
-            ax[ix,iy].set_xlabel("log-strike")
-            ax[ix,iy].set_ylabel("implied vol")
+                ax_idx.scatter(k,fit,c='k',s=5)
+            ax_idx.set_title(rf"$T={np.round(T,3)}$")
+            ax_idx.set_xlabel("log-strike")
+            ax_idx.set_ylabel("implied vol")
         else:
-            ax[ix,iy].axis("off")
+            ax_idx.axis("off")
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
