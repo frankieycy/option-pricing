@@ -29,9 +29,9 @@
 * (app.py) visualization of implied vol surface in table format
 * (app.py) visualization of Greeks vs strike
 
-## To-Do List (2021 Fall)
+## To-Do List (2021 Fall - 2022 Spring)
 
 * ok, implement arb-free price surface smoothing (Fengler)
-* interpolate price surface via splines, calibrate IVS
+* ok, interpolate price surface via splines, calibrate IVS
 * back out local vol from IVS
-* calibrate stochastic vol models (e.g. Heston)
+* calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)

@@ -12,8 +12,8 @@ paramsBnd = ((0,10), (-1,1), (0,10), (0.01,1), (0,1))
 def test_BlackScholesImpVol():
     vol = np.array([0.23,0.20,0.18])
     strike = np.array([0.9,1.0,1.1])
-    price = BlackScholesFormulaCall(1,strike,1,0,vol)
-    impVol = BlackScholesImpliedVolCall(1,strike,1,0,price)
+    price = BlackScholesFormula(1,strike,1,0,vol,"call")
+    impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call")
     print(impVol)
 
 def test_HestonSmile():
@@ -52,10 +52,10 @@ def test_HestonSmileSensitivity():
         plt.savefig(f"test_HestonSmileBCC_{png[j]}.png")
         plt.close()
 
-def test_plotImpliedVol():
+def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
-    plotImpliedVol(df, "test_impliedvol.png")
+    PlotImpliedVol(df, "test_impliedvol.png")
 
 def test_VarianceSwapFormula():
     df = pd.read_csv("spxVols20170424.csv")
@@ -70,12 +70,12 @@ def test_VarianceSwapFormula():
     price = VarianceSwapFormula(k,T,mid,showPlot=True)/T
     print(price)
 
-def test_calcSwapCurve():
+def test_CalcSwapCurve():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
-    curveVS = calcSwapCurve(df,VarianceSwapFormula)
-    curveGS = calcSwapCurve(df,GammaSwapFormula)
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveGS = CalcSwapCurve(df,GammaSwapFormula)
     vsMid = curveVS["mid"]
     gsMid = curveGS["mid"]
     print(curveVS)
@@ -97,7 +97,7 @@ def test_LevSwapCurve():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
-    curveLS = calcSwapCurve(df,LeverageSwapFormula)
+    curveLS = CalcSwapCurve(df,LeverageSwapFormula)
     lsMid = curveLS["mid"]
     print(curveLS)
     fig = plt.figure(figsize=(6,4))
@@ -110,12 +110,12 @@ def test_LevSwapCurve():
     plt.savefig("test_LevSwapCurve.png")
     plt.close()
 
-def test_calcFwdVarCurve():
+def test_CalcFwdVarCurve():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
-    curveVS = calcSwapCurve(df,VarianceSwapFormula)
-    curveFV = calcFwdVarCurve(curveVS)
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveFV = CalcFwdVarCurve(curveVS)
     fvMid = curveFV["mid"]
     fvFunc = FwdVarCurveFunc(Texp,fvMid)
     T = np.linspace(0,5,500)
@@ -144,7 +144,7 @@ def test_HestonFFT():
     plt.close()
 
 def test_HestonSmileLewis():
-    vol = lambda logStrikes: np.array([CharFuncImpliedVolLewis(HestonCharFunc(**paramsBCC))(k,1) for k in logStrikes]).reshape(-1)
+    vol = lambda logStrikes: np.array([LewisCharFuncImpliedVol(HestonCharFunc(**paramsBCC))(k,1) for k in logStrikes]).reshape(-1)
     k = np.arange(-0.4,0.4,0.02)
     iv = vol(k)
     fig = plt.figure(figsize=(6,4))
@@ -156,7 +156,7 @@ def test_HestonSmileLewis():
     plt.savefig("test_HestonSmileBCC_Lewis.png")
     plt.close()
 
-def test_calibrateModelToCallPrice():
+def test_CalibrateModelToCallPrice():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -166,7 +166,7 @@ def test_calibrateModelToCallPrice():
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
         w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
-        x = calibrateModelToCallPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBnd,w=w)
+        x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBnd,w=w,optionType="call")
         xT.append([T]+x.tolist())
         print(f"T={np.round(T,3)}", x)
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsBCCkey)
@@ -188,18 +188,18 @@ def test_ImpVolFromHestonCalibration():
         dfT["Fit"] = iv
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    plotImpliedVol(dfnew, "test_HestonImpliedVol.png")
+    PlotImpliedVol(dfnew, "test_HestonImpliedVol.png")
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_HestonSmile()
     # test_HestonSmileSensitivity()
-    # test_plotImpliedVol()
+    # test_PlotImpliedVol()
     # test_VarianceSwapFormula()
-    # test_calcSwapCurve()
+    # test_CalcSwapCurve()
     # test_LevSwapCurve()
-    # test_calcFwdVarCurve()
+    # test_CalcFwdVarCurve()
     # test_HestonFFT()
     # test_HestonSmileLewis()
-    # test_calibrateModelToCallPrice()
+    # test_CalibrateModelToCallPrice()
     test_ImpVolFromHestonCalibration()

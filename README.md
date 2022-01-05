@@ -1,6 +1,6 @@
 ## Option Pricing Library
 
-* last update: 211119
+* last update: 220104
 * C++ option pricing library that implements the classical models
 
 ## Single-Asset Option Pricing Examples
@@ -160,3 +160,7 @@ Asset prices may admit dynamics other than the usual constant vol drift-diffusio
 ## Arbitrage-free Smoothing of Price Surface (Fengler)
 ## Backing out Local Vol from Implied Vol
 ## Calibration of Stochastic Vol Models
+##### Heston Model
+##### Merton Jump-Diffusion Model
+##### Variance-Gamma Model
+##### Rough-Heston Model
