@@ -7,7 +7,7 @@ plt.switch_backend("Agg")
 paramsBCC = {"meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVol": 0.04, "currentVol": 0.04}
 paramsBCCkey = list(paramsBCC.keys())
 paramsBCCval = list(paramsBCC.values())
-paramsBnd = ((0,10), (-1,1), (0,1), (0,1), (0,1))
+paramsBnd = ((0,10), (-1,1), (0,10), (0.01,1), (0,1))
 
 def test_BlackScholesImpVol():
     vol = np.array([0.23,0.20,0.18])
@@ -160,14 +160,13 @@ def test_calibrateModelToCallPrice():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
-    params0 = paramsBCCval
     xT = list()
     for T in Texp:
         dfT = df[df["Texp"]==T]
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
-        x = calibrateModelToCallPrice(k,T,mid,HestonCharFunc,params0,paramsBCCkey,bounds=paramsBnd)
-        params0 = x.tolist()
+        w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
+        x = calibrateModelToCallPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBnd,w=w)
         xT.append([T]+x.tolist())
         print(f"T={np.round(T,3)}", x)
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsBCCkey)

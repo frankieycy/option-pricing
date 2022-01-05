@@ -67,13 +67,6 @@ def BlackScholesImpliedVolOTM(currentPrice, strike, maturity, riskFreeRate, pric
         BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, price)
     return impVol
 
-def LewisFormulaOTM(charFunc, logStrike, maturity):
-    # Lewis formula for OTM option
-    integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
-    logStrikeMinus = (logStrike<0)*logStrike
-    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
-    return price
-
 def LewisFormulaCall(charFunc, logStrike, maturity):
     # Lewis formula for call option
     integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
@@ -86,21 +79,11 @@ def LewisFormulaPut(charFunc, logStrike, maturity):
     price = np.exp(logStrike) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
-def LewisFFTFormulaOTM(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
-    # Lewis FFT formula for OTM option
-    du = B/N
-    u = np.arange(N)*du
-    w = np.arange(N)
-    w = 3+(-1)**(w+1)
-    w[0] = 1; w[N-1] = 1
-    dk = 2*np.pi/B
-    b = N*dk/2
-    k = -b+np.arange(N)*dk
-    I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
-    Ifft = np.real(fft(I))
-    spline = interp1d(k, Ifft, kind=interp)
+def LewisFormulaOTM(charFunc, logStrike, maturity):
+    # Lewis formula for OTM option
+    integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
     logStrikeMinus = (logStrike<0)*logStrike
-    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * spline(logStrike)
+    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
 def LewisFFTFormulaCall(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
@@ -135,12 +118,22 @@ def LewisFFTFormulaPut(charFunc, logStrike, maturity, interp="cubic", N=2**12, B
     price = np.exp(logStrike) - np.exp(logStrike/2)/np.pi * spline(logStrike)
     return price
 
-def CharFuncImpliedVol(charFunc, riskFreeRate=0, FFT=False):
-    # Implied volatility for OTM option priced with charFunc
-    LewisFormula = LewisFFTFormulaOTM if FFT else LewisFormulaOTM
-    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
-        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
-    return impVolFunc
+def LewisFFTFormulaOTM(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
+    # Lewis FFT formula for OTM option
+    du = B/N
+    u = np.arange(N)*du
+    w = np.arange(N)
+    w = 3+(-1)**(w+1)
+    w[0] = 1; w[N-1] = 1
+    dk = 2*np.pi/B
+    b = N*dk/2
+    k = -b+np.arange(N)*dk
+    I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
+    Ifft = np.real(fft(I))
+    spline = interp1d(k, Ifft, kind=interp)
+    logStrikeMinus = (logStrike<0)*logStrike
+    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * spline(logStrike)
+    return price
 
 def CharFuncImpliedVolCall(charFunc, riskFreeRate=0, FFT=False):
     # Implied volatility for call option priced with charFunc
@@ -152,6 +145,13 @@ def CharFuncImpliedVolCall(charFunc, riskFreeRate=0, FFT=False):
 def CharFuncImpliedVolPut(charFunc, riskFreeRate=0, FFT=False):
     # Implied volatility for put option priced with charFunc
     LewisFormula = LewisFFTFormulaPut if FFT else LewisFormulaPut
+    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
+        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
+    return impVolFunc
+
+def CharFuncImpliedVol(charFunc, riskFreeRate=0, FFT=False):
+    # Implied volatility for OTM option priced with charFunc
+    LewisFormula = LewisFFTFormulaOTM if FFT else LewisFormulaOTM
     def impVolFunc(logStrike, maturity): # works for scalar logStrike only
         return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
     return impVolFunc
@@ -199,6 +199,21 @@ def VarianceGammaCharFunc():
         pass
     return charFunc
 
+def calibrateModelToCallPrice(logStrike, maturity, callPrice, model, params0, paramsLabel, bounds=None, w=None):
+    # Calibrate model params to call option prices (pricing measure)
+    if w is None: w = 1
+    riskFreeRate = params0["riskFreeRate"] if "riskFreeRate" in params0 else 0
+    def objective(params):
+        params = {paramsLabel[i]: params[i] for i in range(len(params))}
+        charFunc = model(**params)
+        price = lambda logStrikes: np.array([LewisFFTFormulaCall(charFunc, k, maturity) for k in logStrikes])
+        loss = np.sum(w*(price(logStrike)-callPrice)**2)
+        print(f"loss: {loss}")
+        return loss
+    opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
+    print("Optimization output:", opt, sep="\n")
+    return opt.x
+
 def plotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
     if not figname:
@@ -228,20 +243,6 @@ def plotImpliedVol(df, figname=None, ncol=6):
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
-
-def calibrateModelToCallPrice(logStrike, maturity, callPrice, model, params0, paramsLabel, bounds=None, w=None):
-    if not w: w = 1
-    riskFreeRate = params0["riskFreeRate"] if "riskFreeRate" in params0 else 0
-    def objective(params):
-        params = {paramsLabel[i]: params[i] for i in range(len(params))}
-        charFunc = model(**params)
-        price = lambda logStrikes: np.array([LewisFFTFormulaCall(charFunc, k, maturity) for k in logStrikes])
-        loss = np.sum(w*(price(logStrike)-callPrice)**2)
-        print(f"loss: {loss}")
-        return loss
-    opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
-    print("Optimization output:", opt, sep="\n")
-    return opt.x
 
 def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
     # Fukasawa robust variance swap formula
