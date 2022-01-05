@@ -8,86 +8,48 @@ from scipy.integrate import quad
 from scipy.interpolate import splrep, splev, pchip, interp1d
 plt.switch_backend("Agg")
 
-def BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impliedVol):
-    # Black Scholes formula for call
-    logMoneyness = np.log(currentPrice/strike)+riskFreeRate*maturity
+def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes formula for call/put
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
     totalImpVol = impliedVol*np.sqrt(maturity)
     riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     d2 = d1-totalImpVol
-    price = currentPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2)
+    price = np.where(optionType == "call",
+        spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2),
+        riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
     return price
 
-def BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, impliedVol):
-    # Black Scholes formula for put
-    logMoneyness = np.log(currentPrice/strike)+riskFreeRate*maturity
-    totalImpVol = impliedVol*np.sqrt(maturity)
-    riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
-    d1 = logMoneyness/totalImpVol+totalImpVol/2
-    d2 = d1-totalImpVol
-    price = riskFreeRateFactor * strike * norm.cdf(-d2) - currentPrice * norm.cdf(-d1)
-    return price
-
-def BlackScholesImpliedVolCall(currentPrice, strike, maturity, riskFreeRate, price):
-    # Black Scholes implied volatility for call
+def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM"):
+    # Black Scholes implied volatility for call/put/OTM
+    forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
+    if optionType == "OTM":
+        optionType = np.where(strike > forwardPrice, "call", "put")
     nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
     impVol0 = np.repeat(1e-10, nStrikes)
     impVol1 = np.repeat(10., nStrikes)
-    price0 = BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impVol0)
-    price1 = BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impVol1)
+    price0 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol0, optionType)
+    price1 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol1, optionType)
     while np.mean(impVol1-impVol0) > 1e-10:
-        impVol2 = (impVol0+impVol1)/2
-        price2 = BlackScholesFormulaCall(currentPrice, strike, maturity, riskFreeRate, impVol2)
-        price0 += (price2<price)*(price2-price0)
-        impVol0 += (price2<price)*(impVol2-impVol0)
-        price1 += (price2>=price)*(price2-price1)
-        impVol1 += (price2>=price)*(impVol2-impVol1)
-    return impVol2
-
-def BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, price):
-    # Black Scholes implied volatility for put
-    nStrikes = len(strike) if isinstance(strike, np.ndarray) or isinstance(strike, list) else 1
-    impVol0 = np.repeat(1e-10, nStrikes)
-    impVol1 = np.repeat(10., nStrikes)
-    price0 = BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, impVol0)
-    price1 = BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, impVol1)
-    while np.mean(impVol1-impVol0) > 1e-10:
-        impVol2 = (impVol0+impVol1)/2
-        price2 = BlackScholesFormulaPut(currentPrice, strike, maturity, riskFreeRate, impVol2)
-        price0 += (price2<price)*(price2-price0)
-        impVol0 += (price2<price)*(impVol2-impVol0)
-        price1 += (price2>=price)*(price2-price1)
-        impVol1 += (price2>=price)*(impVol2-impVol1)
-    return impVol2
-
-def BlackScholesImpliedVolOTM(currentPrice, strike, maturity, riskFreeRate, price):
-    # Black Scholes implied volatility for OTM option
-    forwardPrice = currentPrice*np.exp(riskFreeRate*maturity)
-    impVol = BlackScholesImpliedVolCall(currentPrice, strike, maturity, riskFreeRate, price) if strike > forwardPrice else \
-        BlackScholesImpliedVolPut(currentPrice, strike, maturity, riskFreeRate, price)
+        impVol = (impVol0+impVol1)/2
+        price = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
+        price0 += (price<priceMkt)*(price-price0)
+        impVol0 += (price<priceMkt)*(impVol-impVol0)
+        price1 += (price>=priceMkt)*(price-price1)
+        impVol1 += (price>=priceMkt)*(impVol-impVol1)
     return impVol
 
-def LewisFormulaCall(charFunc, logStrike, maturity):
-    # Lewis formula for call option
+def LewisFormula(charFunc, logStrike, maturity, optionType="OTM"):
+    # Lewis formula for call/put/OTM
+    if optionType == "call": k0 = 0
+    elif optionType == "put": k0 = logStrike
+    elif optionType == "OTM": k0 = (logStrike<0)*logStrike
     integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
-    price = 1 - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
+    price = np.exp(k0) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
-def LewisFormulaPut(charFunc, logStrike, maturity):
-    # Lewis formula for put option
-    integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
-    price = np.exp(logStrike) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
-    return price
-
-def LewisFormulaOTM(charFunc, logStrike, maturity):
-    # Lewis formula for OTM option
-    integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * charFunc(u-1j/2, maturity) / (u**2+.25))
-    logStrikeMinus = (logStrike<0)*logStrike
-    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
-    return price
-
-def LewisFFTFormulaCall(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
-    # Lewis FFT formula for call option
+def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=200):
+    # Lewis FFT formula for call/put/OTM
     du = B/N
     u = np.arange(N)*du
     w = np.arange(N)
@@ -99,65 +61,21 @@ def LewisFFTFormulaCall(charFunc, logStrike, maturity, interp="cubic", N=2**12, 
     I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
     Ifft = np.real(fft(I))
     spline = interp1d(k, Ifft, kind=interp)
-    price = 1 - np.exp(logStrike/2)/np.pi * spline(logStrike)
+    if optionType == "call": k0 = 0
+    elif optionType == "put": k0 = logStrike
+    elif optionType == "OTM": k0 = (logStrike<0)*logStrike
+    price = np.exp(k0) - np.exp(logStrike/2)/np.pi * spline(logStrike)
     return price
 
-def LewisFFTFormulaPut(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
-    # Lewis FFT formula for put option
-    du = B/N
-    u = np.arange(N)*du
-    w = np.arange(N)
-    w = 3+(-1)**(w+1)
-    w[0] = 1; w[N-1] = 1
-    dk = 2*np.pi/B
-    b = N*dk/2
-    k = -b+np.arange(N)*dk
-    I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
-    Ifft = np.real(fft(I))
-    spline = interp1d(k, Ifft, kind=interp)
-    price = np.exp(logStrike) - np.exp(logStrike/2)/np.pi * spline(logStrike)
-    return price
-
-def LewisFFTFormulaOTM(charFunc, logStrike, maturity, interp="cubic", N=2**12, B=200):
-    # Lewis FFT formula for OTM option
-    du = B/N
-    u = np.arange(N)*du
-    w = np.arange(N)
-    w = 3+(-1)**(w+1)
-    w[0] = 1; w[N-1] = 1
-    dk = 2*np.pi/B
-    b = N*dk/2
-    k = -b+np.arange(N)*dk
-    I = w * np.exp(1j*b*u) * charFunc(u-1j/2, maturity) / (u**2+0.25) * du/3
-    Ifft = np.real(fft(I))
-    spline = interp1d(k, Ifft, kind=interp)
-    logStrikeMinus = (logStrike<0)*logStrike
-    price = np.exp(logStrikeMinus) - np.exp(logStrike/2)/np.pi * spline(logStrike)
-    return price
-
-def CharFuncImpliedVolCall(charFunc, riskFreeRate=0, FFT=False):
-    # Implied volatility for call option priced with charFunc
-    LewisFormula = LewisFFTFormulaCall if FFT else LewisFormulaCall
+def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False):
+    # Implied volatility for call/put/OTM priced with charFunc
+    formula = LewisFormulaFFT if FFT else LewisFormula
     def impVolFunc(logStrike, maturity): # works for scalar logStrike only
-        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
+        return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType), optionType)
     return impVolFunc
 
-def CharFuncImpliedVolPut(charFunc, riskFreeRate=0, FFT=False):
-    # Implied volatility for put option priced with charFunc
-    LewisFormula = LewisFFTFormulaPut if FFT else LewisFormulaPut
-    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
-        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
-    return impVolFunc
-
-def CharFuncImpliedVol(charFunc, riskFreeRate=0, FFT=False):
-    # Implied volatility for OTM option priced with charFunc
-    LewisFormula = LewisFFTFormulaOTM if FFT else LewisFormulaOTM
-    def impVolFunc(logStrike, maturity): # works for scalar logStrike only
-        return BlackScholesImpliedVolOTM(1, np.exp(logStrike), maturity, riskFreeRate, LewisFormula(charFunc, logStrike, maturity))
-    return impVolFunc
-
-def CharFuncImpliedVolLewis(charFunc, riskFreeRate=0, **kwargs):
-    # Implied volatility for OTM option priced with charFunc, based on Lewis formula
+def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
+    # Implied volatility for call/put/OTM priced with charFunc, based on Lewis formula
     def impVolFunc(logStrike, maturity): # works for scalar logStrike only
         def objective(vol):
             integrand = lambda u:  np.real(np.exp(-1j*u*logStrike) * (charFunc(u-1j/2, maturity) - BlackScholesCharFunc(vol, riskFreeRate)(u-1j/2, maturity)) / (u**2+.25))
@@ -199,22 +117,22 @@ def VarianceGammaCharFunc():
         pass
     return charFunc
 
-def calibrateModelToCallPrice(logStrike, maturity, callPrice, model, params0, paramsLabel, bounds=None, w=None):
-    # Calibrate model params to call option prices (pricing measure)
+def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel, bounds=None, w=None, optionType="call"):
+    # Calibrate model params to option prices (pricing measure)
     if w is None: w = 1
     riskFreeRate = params0["riskFreeRate"] if "riskFreeRate" in params0 else 0
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
-        price = lambda logStrikes: np.array([LewisFFTFormulaCall(charFunc, k, maturity) for k in logStrikes])
-        loss = np.sum(w*(price(logStrike)-callPrice)**2)
+        price = lambda logStrikes: np.array([LewisFormulaFFT(charFunc, k, maturity, optionType) for k in logStrikes])
+        loss = np.sum(w*(price(logStrike)-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
     print("Optimization output:", opt, sep="\n")
     return opt.x
 
-def plotImpliedVol(df, figname=None, ncol=6):
+def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
     if not figname:
         figname = "impliedvol.png"
@@ -301,7 +219,7 @@ def LeverageSwapFormula(logStrike, maturity, impliedVol):
     # Fukasawa robust leverage swap formula
     return GammaSwapFormula(logStrike, maturity, impliedVol) - VarianceSwapFormula(logStrike, maturity, impliedVol)
 
-def calcSwapCurve(df, swapFormula):
+def CalcSwapCurve(df, swapFormula):
     # Calculate swap curves based on implied volatilities in df
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
@@ -320,7 +238,7 @@ def calcSwapCurve(df, swapFormula):
     curve = curve[["Texp","bid","mid","ask"]]
     return curve
 
-def calcFwdVarCurve(curveVS):
+def CalcFwdVarCurve(curveVS):
     # Calculate forward variance curve based on VS curve
     Texp = curveVS["Texp"]
     diffTexp = curveVS["Texp"].diff()
