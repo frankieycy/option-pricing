@@ -4,10 +4,12 @@ import matplotlib.pyplot as plt
 from pricer import *
 plt.switch_backend("Agg")
 
-paramsBCC = {"meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVol": 0.04, "currentVol": 0.04}
+paramsBCC = {"meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVar": 0.04, "currentVar": 0.04}
 paramsBCCkey = list(paramsBCC.keys())
 paramsBCCval = list(paramsBCC.values())
 paramsBnd = ((0,10), (-1,1), (0,10), (0.01,1), (0,1))
+
+dataFolder = "test/"
 
 def test_BlackScholesImpVol():
     vol = np.array([0.23,0.20,0.18])
@@ -17,16 +19,17 @@ def test_BlackScholesImpVol():
     print(impVol)
 
 def test_HestonSmile():
-    vol = lambda logStrikes: np.array([CharFuncImpliedVol(HestonCharFunc(**paramsBCC))(k,1) for k in logStrikes]).reshape(-1)
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC))
+    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
     k = np.arange(-0.4,0.4,0.02)
-    iv = vol(k)
+    iv = vol(k,1)
     fig = plt.figure(figsize=(6,4))
     plt.scatter(k, 100*iv, c='k', s=5)
     plt.title("Heston 1-Year Smile (BCC Params)")
     plt.xlabel("log-strike")
     plt.ylabel("implied vol (%)")
     fig.tight_layout()
-    plt.savefig("test_HestonSmileBCC.png")
+    plt.savefig(dataFolder+"test_HestonSmileBCC.png")
     plt.close()
 
 def test_HestonSmileSensitivity():
@@ -42,20 +45,21 @@ def test_HestonSmileSensitivity():
         plt.xlabel("log-strike")
         plt.ylabel("implied vol (%)")
         for i in range(5):
-            vol = lambda logStrikes: np.array([CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew))(k,1) for k in logStrikes]).reshape(-1)
-            iv = vol(k)
+            impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew))
+            vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
+            iv = vol(k,1)
             c = 'k' if i == 0 else 'k--'
             plt.plot(k, 100*iv, c)
             paramsBCCnew[bcc[j]] += inc[j]
         plt.ylim(10,30)
         fig.tight_layout()
-        plt.savefig(f"test_HestonSmileBCC_{png[j]}.png")
+        plt.savefig(dataFolder+f"test_HestonSmileBCC_{png[j]}.png")
         plt.close()
 
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
-    PlotImpliedVol(df, "test_impliedvol.png")
+    PlotImpliedVol(df, dataFolder+"test_impliedvol.png")
 
 def test_VarianceSwapFormula():
     df = pd.read_csv("spxVols20170424.csv")
@@ -90,7 +94,7 @@ def test_CalcSwapCurve():
     plt.ylabel("swap price")
     plt.legend()
     fig.tight_layout()
-    plt.savefig("test_SwapCurve.png")
+    plt.savefig(dataFolder+"test_SwapCurve.png")
     plt.close()
 
 def test_LevSwapCurve():
@@ -107,7 +111,7 @@ def test_LevSwapCurve():
     plt.ylabel("swap price")
     plt.legend()
     fig.tight_layout()
-    plt.savefig("test_LevSwapCurve.png")
+    plt.savefig(dataFolder+"test_LevSwapCurve.png")
     plt.close()
 
 def test_CalcFwdVarCurve():
@@ -127,33 +131,34 @@ def test_CalcFwdVarCurve():
     plt.xlabel("maturity")
     plt.ylabel("forward variance")
     fig.tight_layout()
-    plt.savefig("test_FwdVarCurve.png")
+    plt.savefig(dataFolder+"test_FwdVarCurve.png")
     plt.close()
 
 def test_HestonFFT():
-    vol = lambda logStrikes: np.array([CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)(k,1) for k in logStrikes]).reshape(-1)
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
     k = np.arange(-0.4,0.4,0.02)
-    iv = vol(k)
+    iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
     plt.scatter(k, 100*iv, c='k', s=5)
     plt.title("Heston 1-Year Smile (BCC Params)")
     plt.xlabel("log-strike")
     plt.ylabel("implied vol (%)")
     fig.tight_layout()
-    plt.savefig("test_HestonSmileBCC_FFT.png")
+    plt.savefig(dataFolder+"test_HestonSmileBCC_FFT.png")
     plt.close()
 
 def test_HestonSmileLewis():
-    vol = lambda logStrikes: np.array([LewisCharFuncImpliedVol(HestonCharFunc(**paramsBCC))(k,1) for k in logStrikes]).reshape(-1)
+    impVolFunc = LewisCharFuncImpliedVol(HestonCharFunc(**paramsBCC))
+    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
     k = np.arange(-0.4,0.4,0.02)
-    iv = vol(k)
+    iv = vol(k,1)
     fig = plt.figure(figsize=(6,4))
     plt.scatter(k, 100*iv, c='k', s=5)
     plt.title("Heston 1-Year Smile (BCC Params)")
     plt.xlabel("log-strike")
     plt.ylabel("implied vol (%)")
     fig.tight_layout()
-    plt.savefig("test_HestonSmileBCC_Lewis.png")
+    plt.savefig(dataFolder+"test_HestonSmileBCC_Lewis.png")
     plt.close()
 
 def test_CalibrateModelToCallPrice():
@@ -170,10 +175,10 @@ def test_CalibrateModelToCallPrice():
         xT.append([T]+x.tolist())
         print(f"T={np.round(T,3)}", x)
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsBCCkey)
-    xT.to_csv("test_HestonCalibration.csv", index=False)
+    xT.to_csv(dataFolder+"test_HestonCalibration.csv", index=False)
 
 def test_ImpVolFromHestonCalibration():
-    cal = pd.read_csv("test_HestonCalibration.csv")
+    cal = pd.read_csv(dataFolder+"test_HestonCalibration.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -182,13 +187,13 @@ def test_ImpVolFromHestonCalibration():
         dfT = df[df["Texp"]==T].copy()
         params = cal[cal["Texp"]==T][paramsBCCkey]
         params = params.iloc[0].to_dict()
-        vol = lambda logStrikes: np.array([CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)(k,1) for k in logStrikes]).reshape(-1)
+        impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
-        iv = vol(k)
+        iv = impVolFunc(k,1)
         dfT["Fit"] = iv
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, "test_HestonImpliedVol.png")
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVol.png")
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
