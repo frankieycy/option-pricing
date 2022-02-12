@@ -68,11 +68,11 @@ def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cub
     price = np.exp(k0) - np.exp(logStrike/2)/np.pi * spline(logStrike)
     return price
 
-def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False):
+def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
     formula = LewisFormulaFFT if FFT else LewisFormula
     def impVolFunc(logStrike, maturity):
-        return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType), optionType)
+        return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType)
     return impVolFunc
 
 def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
@@ -118,14 +118,14 @@ def VarianceGammaCharFunc():
         pass
     return charFunc
 
-def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel, bounds=None, w=None, optionType="call"):
+def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
     # Calibrate model params to option prices (pricing measure)
     if w is None: w = 1
     riskFreeRate = params0["riskFreeRate"] if "riskFreeRate" in params0 else 0
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
-        price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType)
+        price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs)
         loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
