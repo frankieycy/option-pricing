@@ -39,7 +39,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
         impVol1 += (price>=priceMkt)*(impVol-impVol1)
     return impVol
 
-def LewisFormula(charFunc, logStrike, maturity, optionType="OTM"):
+def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
     # Works for scalar logStrike only
     if optionType == "call": k0 = 0
@@ -49,7 +49,7 @@ def LewisFormula(charFunc, logStrike, maturity, optionType="OTM"):
     price = np.exp(k0) - np.exp(logStrike/2)/np.pi * quad(integrand, 0, np.inf)[0]
     return price
 
-def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000):
+def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000, **kwargs):
     # Lewis FFT formula for call/put/OTM
     du = B/N
     u = np.arange(N)*du
@@ -121,11 +121,14 @@ def VarianceGammaCharFunc():
 def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
     # Calibrate model params to option prices (pricing measure)
     if w is None: w = 1
-    riskFreeRate = params0["riskFreeRate"] if "riskFreeRate" in params0 else 0
+    maturity = np.array(maturity)
+    Texp = np.unique(maturity)
+    logStrikes = {T: logStrike[maturity==T] for T in Texp}
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
-        price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs)
+        # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs)
+        price = np.concatenate([LewisFormulaFFT(charFunc, logStrikes[T], T, optionType, **kwargs) for T in Texp], axis=None)
         loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss

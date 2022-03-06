@@ -140,7 +140,7 @@ def test_CalcFwdVarCurve():
     plt.close()
 
 def test_HestonSmileFFT():
-    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True,N=2**14)
     k = np.arange(-0.4,0.4,0.02)
     iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
@@ -197,6 +197,17 @@ def test_CalibrateHestonModelToCallPrice():
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsBCCkey)
     xT.to_csv(dataFolder+"test_HestonCalibration.csv", index=False)
 
+def test_CalibrateHestonModelToCallPriceNew():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()
+    x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCBnd,w=w,optionType="call")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
+    x.to_csv(dataFolder+"test_HestonCalibrationNew.csv", index=False)
+
 def test_ImpVolFromHestonCalibration():
     cal = pd.read_csv(dataFolder+"test_HestonCalibration.csv")
     df = pd.read_csv("spxVols20170424.csv")
@@ -214,6 +225,23 @@ def test_ImpVolFromHestonCalibration():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVol.png")
+
+def test_ImpVolFromHestonCalibrationNew():
+    cal = pd.read_csv(dataFolder+"test_HestonCalibrationNew.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsBCCkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolNew.png")
 
 def test_MertonJumpSmile():
     impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**paramsMER),FFT=True)
@@ -268,6 +296,17 @@ def test_CalibrateMertonJumpModelToCallPrice():
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsMERkey)
     xT.to_csv(dataFolder+"test_MertonCalibration.csv", index=False)
 
+def test_CalibrateMertonJumpModelToCallPriceNew():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()
+    x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERBnd,w=w,optionType="call")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsMERkey)
+    x.to_csv(dataFolder+"test_MertonCalibrationNew.csv", index=False)
+
 def test_ImpVolFromMertonJumpCalibration():
     cal = pd.read_csv(dataFolder+"test_MertonCalibration.csv")
     df = pd.read_csv("spxVols20170424.csv")
@@ -285,6 +324,23 @@ def test_ImpVolFromMertonJumpCalibration():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVol.png")
+
+def test_ImpVolFromMertonJumpCalibrationNew():
+    cal = pd.read_csv(dataFolder+"test_MertonCalibrationNew.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsMERkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVolNew.png")
 
 def test_FitShortDatedMertonSmile():
     df = pd.read_csv("spxVols20170424.csv")
@@ -316,9 +372,13 @@ if __name__ == '__main__':
     # test_ShortDatedHestonSmileFFT()
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
+    # test_CalibrateHestonModelToCallPriceNew()
     # test_ImpVolFromHestonCalibration()
+    # test_ImpVolFromHestonCalibrationNew()
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
     # test_CalibrateMertonJumpModelToCallPrice()
+    # test_CalibrateMertonJumpModelToCallPriceNew()
     # test_ImpVolFromMertonJumpCalibration()
+    # test_ImpVolFromMertonJumpCalibrationNew()
     test_FitShortDatedMertonSmile()
