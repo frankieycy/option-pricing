@@ -16,6 +16,8 @@ paramsMERBnd = ((0,1), (0,10), (-1,1), (0,10))
 
 dataFolder = "test/"
 
+#### Imp Vol ###################################################################
+
 def test_BlackScholesImpVol():
     vol = np.array([0.23,0.20,0.18])
     strike = np.array([0.9,1.0,1.1])
@@ -23,48 +25,12 @@ def test_BlackScholesImpVol():
     impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call")
     print(impVol)
 
-def test_HestonSmile():
-    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC))
-    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
-    k = np.arange(-0.4,0.4,0.02)
-    iv = vol(k,1)
-    fig = plt.figure(figsize=(6,4))
-    plt.scatter(k, 100*iv, c='k', s=5)
-    plt.title("Heston 1-Year Smile (BCC Params)")
-    plt.xlabel("log-strike")
-    plt.ylabel("implied vol (%)")
-    fig.tight_layout()
-    plt.savefig(dataFolder+"test_HestonSmileBCC.png")
-    plt.close()
-
-def test_HestonSmileSensitivity():
-    k = np.arange(-0.4,0.4,0.02)
-    var = ["rho","eta","lambda"]
-    png = ["rho","eta","lam"]
-    bcc = ["correlation","volOfVol","meanRevRate"]
-    inc = [0.1,0.1,0.5]
-    for j in range(3):
-        paramsBCCnew = paramsBCC.copy()
-        fig = plt.figure(figsize=(6,4))
-        plt.title(rf"Heston 1-Year Smile $\{var[j]}$ Sensitivity (BCC Params)")
-        plt.xlabel("log-strike")
-        plt.ylabel("implied vol (%)")
-        for i in range(5):
-            impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew))
-            vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
-            iv = vol(k,1)
-            c = 'k' if i == 0 else 'k--'
-            plt.plot(k, 100*iv, c)
-            paramsBCCnew[bcc[j]] += inc[j]
-        plt.ylim(10,30)
-        fig.tight_layout()
-        plt.savefig(dataFolder+f"test_HestonSmileBCC_{png[j]}.png")
-        plt.close()
-
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     PlotImpliedVol(df, dataFolder+"test_impliedvol.png")
+
+#### Fwd Var Curve #############################################################
 
 def test_VarianceSwapFormula():
     df = pd.read_csv("spxVols20170424.csv")
@@ -139,6 +105,46 @@ def test_CalcFwdVarCurve():
     plt.savefig(dataFolder+"test_FwdVarCurve.png")
     plt.close()
 
+#### Heston ####################################################################
+
+def test_HestonSmile():
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC))
+    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
+    k = np.arange(-0.4,0.4,0.02)
+    iv = vol(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("Heston 1-Year Smile (BCC Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSmileBCC.png")
+    plt.close()
+
+def test_HestonSmileSensitivity():
+    k = np.arange(-0.4,0.4,0.02)
+    var = ["rho","eta","lambda"]
+    png = ["rho","eta","lam"]
+    bcc = ["correlation","volOfVol","meanRevRate"]
+    inc = [0.1,0.1,0.5]
+    for j in range(3):
+        paramsBCCnew = paramsBCC.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year Smile $\{var[j]}$ Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("implied vol (%)")
+        for i in range(5):
+            impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew))
+            vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
+            iv = vol(k,1)
+            c = 'k' if i == 0 else 'k--'
+            plt.plot(k, 100*iv, c)
+            paramsBCCnew[bcc[j]] += inc[j]
+        plt.ylim(10,30)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCC_{png[j]}.png")
+        plt.close()
+
 def test_HestonSmileFFT():
     impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True,N=2**14)
     k = np.arange(-0.4,0.4,0.02)
@@ -166,6 +172,10 @@ def test_ShortDatedHestonSmileFFT():
         fig.tight_layout()
         plt.savefig(dataFolder+f"test_HestonSmileBCC_FFT_T={np.round(T,3)}_B={B}.png")
         plt.close()
+
+def test_HestonSmileFFTForVariousDates():
+    # TO-DO
+    pass
 
 def test_HestonSmileLewis():
     impVolFunc = LewisCharFuncImpliedVol(HestonCharFunc(**paramsBCC))
@@ -243,13 +253,15 @@ def test_ImpVolFromHestonCalibrationNew():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolNew.png")
 
+#### Merton ####################################################################
+
 def test_MertonJumpSmile():
-    impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**paramsMER),FFT=True)
+    impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**paramsMER),FFT=True,N=2**14)
     k = np.arange(-0.4,0.4,0.02)
     iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
     plt.scatter(k, 100*iv, c='k', s=5)
-    plt.title("Heston 1-Year Smile (BCC Params)")
+    plt.title("Merton 1-Year Smile (MER Params)")
     plt.xlabel("log-strike")
     plt.ylabel("implied vol (%)")
     fig.tight_layout()
@@ -265,7 +277,7 @@ def test_MertonJumpSmileSensitivity():
     for j in range(3):
         paramsMERnew = paramsMER.copy()
         fig = plt.figure(figsize=(6,4))
-        plt.title(rf"Heston 1-Year Smile $\{var[j]}$ Sensitivity (BCC Params)")
+        plt.title(rf"Merton 1-Year Smile $\{var[j]}$ Sensitivity (MER Params)")
         plt.xlabel("log-strike")
         plt.ylabel("implied vol (%)")
         for i in range(5):
@@ -361,24 +373,27 @@ def test_FitShortDatedMertonSmile():
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
-    # test_HestonSmile()
-    # test_HestonSmileSensitivity()
     # test_PlotImpliedVol()
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
+    #### Heston ####
+    # test_HestonSmile()
+    # test_HestonSmileSensitivity()
     # test_HestonSmileFFT()
     # test_ShortDatedHestonSmileFFT()
+    test_HestonSmileFFTForVariousDates()
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPriceNew()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationNew()
+    #### Merton ####
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
     # test_CalibrateMertonJumpModelToCallPrice()
     # test_CalibrateMertonJumpModelToCallPriceNew()
     # test_ImpVolFromMertonJumpCalibration()
     # test_ImpVolFromMertonJumpCalibrationNew()
-    test_FitShortDatedMertonSmile()
+    # test_FitShortDatedMertonSmile()
