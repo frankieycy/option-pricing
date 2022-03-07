@@ -114,6 +114,7 @@ def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
 
 def VarianceGammaCharFunc():
     # Characteristic function for Variance-Gamma model
+    # TO-DO
     def charFunc(u, maturity):
         pass
     return charFunc
@@ -122,19 +123,22 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
     # Calibrate model params to option prices (pricing measure)
     if w is None: w = 1
     maturity = np.array(maturity)
-    Texp = np.unique(maturity)
-    logStrikes = {T: logStrike[maturity==T] for T in Texp}
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
         # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs)
-        price = np.concatenate([LewisFormulaFFT(charFunc, logStrikes[T], T, optionType, **kwargs) for T in Texp], axis=None)
+        price = np.concatenate([LewisFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
     print("Optimization output:", opt, sep="\n")
     return opt.x
+
+def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
+    # Calibrate model params to option prices (pricing measure)
+    # TO-DO
+    pass
 
 def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
