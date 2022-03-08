@@ -82,8 +82,8 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
         elif optionType == "put": return price-1+np.exp(logStrike)
     elif optionType == "OTM":
         if np.abs(logStrike) < 1e-10:
-            price0 = CarrMadanFormula(charFunc, -1e-4, maturity, optionType, alpha, **kwargs)
-            price1 = CarrMadanFormula(charFunc, +1e-4, maturity, optionType, alpha, **kwargs)
+            price0 = CarrMadanFormula(charFunc, -1e-4, maturity, "put", alpha, **kwargs)
+            price1 = CarrMadanFormula(charFunc, +1e-4, maturity, "call", alpha, **kwargs)
             return (price0+price1)/2
         def modCharFunc(u, maturity):
             return 1 / (1+1j*u) - 1 / (1j*u) - charFunc(u-1j, maturity) / (u**2-1j*u)
@@ -93,16 +93,38 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
         price = 1/(np.pi*np.sinh(alpha*logStrike)) * quad(integrand, 0, np.inf)[0]
         return price
 
-def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**12, B=1000, **kwargs):
+def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
-    # TO-DO
+    du = B/N
+    u = np.arange(N)*du
+    w = np.arange(N)
+    w = 3+(-1)**(w+1)
+    w[0] = 1; w[N-1] = 1
+    dk = 2*np.pi/B
+    b = N*dk/2
+    k = -b+np.arange(N)*dk
     if optionType in ["call", "put"]:
         def modCharFunc(u, maturity):
             return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
-        if optionType == "call": pass
-        elif optionType == "put": pass
+        I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3
+        Ifft = np.exp(-alpha*k)/np.pi * np.real(fft(I))
+        spline = interp1d(k, Ifft, kind=interp)
+        price = spline(logStrike)
+        if optionType == "call": return price
+        elif optionType == "put": return price-1+np.exp(logStrike)
     elif optionType == "OTM":
-        pass
+        def modCharFunc(u, maturity):
+            return 1 / (1+1j*u) - 1 / (1j*u) - charFunc(u-1j, maturity) / (u**2-1j*u)
+        def gamCharFunc(u, maturity):
+            return (modCharFunc(u-1j*alpha, maturity) - modCharFunc(u+1j*alpha, maturity)) / 2
+        I = w * np.exp(1j*b*u) * gamCharFunc(u, maturity) * du/3
+        with np.errstate(divide='ignore'): Ifft = 1/(np.pi*np.sinh(alpha*k)) * np.real(fft(I))
+        price0 = CarrMadanFormula(charFunc, -1e-4, maturity, "put", alpha, **kwargs)
+        price1 = CarrMadanFormula(charFunc, +1e-4, maturity, "call", alpha, **kwargs)
+        Ifft[N//2] = (price0+price1)/2
+        spline = interp1d(k, Ifft, kind=interp)
+        price = spline(logStrike)
+        return price
 
 def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc

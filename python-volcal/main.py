@@ -146,7 +146,7 @@ def test_HestonSmileSensitivity():
         plt.close()
 
 def test_HestonSmileFFT():
-    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True,N=2**14)
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
     k = np.arange(-0.4,0.4,0.02)
     iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
@@ -256,7 +256,7 @@ def test_ImpVolFromHestonCalibrationNew():
 #### Merton ####################################################################
 
 def test_MertonJumpSmile():
-    impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**paramsMER),FFT=True,N=2**14)
+    impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**paramsMER),FFT=True)
     k = np.arange(-0.4,0.4,0.02)
     iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
