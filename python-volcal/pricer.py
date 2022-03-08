@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize
@@ -51,6 +52,7 @@ def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
 
 def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000, **kwargs):
     # Lewis FFT formula for call/put/OTM
+    # Unstable for short maturity
     du = B/N
     u = np.arange(N)*du
     w = np.arange(N)
@@ -68,9 +70,44 @@ def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cub
     price = np.exp(k0) - np.exp(logStrike/2)/np.pi * spline(logStrike)
     return price
 
+def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, **kwargs):
+    # Carr-Madan formula for call/put/OTM
+    # Works for scalar logStrike only
+    if optionType in ["call", "put"]:
+        def modCharFunc(u, maturity):
+            return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
+        integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * modCharFunc(u, maturity))
+        price = np.exp(-alpha*logStrike)/np.pi * quad(integrand, 0, np.inf)[0]
+        if optionType == "call": return price
+        elif optionType == "put": return price-1+np.exp(logStrike)
+    elif optionType == "OTM":
+        if np.abs(logStrike) < 1e-10:
+            price0 = CarrMadanFormula(charFunc, -1e-4, maturity, optionType, alpha, **kwargs)
+            price1 = CarrMadanFormula(charFunc, +1e-4, maturity, optionType, alpha, **kwargs)
+            return (price0+price1)/2
+        def modCharFunc(u, maturity):
+            return 1 / (1+1j*u) - 1 / (1j*u) - charFunc(u-1j, maturity) / (u**2-1j*u)
+        def gamCharFunc(u, maturity):
+            return (modCharFunc(u-1j*alpha, maturity) - modCharFunc(u+1j*alpha, maturity)) / 2
+        integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * gamCharFunc(u, maturity))
+        price = 1/(np.pi*np.sinh(alpha*logStrike)) * quad(integrand, 0, np.inf)[0]
+        return price
+
+def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**12, B=1000, **kwargs):
+    # Carr-Madan FFT formula for call/put/OTM
+    # TO-DO
+    if optionType in ["call", "put"]:
+        def modCharFunc(u, maturity):
+            return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
+        if optionType == "call": pass
+        elif optionType == "put": pass
+    elif optionType == "OTM":
+        pass
+
 def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
-    formula = LewisFormulaFFT if FFT else LewisFormula
+    # formula = LewisFormulaFFT if FFT else LewisFormula
+    formula = CarrMadanFormulaFFT if FFT else CarrMadanFormula
     def impVolFunc(logStrike, maturity):
         return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType)
     return impVolFunc

@@ -379,11 +379,11 @@ if __name__ == '__main__':
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
     #### Heston ####
-    # test_HestonSmile()
+    test_HestonSmile()
     # test_HestonSmileSensitivity()
     # test_HestonSmileFFT()
     # test_ShortDatedHestonSmileFFT()
-    test_HestonSmileFFTForVariousDates()
+    # test_HestonSmileFFTForVariousDates()
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPriceNew()
