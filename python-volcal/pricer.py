@@ -119,17 +119,17 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             return (modCharFunc(u-1j*alpha, maturity) - modCharFunc(u+1j*alpha, maturity)) / 2
         I = w * np.exp(1j*b*u) * gamCharFunc(u, maturity) * du/3
         with np.errstate(divide='ignore'): Ifft = 1/(np.pi*np.sinh(alpha*k)) * np.real(fft(I))
-        price0 = CarrMadanFormula(charFunc, -1e-4, maturity, "put", alpha, **kwargs)
-        price1 = CarrMadanFormula(charFunc, +1e-4, maturity, "call", alpha, **kwargs)
-        Ifft[N//2] = (price0+price1)/2
+        Ifft[N//2] = CarrMadanFormula(charFunc, 0, maturity, "OTM", alpha, **kwargs) # k = 0
         spline = interp1d(k, Ifft, kind=interp)
         price = spline(logStrike)
         return price
 
-def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, **kwargs):
+def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
-    # formula = LewisFormulaFFT if FFT else LewisFormula
-    formula = CarrMadanFormulaFFT if FFT else CarrMadanFormula
+    if formulaType == "Lewis":
+        formula = LewisFormulaFFT if FFT else LewisFormula
+    elif formulaType == "CarrMadan":
+        formula = CarrMadanFormulaFFT if FFT else CarrMadanFormula
     def impVolFunc(logStrike, maturity):
         return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType)
     return impVolFunc
@@ -185,8 +185,9 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
-        # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs)
-        price = np.concatenate([LewisFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
+        # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs) # single fixed maturity
+        # price = np.concatenate([LewisFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
+        price = np.concatenate([CarrMadanFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
@@ -196,8 +197,22 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
 
 def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
     # Calibrate model params to option prices (pricing measure)
-    # TO-DO
-    pass
+    # VERY UNSTABLE: params blow up to boundary during optimization
+    if w is None: w = 1
+    maturity = np.array(maturity)
+    bidVol = optionImpVol["Bid"].to_numpy()
+    askVol = optionImpVol["Ask"].to_numpy()
+    def objective(params):
+        params = {paramsLabel[i]: params[i] for i in range(len(params))}
+        charFunc = model(**params)
+        impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, **kwargs)
+        impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
+        loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
+        print(f"loss: {loss}")
+        return loss
+    opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
+    print("Optimization output:", opt, sep="\n")
+    return opt.x
 
 def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
