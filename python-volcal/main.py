@@ -167,7 +167,7 @@ def test_ShortDatedHestonSmileFFT():
 
 def test_HestonSmileFFTForVariousDates():
     impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
-    for T in np.arange(0.01,0.1,0.01):
+    for T in np.arange(1,6,1):
         k = np.arange(-0.4,0.4,0.02)
         iv = impVolFunc(k,T)
         fig = plt.figure(figsize=(6,4))
@@ -266,6 +266,23 @@ def test_ImpVolFromHestonCalibrationNew():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolNew.png")
+
+def test_ImpVolFromHestonIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_HestonCalibrationToImpVol.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsBCCkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolToImpVol.png")
 
 #### Merton ####################################################################
 
@@ -397,6 +414,23 @@ def test_ImpVolFromMertonJumpCalibrationNew():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVolNew.png")
 
+def test_ImpVolFromMertonJumpIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_MertonCalibrationToImpVol.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsMERkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVolToImpVol.png")
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_PlotImpliedVol()
@@ -416,14 +450,16 @@ if __name__ == '__main__':
     test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationNew()
+    # test_ImpVolFromHestonIvCalibration()
     #### Merton ####
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
+    # test_FitShortDatedMertonSmile()
     # test_CalibrateMertonJumpModelToCallPrice()
     # test_CalibrateMertonJumpModelToCallPriceNew()
     # test_CalibrateMertonModelToImpVol()
     # test_ImpVolFromMertonJumpCalibration()
     # test_ImpVolFromMertonJumpCalibrationNew()
-    # test_FitShortDatedMertonSmile()
+    # test_ImpVolFromMertonJumpIvCalibration()
     #### VGamma ####
     #

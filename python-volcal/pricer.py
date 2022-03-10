@@ -9,6 +9,8 @@ from scipy.integrate import quad
 from scipy.interpolate import splrep, splev, pchip, interp1d
 plt.switch_backend("Agg")
 
+#### Black-Scholes #############################################################
+
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes formula for call/put
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
@@ -40,6 +42,9 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
         impVol1 += (price>=priceMkt)*(impVol-impVol1)
     return impVol
 
+#### Pricing Formula ###########################################################
+# Return prices given logStrike k (scalar/vector) and maturity T (scalar)
+
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
     # Works for scalar logStrike only
@@ -52,6 +57,7 @@ def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
 
 def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000, **kwargs):
     # Lewis FFT formula for call/put/OTM
+    # Works for vector logStrike
     # Unstable for short maturity
     du = B/N
     u = np.arange(N)*du
@@ -95,6 +101,7 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
 
 def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
+    # Works for vector logStrike
     du = B/N
     u = np.arange(N)*du
     w = np.arange(N)
@@ -124,6 +131,9 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         price = spline(logStrike)
         return price
 
+#### Implied Vol ###############################################################
+# Given charFunc, return impVolFunc with arguments (logStrike, maturity)
+
 def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
     if formulaType == "Lewis":
@@ -143,6 +153,9 @@ def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs
         impVol = fsolve(objective, 0.4)[0]
         return impVol
     return impVolFunc
+
+#### Characteristic Function ###################################################
+# Return charFunc with arguments (u, maturity)
 
 def BlackScholesCharFunc(vol, riskFreeRate=0):
     # Characteristic function for Black-Scholes model
@@ -178,16 +191,22 @@ def VarianceGammaCharFunc():
         pass
     return charFunc
 
-def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
+#### Calibration ###############################################################
+
+def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0, paramsLabel,
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", **kwargs):
     # Calibrate model params to option prices (pricing measure)
     if w is None: w = 1
     maturity = np.array(maturity)
+    if formulaType == "Lewis":
+        formula = LewisFormulaFFT
+    elif formulaType == "CarrMadan":
+        formula = CarrMadanFormulaFFT
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
         # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs) # single fixed maturity
-        # price = np.concatenate([LewisFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
-        price = np.concatenate([CarrMadanFormulaFFT(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
+        price = np.concatenate([formula(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*(price-optionPrice)**2)
         print(f"loss: {loss}")
         return loss
@@ -195,24 +214,28 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
     print("Optimization output:", opt, sep="\n")
     return opt.x
 
-def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel, bounds=None, w=None, optionType="call", **kwargs):
+def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", **kwargs):
     # Calibrate model params to option prices (pricing measure)
-    # VERY UNSTABLE: params blow up to boundary during optimization
     if w is None: w = 1
     maturity = np.array(maturity)
     bidVol = optionImpVol["Bid"].to_numpy()
     askVol = optionImpVol["Ask"].to_numpy()
+    from time import time
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
+        # print(params)
         charFunc = model(**params)
-        impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, **kwargs)
+        impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"loss: {loss}")
         return loss
-    opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
+    opt = minimize(objective, x0=params0, bounds=bounds)
     print("Optimization output:", opt, sep="\n")
     return opt.x
+
+#### Plotting Function #########################################################
 
 def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
@@ -246,6 +269,8 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
+
+#### Fwd Var Curve #############################################################
 
 def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
     # Fukasawa robust variance swap formula
