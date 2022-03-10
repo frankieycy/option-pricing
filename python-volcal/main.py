@@ -230,7 +230,7 @@ def test_CalibrateHestonModelToImpVol():
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
-    x.to_csv(dataFolder+"test_HestonCalibrationToImpVol.csv", index=False)
+    x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
 def test_ImpVolFromHestonCalibration():
     # Wrong implementation: calibrate model to EVERY maturity
@@ -269,7 +269,7 @@ def test_ImpVolFromHestonCalibrationPrx():
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolPrx.png")
 
 def test_ImpVolFromHestonIvCalibration():
-    cal = pd.read_csv(dataFolder+"test_HestonCalibrationToImpVol.csv")
+    cal = pd.read_csv(dataFolder+"test_HestonCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -379,7 +379,7 @@ def test_CalibrateMertonModelToImpVol():
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVol(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMERkey)
-    x.to_csv(dataFolder+"test_MertonCalibrationToImpVol.csv", index=False)
+    x.to_csv(dataFolder+"test_MertonCalibrationIv.csv", index=False)
 
 def test_ImpVolFromMertonJumpCalibration():
     cal = pd.read_csv(dataFolder+"test_MertonCalibration.csv")
@@ -417,7 +417,7 @@ def test_ImpVolFromMertonJumpCalibrationPrx():
     PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVolPrx.png")
 
 def test_ImpVolFromMertonJumpIvCalibration():
-    cal = pd.read_csv(dataFolder+"test_MertonCalibrationToImpVol.csv")
+    cal = pd.read_csv(dataFolder+"test_MertonCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -456,10 +456,10 @@ def test_CalibrateSVJModelToImpVol():
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVol(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
-    x.to_csv(dataFolder+"test_SVJCalibrationToImpVol.csv", index=False)
+    x.to_csv(dataFolder+"test_SVJCalibrationIv.csv", index=False)
 
 def test_ImpVolFromSVJIvCalibration():
-    cal = pd.read_csv(dataFolder+"test_SVJCalibrationToImpVol.csv")
+    cal = pd.read_csv(dataFolder+"test_SVJCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -487,10 +487,10 @@ def test_CalibrateVGModelToImpVol():
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVol(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGkey)
-    x.to_csv(dataFolder+"test_VGCalibrationToImpVol.csv", index=False)
+    x.to_csv(dataFolder+"test_VGCalibrationIv.csv", index=False)
 
 def test_ImpVolFromVGIvCalibration():
-    cal = pd.read_csv(dataFolder+"test_VGCalibrationToImpVol.csv")
+    cal = pd.read_csv(dataFolder+"test_VGCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
@@ -505,6 +505,37 @@ def test_ImpVolFromVGIvCalibration():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_VGImpliedVolIv.png")
+
+#### rHeston ###################################################################
+
+def test_CalibrateRHPMModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVol(k,T,iv,rHestonPoorMansCharFunc,paramsRHPMval,paramsRHPMkey,bounds=paramsRHPMbnd,w=w,optionType="call")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsRHPMkey)
+    x.to_csv(dataFolder+"test_RHPMCalibrationIv.csv", index=False)
+
+def test_ImpVolFromRHPMIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_RHPMCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsRHPMkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(rHestonPoorMansCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_RHPMImpliedVolIv.png")
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
@@ -522,7 +553,7 @@ if __name__ == '__main__':
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    # test_CalibrateHestonModelToImpVol()
+    test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
@@ -538,8 +569,11 @@ if __name__ == '__main__':
     # test_ImpVolFromMertonJumpIvCalibration()
     #### SVJ ####
     # test_CalibrateSVJModelToCallPricePrx()
-    test_CalibrateSVJModelToImpVol()
-    test_ImpVolFromSVJIvCalibration()
+    # test_CalibrateSVJModelToImpVol()
+    # test_ImpVolFromSVJIvCalibration()
     #### VGamma ####
     # test_CalibrateVGModelToImpVol()
     # test_ImpVolFromVGIvCalibration()
+    #### rHeston ####
+    # test_CalibrateRHPMModelToImpVol()
+    # test_ImpVolFromRHPMIvCalibration()

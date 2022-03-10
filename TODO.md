@@ -36,7 +36,8 @@
 * ok, fix FFT pricer stability issues (B,N params for short/long exp)
     - ok, check Lewis/CarrMadan w/wo FFT results converge
     - ok, calibration to price vs. imp vol
-* Glau Chebychev IV interpolation for fast BS inversion
+* BS inversion: Scipy fsolve
+* BS inversion: Glau Chebychev IV interpolation
 * calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)
     - ok, Heston
     - ok, Merton
@@ -44,7 +45,9 @@
     - ok, SVJ
     - SVJJ
     - CGMY
-    - rHeston: poor man's approx, Riccati solver, Pade
+    - ok, rHeston: poor man's approx
+    - rHeston: Pade approx
+    - rHeston: Riccati solver
 * fast Monte-Carlo for exotics pricing
 * back out local vol from IVS
 * SVI parametrization with no-arb constraints
