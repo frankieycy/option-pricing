@@ -23,24 +23,28 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
         riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
     return price
 
-def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM"):
+def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
-    forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
-    if optionType == "OTM":
-        optionType = np.where(strike > forwardPrice, "call", "put")
-    nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
-    impVol0 = np.repeat(1e-10, nStrikes)
-    impVol1 = np.repeat(10., nStrikes)
-    price0 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol0, optionType)
-    price1 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol1, optionType)
-    while np.mean(impVol1-impVol0) > 1e-10:
-        impVol = (impVol0+impVol1)/2
-        price = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
-        price0 += (price<priceMkt)*(price-price0)
-        impVol0 += (price<priceMkt)*(impVol-impVol0)
-        price1 += (price>=priceMkt)*(price-price1)
-        impVol1 += (price>=priceMkt)*(impVol-impVol1)
-    return impVol
+    if method == "Bisection": # Bisection search
+        forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
+        if optionType == "OTM":
+            optionType = np.where(strike > forwardPrice, "call", "put")
+        nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
+        impVol0 = np.repeat(1e-10, nStrikes)
+        impVol1 = np.repeat(10., nStrikes)
+        price0 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol0, optionType)
+        price1 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol1, optionType)
+        while np.mean(impVol1-impVol0) > 1e-10:
+            impVol = (impVol0+impVol1)/2
+            price = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
+            price0 += (price<priceMkt)*(price-price0)
+            impVol0 += (price<priceMkt)*(impVol-impVol0)
+            price1 += (price>=priceMkt)*(price-price1)
+            impVol1 += (price>=priceMkt)*(impVol-impVol1)
+        return impVol
+    elif method == "Chebychev": # Chebychev IV-interpolation
+        # TO-DO
+        pass
 
 #### Pricing Formula ###########################################################
 # Return prices given logStrike k (scalar/vector) and maturity T (scalar)
@@ -155,6 +159,7 @@ def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs
     return impVolFunc
 
 #### Characteristic Function ###################################################
+# Characteristic Function: E(exp(i*u*XT)), XT = log(ST/S0)
 # Return charFunc with arguments (u, maturity)
 
 def BlackScholesCharFunc(vol, riskFreeRate=0):
@@ -189,6 +194,21 @@ def VarianceGammaCharFunc():
     # TO-DO
     def charFunc(u, maturity):
         pass
+    return charFunc
+
+def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
+    # Characteristic function for SVJ model (Heston-Jump)
+    def charFunc(u, maturity):
+        alpha = -u**2/2-1j*u/2
+        beta = meanRevRate-correlation*volOfVol*1j*u
+        gamma = volOfVol**2/2
+        d = np.sqrt(beta**2-4*alpha*gamma)
+        rp = (beta+d)/(2*gamma)
+        rm = (beta-d)/(2*gamma)
+        g = rm/rp
+        D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+        C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+        return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
 
 #### Calibration ###############################################################

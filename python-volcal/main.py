@@ -203,7 +203,7 @@ def test_CalibrateHestonModelToCallPrice():
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
         w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
-        x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCBnd,w=w,optionType="call")
+        x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
         xT.append([T]+x.tolist())
         print(f"T={np.round(T,3)}", x)
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsBCCkey)
@@ -216,7 +216,7 @@ def test_CalibrateHestonModelToCallPriceNew():
     k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
-    x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCBnd,w=w,optionType="call")
+    x = CalibrateModelToOptionPrice(k,T,mid,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationNew.csv", index=False)
 
@@ -228,7 +228,7 @@ def test_CalibrateHestonModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCBnd,w=w,optionType="call")
+    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationToImpVol.csv", index=False)
 
@@ -332,7 +332,7 @@ def test_FitShortDatedMertonSmile():
     k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
     mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
     w = (k>-0.2)&(k<0.2)
-    x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERBnd,w=w,optionType="call")
+    x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call")
     print(f"T={np.round(T,3)}", x)
     params = {paramsMERkey[i]: x[i] for i in range(len(x))}
     impVolFunc = CharFuncImpliedVol(MertonJumpCharFunc(**params),FFT=True)
@@ -350,7 +350,7 @@ def test_CalibrateMertonJumpModelToCallPrice():
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
         w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
-        x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERBnd,w=w,optionType="call")
+        x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call")
         xT.append([T]+x.tolist())
         print(f"T={np.round(T,3)}", x)
     xT = pd.DataFrame(xT, columns=["Texp"]+paramsMERkey)
@@ -363,7 +363,7 @@ def test_CalibrateMertonJumpModelToCallPriceNew():
     k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
-    x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERBnd,w=w,optionType="call")
+    x = CalibrateModelToOptionPrice(k,T,mid,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMERkey)
     x.to_csv(dataFolder+"test_MertonCalibrationNew.csv", index=False)
 
@@ -375,7 +375,7 @@ def test_CalibrateMertonModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERBnd,w=w,optionType="call")
+    x = CalibrateModelToImpliedVol(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMERkey)
     x.to_csv(dataFolder+"test_MertonCalibrationToImpVol.csv", index=False)
 
@@ -431,6 +431,48 @@ def test_ImpVolFromMertonJumpIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_MertonImpliedVolToImpVol.png")
 
+#### SVJ #######################################################################
+
+def test_CalibrateSVJModelToCallPriceNew():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    x = CalibrateModelToOptionPrice(k,T,mid,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
+    x.to_csv(dataFolder+"test_SVJCalibrationNew.csv", index=False)
+
+def test_CalibrateSVJModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVol(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
+    x.to_csv(dataFolder+"test_SVJCalibrationToImpVol.csv", index=False)
+
+def test_ImpVolFromSVJIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_SVJCalibrationToImpVol.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsSVJkey].iloc[0].to_dict()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        impVolFunc = CharFuncImpliedVol(SVJCharFunc(**params),FFT=True)
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_SVJImpliedVolToImpVol.png")
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_PlotImpliedVol()
@@ -447,7 +489,7 @@ if __name__ == '__main__':
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPriceNew()
-    test_CalibrateHestonModelToImpVol()
+    # test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationNew()
     # test_ImpVolFromHestonIvCalibration()
@@ -461,5 +503,9 @@ if __name__ == '__main__':
     # test_ImpVolFromMertonJumpCalibration()
     # test_ImpVolFromMertonJumpCalibrationNew()
     # test_ImpVolFromMertonJumpIvCalibration()
+    #### SVJ ####
+    # test_CalibrateSVJModelToCallPriceNew()
+    test_CalibrateSVJModelToImpVol()
+    test_ImpVolFromSVJIvCalibration()
     #### VGamma ####
     #
