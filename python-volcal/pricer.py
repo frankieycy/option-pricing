@@ -43,6 +43,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
     elif method == "Chebychev": # Chebychev IV-interpolation
+        # Ref: Glau, The Chebyshev Method for the Implied Volatility
         # TO-DO
         pass
 
@@ -191,6 +192,8 @@ def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
 
 def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0):
     # Characteristic function for Variance-Gamma model
+    # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
+    # Ref: Madan, The Variance Gamma Process and Option Pricing
     def charFunc(u, maturity):
         return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
     return charFunc
@@ -209,6 +212,11 @@ def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt
         C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
         return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
+
+def rHestonPoorMansCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0):
+    # Characteristic function for rHeston model (poor man's crude approx)
+    # Ref: Gatheral, Roughening Heston
+    pass
 
 #### Calibration ###############################################################
 
@@ -247,8 +255,8 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
         impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
-        # print(params)
-        print(f"loss: {loss}")
+        print(f"params: {params}")
+        print(f"loss:   {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds)
     print("Optimization output:", opt, sep="\n")

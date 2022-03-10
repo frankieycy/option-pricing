@@ -538,8 +538,8 @@ if __name__ == '__main__':
     # test_ImpVolFromMertonJumpIvCalibration()
     #### SVJ ####
     # test_CalibrateSVJModelToCallPricePrx()
-    # test_CalibrateSVJModelToImpVol()
-    # test_ImpVolFromSVJIvCalibration()
+    test_CalibrateSVJModelToImpVol()
+    test_ImpVolFromSVJIvCalibration()
     #### VGamma ####
-    test_CalibrateVGModelToImpVol()
-    test_ImpVolFromVGIvCalibration()
+    # test_CalibrateVGModelToImpVol()
+    # test_ImpVolFromVGIvCalibration()
