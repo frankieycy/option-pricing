@@ -189,11 +189,10 @@ def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
         return np.exp(1j*u*riskFreeRate*maturity-vol**2*maturity/2*u*(u+1j)-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
 
-def VarianceGammaCharFunc():
+def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0):
     # Characteristic function for Variance-Gamma model
-    # TO-DO
     def charFunc(u, maturity):
-        pass
+        return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
     return charFunc
 
 def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
@@ -236,7 +235,7 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
 
 def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
     bounds=None, w=None, optionType="call", formulaType="CarrMadan", **kwargs):
-    # Calibrate model params to option prices (pricing measure)
+    # Calibrate model params to implied vols (pricing measure)
     if w is None: w = 1
     maturity = np.array(maturity)
     bidVol = optionImpVol["Bid"].to_numpy()
@@ -244,11 +243,11 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
     from time import time
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
-        # print(params)
         charFunc = model(**params)
         impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
+        # print(params)
         print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds)
