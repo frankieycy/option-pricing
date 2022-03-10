@@ -24,13 +24,20 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
         riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
     return price
 
+def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes vega for call/put (first deriv wrt sigma)
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    d1 = logMoneyness/totalImpVol+totalImpVol/2
+    return spotPrice * np.sqrt(maturity) * norm.pdf(d1)
+
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
+    forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
+    if optionType == "OTM":
+        optionType = np.where(strike > forwardPrice, "call", "put")
+    nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
     if method == "Bisection": # Bisection search
-        forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
-        if optionType == "OTM":
-            optionType = np.where(strike > forwardPrice, "call", "put")
-        nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
         impVol0 = np.repeat(1e-10, nStrikes)
         impVol1 = np.repeat(10., nStrikes)
         price0 = BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol0, optionType)
@@ -43,7 +50,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
-    elif method == "Scipy": # Scipy fslove
+    elif method == "Newton": # Newton-Rhapson method
         # TO-DO
         pass
     elif method == "Chebychev": # Chebychev IV-interpolation
@@ -146,7 +153,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
 #### Implied Vol ###############################################################
 # Given charFunc, return impVolFunc with arguments (logStrike, maturity)
 
-def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", **kwargs):
+def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", inversionMethod="Bisection", **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
     # CAUTION: formula assumes forward measure (forward option price)
     # so riskFreeRate has to be 0 (for now, just a dummy)
@@ -155,7 +162,7 @@ def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, fo
     elif formulaType == "CarrMadan":
         formula = CarrMadanFormulaFFT if FFT else CarrMadanFormula
     def impVolFunc(logStrike, maturity):
-        return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType)
+        return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType, inversionMethod)
     return impVolFunc
 
 def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
