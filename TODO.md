@@ -33,12 +33,16 @@
 
 * ok, implement arb-free price surface smoothing (Fengler)
 * ok, interpolate price surface via splines, calibrate IVS
-* fix FFT pricer stability issues (B,N params for short/long exp)
-    - check Lewis w/wo FFT results converge
+* ok, fix FFT pricer stability issues (B,N params for short/long exp)
+    - ok, check Lewis/CarrMadan w/wo FFT results converge
+    - ok, calibration to price vs. imp vol
+* Glau Chebychev IV interpolation for fast BS inversion
 * calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)
     - ok, Heston
     - ok, Merton
     - VGamma
+    - SVJ, SVJJ
     - rHeston: poor man's approx, Riccati solver, Pade
+* fast Monte-Carlo for exotics pricing
 * back out local vol from IVS
 * SVI parametrization with no-arb constraints
