@@ -40,9 +40,10 @@
 * calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)
     - ok, Heston
     - ok, Merton
+    - ok, VGamma
     - ok, SVJ
     - SVJJ
-    - VGamma
+    - CGMY
     - rHeston: poor man's approx, Riccati solver, Pade
 * fast Monte-Carlo for exotics pricing
 * back out local vol from IVS
