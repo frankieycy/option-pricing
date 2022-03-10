@@ -1,4 +1,5 @@
 import numpy as np
+import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from math import isclose
@@ -42,13 +43,19 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
+    elif method == "Scipy": # Scipy fslove
+        # TO-DO
+        pass
     elif method == "Chebychev": # Chebychev IV-interpolation
         # Ref: Glau, The Chebyshev Method for the Implied Volatility
         # TO-DO
         pass
 
 #### Pricing Formula ###########################################################
-# Return prices given logStrike k (scalar/vector) and maturity T (scalar)
+# Return prices at S0=1 given logStrike k=log(K/F) (scalar/vector) and maturity T (scalar)
+# NOTE: **kwargs for deployment in Implied Vol functions
+# Forward measure (riskFreeRate=0 in charFunc) is assumed, so price is undiscounted
+# TO-DO: non-zero riskFreeRate case? just multiply discount factor to formula?
 
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
@@ -141,6 +148,8 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
 
 def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc
+    # CAUTION: formula assumes forward measure (forward option price)
+    # so riskFreeRate has to be 0 (for now, just a dummy)
     if formulaType == "Lewis":
         formula = LewisFormulaFFT if FFT else LewisFormula
     elif formulaType == "CarrMadan":
@@ -199,7 +208,7 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0):
     return charFunc
 
 def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
-    # Characteristic function for SVJ model (Heston-Jump)
+    # Characteristic function for SVJ model (Heston-MertonJump)
     def charFunc(u, maturity):
         alpha = -u**2/2-1j*u/2
         beta = meanRevRate-correlation*volOfVol*1j*u
@@ -213,9 +222,33 @@ def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt
         return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
 
-def rHestonPoorMansCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0):
-    # Characteristic function for rHeston model (poor man's crude approx)
+def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0):
+    # Characteristic function for SVJJ model (HestonJump-MertonJump)
+    # TO-DO
+    pass
+
+def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFreeRate=0):
+    # Characteristic function for rHeston model (poor man's Heston approx)
+    # Heston approx: meanRevRate=0 hence no meanVar-dependence, currentVar is var swap price
     # Ref: Gatheral, Roughening Heston
+    volOfVolFactor = np.sqrt(3/(2*hurstExp+2))*volOfVol/sp.special.gamma(hurstExp+1.5)
+    def charFunc(u, maturity):
+        volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
+        alpha = -u**2/2-1j*u/2
+        beta = -correlation*volOfVolMod*1j*u
+        gamma = volOfVolMod**2/2
+        d = np.sqrt(beta**2-4*alpha*gamma)
+        rp = (beta+d)/(2*gamma)
+        rm = (beta-d)/(2*gamma)
+        g = rm/rp
+        D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+        return np.exp(1j*u*riskFreeRate*maturity+D*currentVar)
+    return charFunc
+
+def rHestonPadeCharFunc(hurstExp, correlation, meanVar, currentVar, riskFreeRate=0):
+    # Characteristic function for rHeston model (poor man's crude approx)
+    # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
+    # TO-DO
     pass
 
 #### Calibration ###############################################################
@@ -235,6 +268,7 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
         # price = LewisFormulaFFT(charFunc, logStrike, maturity, optionType, **kwargs) # single fixed maturity
         price = np.concatenate([formula(charFunc, logStrike[maturity==T], T, optionType, **kwargs) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*(price-optionPrice)**2)
+        print(f"params: {params}")
         print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
@@ -256,7 +290,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"params: {params}")
-        print(f"loss:   {loss}")
+        print(f"loss: {loss}")
         return loss
     opt = minimize(objective, x0=params0, bounds=bounds)
     print("Optimization output:", opt, sep="\n")
@@ -266,6 +300,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
 
 def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     if not figname:
         figname = "impliedvol.png"
     Texp = df["Texp"].unique()

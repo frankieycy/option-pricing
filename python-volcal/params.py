@@ -34,4 +34,10 @@ paramsSVJval = list(paramsSVJ.values())
 # paramsSVJbnd = ((0.01,10), (-0.99,0), (0.01,1), (0.01,1), (0.01,1), (0,2), (-0.9,0.5), (0.01,2))
 paramsSVJbnd = ((0.01,5), (-0.99,0), (0.1,1), (0.005,1), (0.005,1), (0,2), (-0.5,0.5), (0.01,0.5))
 #### rHeston: Poor Man's Approx ################################################
+# Ref: Gatheral, Roughening Heston
+# paramsRHPM = {"hurstExp": 0.05, "correlation": -0.67, "volOfVol": 0.41, "currentVar": 0.01}
+paramsRHPM = {"hurstExp": 0.05, "correlation": -0.520, "volOfVol": 0.216, "currentVar": 0.012} # converged
+paramsRHPMkey = list(paramsRHPM.keys())
+paramsRHPMval = list(paramsRHPM.values())
+paramsRHPMbnd = ((0,0.3), (-0.99,0.99), (0.01,1), (0.01,1))
 #### rHeston: Pade Approx ######################################################
