@@ -228,8 +228,8 @@ def test_CalibrateHestonModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
-    # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
+    # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
+    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
@@ -276,23 +276,7 @@ def test_ImpVolFromHestonIvCalibration():
     Texp = df["Texp"].unique()
     dfnew = list()
     params = cal[paramsBCCkey].iloc[0].to_dict()
-    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
-    for T in Texp:
-        dfT = df[df["Texp"]==T].copy()
-        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
-        iv = impVolFunc(k,T)
-        dfT["Fit"] = iv
-        dfnew.append(dfT)
-    dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIv.png")
-
-def test_ImpVolFromHestonIvCalibrationNewtonInv():
-    cal = pd.read_csv(dataFolder+"test_HestonCalibrationIv.csv")
-    df = pd.read_csv("spxVols20170424.csv")
-    df = df.drop(df.columns[0], axis=1)
-    Texp = df["Texp"].unique()
-    dfnew = list()
-    params = cal[paramsBCCkey].iloc[0].to_dict()
+    # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
     impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Newton")
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
@@ -301,7 +285,7 @@ def test_ImpVolFromHestonIvCalibrationNewtonInv():
         dfT["Fit"] = iv
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIvNewton.png")
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIv.png")
 
 #### Merton ####################################################################
 
@@ -590,7 +574,6 @@ if __name__ == '__main__':
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     test_ImpVolFromHestonIvCalibration()
-    # test_ImpVolFromHestonIvCalibrationNewtonInv()
     #### Merton ####
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
