@@ -31,8 +31,17 @@ def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, opti
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     return spotPrice * np.sqrt(maturity) * norm.pdf(d1)
 
+def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType):
+    riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
+    noArb = np.where(optionType == "call",
+        (priceMkt > np.maximum(spotPrice-strike*riskFreeRateFactor,0)) & (priceMkt < spotPrice),
+        (priceMkt > np.maximum(strike*riskFreeRateFactor-spotPrice,0)) & (priceMkt < strike*riskFreeRateFactor))
+    return noArb
+
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
+    # Generally, strike & priceMkt are vectors (called from CharFuncImpliedVol)
+    # TO-DO: make this very efficient
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
     if optionType == "OTM":
         optionType = np.where(strike > forwardPrice, "call", "put")
@@ -50,9 +59,24 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
-    elif method == "Newton": # Newton-Rhapson method
-        # TO-DO
-        pass
+    elif method == "Newton": # Newton-Raphson method
+        # TO-DO: INACCURATE for far OTM options (small vegas hence small derivs, and algo stops)
+        def objective(impVol):
+            return BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol, optionType) - priceMkt
+        def objectiveDeriv(impVol):
+            return BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
+        impVol0 = np.repeat(0.4, nStrikes)
+        impVol1 = np.repeat(0, nStrikes)
+        noArb = WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            for i in range(20):
+                step = objective(impVol0) / objectiveDeriv(impVol0)
+                step[np.abs(step)>3*impVol0] = 0 # avoid unstable step due to small derivs
+                impVol1 = impVol0 - noArb * step
+                if np.mean(np.abs(impVol1-impVol0)) < 1e-10: break
+                impVol0 = impVol1.copy()
+        impVol = noArb * impVol1
+        return impVol
     elif method == "Chebychev": # Chebychev IV-interpolation
         # Ref: Glau, The Chebyshev Method for the Implied Volatility
         # TO-DO
@@ -121,6 +145,7 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
 def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike
+    # TO-DO: make this very efficient
     du = B/N
     u = np.arange(N)*du
     w = np.arange(N)
@@ -289,12 +314,11 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
     maturity = np.array(maturity)
     bidVol = optionImpVol["Bid"].to_numpy()
     askVol = optionImpVol["Ask"].to_numpy()
-    from time import time
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
         impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
-        impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None)
+        impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"params: {params}")
         print(f"loss: {loss}")
