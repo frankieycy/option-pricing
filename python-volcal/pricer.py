@@ -43,9 +43,11 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
     # Generally, strike & priceMkt are vectors (called from CharFuncImpliedVol)
     # TO-DO: make this very efficient
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
-    if optionType == "OTM":
-        optionType = np.where(strike > forwardPrice, "call", "put")
     nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
+    impVol = np.repeat(0., nStrikes)
+    if isinstance(optionType, str): # cast optionType as vector
+        if optionType == "OTM": optionType = np.where(strike > forwardPrice, "call", "put")
+        else: optionType = np.repeat(optionType, nStrikes)
     if method == "Bisection": # Bisection search
         impVol0 = np.repeat(1e-10, nStrikes)
         impVol1 = np.repeat(10., nStrikes)
@@ -60,22 +62,24 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
     elif method == "Newton": # Newton-Raphson method
-        # TO-DO: INACCURATE for far OTM options (small vegas hence small derivs, and algo stops)
-        def objective(impVol):
-            return BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impVol, optionType) - priceMkt
-        def objectiveDeriv(impVol):
-            return BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
-        impVol0 = np.repeat(0.4, nStrikes)
-        impVol1 = np.repeat(0, nStrikes)
+        k = np.log(strike/forwardPrice)
         noArb = WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            for i in range(20):
-                step = objective(impVol0) / objectiveDeriv(impVol0)
-                step[np.abs(step)>3*impVol0] = 0 # avoid unstable step due to small derivs
-                impVol1 = impVol0 - noArb * step
-                if np.mean(np.abs(impVol1-impVol0)) < 1e-10: break
-                impVol0 = impVol1.copy()
-        impVol = noArb * impVol1
+        ntm = (k>-1)&(k<1)&(noArb) # near-the-money & arb-free
+        def objective(impVol):
+            return BlackScholesFormula(spotPrice, strike[ntm], maturity, riskFreeRate, impVol, optionType[ntm]) - priceMkt[ntm]
+        def objectiveDeriv(impVol):
+            return BlackScholesVega(spotPrice, strike[ntm], maturity, riskFreeRate, impVol, optionType[ntm])
+        impVol0 = np.repeat(0.4, np.sum(ntm))
+        impVol1 = np.repeat(0., np.sum(ntm))
+        for i in range(40): # iterate for NTM options
+            step = objective(impVol0) / objectiveDeriv(impVol0)
+            step[np.abs(step)>1] = 0 # abnormal step due to small derivs
+            impVol1 = impVol0 - step
+            if np.mean(np.abs(impVol1-impVol0)) < 1e-10: break
+            impVol0 = impVol1.copy()
+        impVol[ntm] = impVol1
+        if np.sum(~ntm): # delegate far-OTM options to Bisection
+            impVol[~ntm] = BlackScholesImpliedVol(spotPrice, strike[~ntm], maturity, riskFreeRate, priceMkt[~ntm], optionType[~ntm], method="Bisection")
         return impVol
     elif method == "Chebychev": # Chebychev IV-interpolation
         # Ref: Glau, The Chebyshev Method for the Implied Volatility
