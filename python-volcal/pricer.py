@@ -93,6 +93,17 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
 # Forward measure (riskFreeRate=0 in charFunc) is assumed, so price is undiscounted
 # TO-DO: non-zero riskFreeRate case? just multiply discount factor to formula?
 
+cmFFT_init = False
+cmFFT_du = None
+cmFFT_u = None
+cmFFT_dk = None
+cmFFT_k = None
+cmFFT_b = None
+cmFFT_w = None
+cmFFT_Imult = None
+cmFFT_cpImult = None
+cmFFT_otmImult = None
+
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
     # Works for scalar logStrike only
@@ -147,24 +158,52 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
         price = 1/(np.pi*np.sinh(alpha*logStrike)) * quad(integrand, 0, np.inf)[0]
         return price
 
-def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, **kwargs):
+def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, useGlobal=True, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike
-    # TO-DO: make this very efficient (0.018s per maturity * 28 maturities = 0.50s)
-    du = B/N
-    u = np.arange(N)*du
-    w = np.arange(N)
-    w = 3+(-1)**(w+1)
-    w[0] = 1; w[N-1] = 1
-    dk = 2*np.pi/B
-    b = N*dk/2
-    k = -b+np.arange(N)*dk
+    # TO-DO: make this very efficient (0.016s per maturity * 28 maturities = 0.45s)
+    if useGlobal:
+        global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult
+        if not cmFFT_init:
+            cmFFT_du = B/N
+            cmFFT_u = np.arange(N)*cmFFT_du
+            cmFFT_w = np.arange(N)
+            cmFFT_w = 3+(-1)**(cmFFT_w+1)
+            cmFFT_w[0] = 1; cmFFT_w[N-1] = 1
+            cmFFT_dk = 2*np.pi/B
+            cmFFT_b = N*cmFFT_dk/2
+            cmFFT_k = -cmFFT_b+np.arange(N)*cmFFT_dk
+            cmFFT_Imult = cmFFT_w * np.exp(1j*cmFFT_b*cmFFT_u) * cmFFT_du/3
+            cmFFT_cpImult = np.exp(-alpha*cmFFT_k)/np.pi
+            with np.errstate(divide='ignore'):
+                cmFFT_otmImult = 1/(np.pi*np.sinh(alpha*cmFFT_k))
+            cmFFT_init = True
+        du = cmFFT_du
+        u = cmFFT_u
+        dk = cmFFT_dk
+        k = cmFFT_k
+        b = cmFFT_b
+        w = cmFFT_w
+        Imult = cmFFT_Imult
+        cpImult = cmFFT_cpImult
+        otmImult = cmFFT_otmImult
+    else:
+        du = B/N
+        u = np.arange(N)*du
+        w = np.arange(N)
+        w = 3+(-1)**(w+1)
+        w[0] = 1; w[N-1] = 1
+        dk = 2*np.pi/B
+        b = N*dk/2
+        k = -b+np.arange(N)*dk
+        Imult = w * np.exp(1j*b*u) * du/3
     if optionType in ["call", "put"]:
         def modCharFunc(u, maturity):
             return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
-        I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3 # 0.010s
-        Ifft = np.exp(-alpha*k)/np.pi * np.real(fft(I)) # 0.001s
-        spline = interp1d(k, Ifft, kind=interp) # 0.006s
+        # I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3 # 0.010s (make this fast!)
+        I = Imult * modCharFunc(u, maturity) # 0.0085s
+        Ifft = cpImult * np.real(fft(I)) # 0.0010s
+        spline = interp1d(k, Ifft, kind=interp) # 0.0065s
         price = spline(logStrike)
         if optionType == "call": return price
         elif optionType == "put": return price-1+np.exp(logStrike)
@@ -173,8 +212,9 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             return 1 / (1+1j*u) - 1 / (1j*u) - charFunc(u-1j, maturity) / (u**2-1j*u)
         def gamCharFunc(u, maturity):
             return (modCharFunc(u-1j*alpha, maturity) - modCharFunc(u+1j*alpha, maturity)) / 2
-        I = w * np.exp(1j*b*u) * gamCharFunc(u, maturity) * du/3
-        with np.errstate(divide='ignore'): Ifft = 1/(np.pi*np.sinh(alpha*k)) * np.real(fft(I))
+        # I = w * np.exp(1j*b*u) * gamCharFunc(u, maturity) * du/3
+        I = Imult * gamCharFunc(u, maturity)
+        Ifft = otmImult * np.real(fft(I))
         Ifft[N//2] = CarrMadanFormula(charFunc, 0, maturity, "OTM", alpha, **kwargs) # k = 0
         spline = interp1d(k, Ifft, kind=interp)
         price = spline(logStrike)
