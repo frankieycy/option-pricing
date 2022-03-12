@@ -100,9 +100,12 @@ cmFFT_dk = None
 cmFFT_k = None
 cmFFT_b = None
 cmFFT_w = None
+cmFFT_ntm = None
 cmFFT_Imult = None
 cmFFT_cpImult = None
 cmFFT_otmImult = None
+cmFFT_cpCFarg = None
+cmFFT_cpCFmult = None
 
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
@@ -161,10 +164,11 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
 def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, useGlobal=True, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike
-    # TO-DO: make this very efficient (0.016s per maturity * 28 maturities = 0.45s)
+    # TO-DO: make this very efficient (0.0102s per maturity * 28 maturities = 0.286s)
     if useGlobal:
-        global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult
+        global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_ntm, cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult, cmFFT_cpCFarg, cmFFT_cpCFmult
         if not cmFFT_init:
+            # FFT params
             cmFFT_du = B/N
             cmFFT_u = np.arange(N)*cmFFT_du
             cmFFT_w = np.arange(N)
@@ -173,10 +177,14 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             cmFFT_dk = 2*np.pi/B
             cmFFT_b = N*cmFFT_dk/2
             cmFFT_k = -cmFFT_b+np.arange(N)*cmFFT_dk
+            cmFFT_ntm = (cmFFT_k>-5)&(cmFFT_k<5)
+            # pre-calculations
             cmFFT_Imult = cmFFT_w * np.exp(1j*cmFFT_b*cmFFT_u) * cmFFT_du/3
             cmFFT_cpImult = np.exp(-alpha*cmFFT_k)/np.pi
             with np.errstate(divide='ignore'):
                 cmFFT_otmImult = 1/(np.pi*np.sinh(alpha*cmFFT_k))
+            cmFFT_cpCFarg = cmFFT_u-(alpha+1)*1j
+            cmFFT_cpCFmult = 1/(alpha**2+alpha-cmFFT_u**2+1j*(2*alpha+1)*cmFFT_u)
             cmFFT_init = True
         du = cmFFT_du
         u = cmFFT_u
@@ -184,6 +192,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         k = cmFFT_k
         b = cmFFT_b
         w = cmFFT_w
+        ntm = cmFFT_ntm
         Imult = cmFFT_Imult
         cpImult = cmFFT_cpImult
         otmImult = cmFFT_otmImult
@@ -198,12 +207,16 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         k = -b+np.arange(N)*dk
         Imult = w * np.exp(1j*b*u) * du/3
     if optionType in ["call", "put"]:
-        def modCharFunc(u, maturity):
-            return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
+        if useGlobal:
+            def modCharFunc(u, maturity): # pre-calculated cpCFarg/cpCFmult
+                return charFunc(cmFFT_cpCFarg, maturity) * cmFFT_cpCFmult
+        else:
+            def modCharFunc(u, maturity):
+                return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
         # I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3 # 0.010s (make this fast!)
-        I = Imult * modCharFunc(u, maturity) # 0.0085s
+        I = Imult * modCharFunc(u, maturity) # 0.0083s
         Ifft = cpImult * np.real(fft(I)) # 0.0010s
-        spline = interp1d(k, Ifft, kind=interp) # 0.0065s
+        spline = interp1d(k[ntm], Ifft[ntm], kind=interp) # 0.0009s
         price = spline(logStrike)
         if optionType == "call": return price
         elif optionType == "put": return price-1+np.exp(logStrike)
