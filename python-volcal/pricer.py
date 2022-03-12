@@ -42,7 +42,7 @@ def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, option
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
     # Generally, strike & priceMkt are vectors (called from CharFuncImpliedVol)
-    # TO-DO: make this very efficient
+    # TO-DO: make this very efficient!
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
     nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
     impVol = np.repeat(0., nStrikes)
@@ -79,7 +79,9 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             if np.mean(np.abs(impVol1-impVol0)) < 1e-10: break
             impVol0 = impVol1.copy()
         impVol[ntm] = impVol1
-        if np.sum(~ntm): # delegate far-OTM options to Bisection
+        if np.sum(~ntm):
+            # delegate far-OTM options to Bisection
+            # small derivs make Newton unstable
             impVol[~ntm] = BlackScholesImpliedVol(spotPrice, strike[~ntm], maturity, riskFreeRate, priceMkt[~ntm], optionType[~ntm], method="Bisection")
         return impVol
     elif method == "Chebychev": # Chebychev IV-interpolation
@@ -164,7 +166,7 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
 def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, useGlobal=True, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike
-    # TO-DO: make this very efficient (0.0102s per maturity * 28 maturities = 0.286s)
+    # TO-DO: make this very efficient! (0.0102s per maturity * 28 maturities = 0.286s)
     if useGlobal:
         global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_ntm, cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult, cmFFT_cpCFarg, cmFFT_cpCFmult
         if not cmFFT_init:
@@ -205,7 +207,11 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         dk = 2*np.pi/B
         b = N*dk/2
         k = -b+np.arange(N)*dk
+        ntm = (k>-5)&(k<5)
         Imult = w * np.exp(1j*b*u) * du/3
+        cpImult = np.exp(-alpha*k)/np.pi
+        with np.errstate(divide='ignore'):
+            otmImult = 1/(np.pi*np.sinh(alpha*k))
     if optionType in ["call", "put"]:
         if useGlobal:
             def modCharFunc(u, maturity): # pre-calculated cpCFarg/cpCFmult
@@ -229,7 +235,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         I = Imult * gamCharFunc(u, maturity)
         Ifft = otmImult * np.real(fft(I))
         Ifft[N//2] = CarrMadanFormula(charFunc, 0, maturity, "OTM", alpha, **kwargs) # k = 0
-        spline = interp1d(k, Ifft, kind=interp)
+        spline = interp1d(k[ntm], Ifft[ntm], kind=interp)
         price = spline(logStrike)
         return price
 
