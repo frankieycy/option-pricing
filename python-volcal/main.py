@@ -552,7 +552,29 @@ def test_CalibrationSpeed():
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
     from time import time
     t0 = time(); unit(k,T); t1 = time()
-    print(f"unit() takes {round(t1-t0,4)}s") # 0.66s = 0.50s (FFT price) + 0.16s (BS inversion)
+    print(f"unit() takes {round(t1-t0,4)}s") # 0.60s = 0.45s (FFT price) + 0.15s (BS inversion)
+
+def test_CharFuncSpeed():
+    alpha = 2
+    N = 2**16
+    B = 4000
+    maturity = 1
+    du = B/N
+    u = np.arange(N)*du
+    w = np.arange(N)
+    w = 3+(-1)**(w+1)
+    w[0] = 1; w[N-1] = 1
+    dk = 2*np.pi/B
+    b = N*dk/2
+    k = -b+np.arange(N)*dk
+    charFunc = HestonCharFunc(**paramsBCC)
+    def modCharFunc(u, maturity):
+        return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
+    def unit():
+        I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3
+    from time import time
+    t0 = time(); unit(); t1 = time()
+    print(f"unit() takes {round(t1-t0,4)}s")
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
@@ -596,3 +618,4 @@ if __name__ == '__main__':
     # test_ImpVolFromRHPMIvCalibration()
     #### Speed Test ####
     test_CalibrationSpeed()
+    # test_CharFuncSpeed()
