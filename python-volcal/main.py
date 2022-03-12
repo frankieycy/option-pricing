@@ -220,7 +220,7 @@ def test_CalibrateHestonModelToCallPricePrx():
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationPrx.csv", index=False)
 
-def test_CalibrateHestonModelToImpVol():
+def test_CalibrateHestonModelToImpVol(): # Benchmark!
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     T = df["Texp"]
@@ -552,7 +552,7 @@ def test_CalibrationSpeed():
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
     from time import time
     t0 = time(); unit(k,T); t1 = time()
-    print(f"unit() takes {round(t1-t0,4)}s")
+    print(f"unit() takes {round(t1-t0,4)}s") # 0.66s = 0.50s (FFT price) + 0.16s (BS inversion)
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
@@ -570,10 +570,10 @@ if __name__ == '__main__':
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    test_CalibrateHestonModelToImpVol()
+    # test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
-    test_ImpVolFromHestonIvCalibration()
+    # test_ImpVolFromHestonIvCalibration()
     #### Merton ####
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
@@ -595,4 +595,4 @@ if __name__ == '__main__':
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()
     #### Speed Test ####
-    # test_CalibrationSpeed()
+    test_CalibrationSpeed()

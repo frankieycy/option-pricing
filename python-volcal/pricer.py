@@ -32,6 +32,7 @@ def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, opti
     return spotPrice * np.sqrt(maturity) * norm.pdf(d1)
 
 def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType):
+    # whether priceMkt lies within no-arb bounds
     riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
     noArb = np.where(optionType == "call",
         (priceMkt > np.maximum(spotPrice-strike*riskFreeRateFactor,0)) & (priceMkt < spotPrice),
@@ -149,7 +150,7 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
 def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", alpha=2, N=2**16, B=4000, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike
-    # TO-DO: make this very efficient
+    # TO-DO: make this very efficient (0.018s per maturity * 28 maturities = 0.50s)
     du = B/N
     u = np.arange(N)*du
     w = np.arange(N)
@@ -161,9 +162,9 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
     if optionType in ["call", "put"]:
         def modCharFunc(u, maturity):
             return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
-        I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3
-        Ifft = np.exp(-alpha*k)/np.pi * np.real(fft(I))
-        spline = interp1d(k, Ifft, kind=interp)
+        I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3 # 0.010s
+        Ifft = np.exp(-alpha*k)/np.pi * np.real(fft(I)) # 0.001s
+        spline = interp1d(k, Ifft, kind=interp) # 0.006s
         price = spline(logStrike)
         if optionType == "call": return price
         elif optionType == "put": return price-1+np.exp(logStrike)
