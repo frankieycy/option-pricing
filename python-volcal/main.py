@@ -17,6 +17,13 @@ def test_BlackScholesImpVol():
     impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call")
     print(impVol)
 
+def test_BlackScholesImpVolInterp():
+    vol = np.array([0.23,0.20,0.18])
+    strike = np.array([0.9,1.0,1.1])
+    price = BlackScholesFormula(1,strike,1,0,vol,"call")
+    impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Interp")
+    print(impVol)
+
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -230,7 +237,8 @@ def test_CalibrateHestonModelToImpVol(): # Benchmark!
     iv = df[["Bid","Ask"]]
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
-    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Interp",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
@@ -278,7 +286,8 @@ def test_ImpVolFromHestonIvCalibration():
     dfnew = list()
     params = cal[paramsBCCkey].iloc[0].to_dict()
     # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
-    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Newton")
+    # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Newton")
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Interp")
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
@@ -552,6 +561,7 @@ def test_CalibrationSpeed():
         # impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, inversionMethod="Newton")
         charFunc = HestonCharFunc(**paramsBCC, curry=True)
         impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, useGlobal=True, curryCharFunc=True, inversionMethod="Newton")
+        # impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, useGlobal=True, curryCharFunc=True, inversionMethod="Interp")
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
     from time import time
     t0 = time(); unit(k,T); t1 = time()
@@ -581,6 +591,7 @@ def test_CharFuncSpeed():
 
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
+    # test_BlackScholesImpVolInterp()
     # test_PlotImpliedVol()
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
