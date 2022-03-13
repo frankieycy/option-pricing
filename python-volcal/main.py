@@ -229,7 +229,8 @@ def test_CalibrateHestonModelToImpVol(): # Benchmark!
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
-    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
+    # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
+    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
@@ -547,12 +548,14 @@ def test_CalibrationSpeed():
     T = df["Texp"]
     k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
     def unit(logStrike, maturity):
-        charFunc = HestonCharFunc(**paramsBCC)
-        impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, inversionMethod="Newton")
+        # charFunc = HestonCharFunc(**paramsBCC)
+        # impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, inversionMethod="Newton")
+        charFunc = HestonCharFunc(**paramsBCC, curry=True)
+        impVolFunc = CharFuncImpliedVol(charFunc, optionType="call", FFT=True, useGlobal=True, curryCharFunc=True, inversionMethod="Newton")
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
     from time import time
     t0 = time(); unit(k,T); t1 = time()
-    print(f"unit() takes {round(t1-t0,4)}s") # 0.44s = 0.29s (FFT price) + 0.15s (BS inversion)
+    print(f"unit() takes {round(t1-t0,4)}s") # 0.40s = 0.25s (FFT price) + 0.15s (BS inversion)
 
 def test_CharFuncSpeed():
     alpha = 2
