@@ -7,10 +7,13 @@ from scipy.stats import norm
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize
 from scipy.integrate import quad
-from scipy.interpolate import splrep, splev, pchip, interp1d
+from scipy.interpolate import splrep, splev, pchip, interp1d, RectBivariateSpline
 plt.switch_backend("Agg")
 
 #### Black-Scholes #############################################################
+
+bsIv_interpInit = False
+bsIv_interpFunc = None
 
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes formula for call/put
@@ -93,6 +96,38 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             # delegate far-OTM options to Bisection
             # small derivs make Newton unstable
             impVol[~ntm] = BlackScholesImpliedVol(spotPrice, strike[~ntm], maturity, riskFreeRate, priceMkt[~ntm], optionType[~ntm], method="Bisection")
+        return impVol
+    elif method == "Interp": # Cubic interpolation (vectors input ONLY)
+        # NOTE: accuracy is compromised for speed!
+        # Params: Kgrid ~ 4e-3, Vgrid ~ 2e-4
+        # TO-DO: Newton iteration instead of Bisection
+        global bsIv_interpInit, bsIv_interpFunc
+        if not bsIv_interpInit:
+            def call(k,v):
+                return np.exp(-k/2)*norm.cdf(-k/v+v/2) - np.exp(k/2)*norm.cdf(-k/v-v/2)
+            K = np.arange(-5,5,4e-3) # log-moneyness
+            V = np.arange(1e-3,1,2e-4) # total implied vol
+            C = call(*np.meshgrid(K,V))
+            bsIv_interpFunc = RectBivariateSpline(K,V,C.T)
+            bsIv_interpInit = True
+        k = np.log(strike/forwardPrice)
+        put = (optionType == "put")
+        priceMkt /= np.sqrt(spotPrice*strike*np.exp(-riskFreeRate*maturity))
+        priceMkt[put] += -np.exp(k[put]/2)+np.exp(-k[put]/2) # cast as call prices
+        def callInterp(impVol):
+            return bsIv_interpFunc(k, impVol, grid=False)
+        impVol0 = np.repeat(1e-10, nStrikes)
+        impVol1 = np.repeat(1., nStrikes)
+        price0 = callInterp(impVol0)
+        price1 = callInterp(impVol1)
+        while np.mean(impVol1-impVol0) > 1e-10:
+            impVol = (impVol0+impVol1)/2
+            price = callInterp(impVol)
+            price0 += (price<priceMkt)*(price-price0)
+            impVol0 += (price<priceMkt)*(impVol-impVol0)
+            price1 += (price>=priceMkt)*(price-price1)
+            impVol1 += (price>=priceMkt)*(impVol-impVol1)
+        impVol /= np.sqrt(maturity)
         return impVol
     elif method == "Chebychev": # Chebychev IV-interpolation
         # Ref: Glau, The Chebyshev Method for the Implied Volatility
