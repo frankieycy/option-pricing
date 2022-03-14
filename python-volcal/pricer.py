@@ -22,15 +22,18 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     d2 = d1-totalImpVol
-    if isinstance(optionType, str): # scalar calculations
+
+    if isinstance(optionType, str): # Scalar calculations
         return spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2) if optionType == "call" else \
             riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
-    else: # vector calculations
+    else: # Vector calculations
+        # strike, maturity, impliedVol, optionType are vectors
         call = (optionType == "call")
         price = np.zeros(len(strike))
-        price[call] = spotPrice * norm.cdf(d1[call]) - riskFreeRateFactor * strike[call] * norm.cdf(d2[call]) # call
-        price[~call] = riskFreeRateFactor * strike[~call] * norm.cdf(-d2[~call]) - spotPrice * norm.cdf(-d1[~call]) # put
+        price[call] = spotPrice * norm.cdf(d1[call]) - riskFreeRateFactor[call] * strike[call] * norm.cdf(d2[call]) # call
+        price[~call] = riskFreeRateFactor[~call] * strike[~call] * norm.cdf(-d2[~call]) - spotPrice * norm.cdf(-d1[~call]) # put
         return price
+
     # price = np.where(optionType == "call",
     #     spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2),
     #     riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
@@ -53,14 +56,19 @@ def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, option
 
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
-    # Generally, strike & priceMkt are vectors (called from CharFuncImpliedVol)
+    # Generally, strike & priceMkt are input vectors (called from e.g. CharFuncImpliedVol)
+    # Within function, optionType & maturity are cast to vectors
     # Make this very efficient!
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
     nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
     impVol = np.repeat(0., nStrikes)
-    if isinstance(optionType, str): # cast optionType as vector
+
+    if isinstance(optionType, str): # Cast optionType as vector
         if optionType == "OTM": optionType = np.where(strike > forwardPrice, "call", "put")
         else: optionType = np.repeat(optionType, nStrikes)
+    if isinstance(maturity, float): # Cast maturity as vector
+        maturity = np.repeat(maturity, nStrikes)
+
     if method == "Bisection": # Bisection search
         impVol0 = np.repeat(1e-10, nStrikes)
         impVol1 = np.repeat(10., nStrikes)
@@ -74,46 +82,47 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
+
     elif method == "Newton": # Newton-Raphson method (NTM options)
         k = np.log(strike/forwardPrice)
         noArb = WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType)
-        ntm = (k>-1)&(k<1)&(noArb) # near-the-money & arb-free
-        strikeNtm, optionTypeNtm, priceMktNtm = strike[ntm], optionType[ntm], priceMkt[ntm]
+        ntm = (k>-1)&(k<1)&(noArb) # Near-the-money & arb-free
+        strikeNtm, maturityNtm, optionTypeNtm, priceMktNtm = strike[ntm], maturity[ntm], optionType[ntm], priceMkt[ntm]
         def objective(impVol):
-            return BlackScholesFormula(spotPrice, strikeNtm, maturity, riskFreeRate, impVol, optionTypeNtm) - priceMktNtm
+            return BlackScholesFormula(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm) - priceMktNtm
         def objectiveDeriv(impVol):
-            return BlackScholesVega(spotPrice, strikeNtm, maturity, riskFreeRate, impVol, optionTypeNtm)
+            return BlackScholesVega(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm)
         impVol0 = np.repeat(0.4, np.sum(ntm))
         impVol1 = np.repeat(0., np.sum(ntm))
-        for i in range(40): # iterate for NTM options
+        for i in range(40): # Iterate for NTM options
             step = objective(impVol0) / objectiveDeriv(impVol0)
-            step[np.abs(step)>1] = 0 # abnormal step due to small derivs
+            step[np.abs(step)>1] = 0 # Abnormal step due to small derivs
             impVol1 = impVol0 - step
             if np.mean(np.abs(impVol1-impVol0)) < 1e-10: break
             impVol0 = impVol1.copy()
         impVol[ntm] = impVol1
         if np.sum(~ntm):
-            # delegate far-OTM options to Bisection
-            # small derivs make Newton unstable
-            impVol[~ntm] = BlackScholesImpliedVol(spotPrice, strike[~ntm], maturity, riskFreeRate, priceMkt[~ntm], optionType[~ntm], method="Bisection")
+            # Delegate far-OTM options to Bisection
+            # Small derivs make Newton unstable
+            impVol[~ntm] = BlackScholesImpliedVol(spotPrice, strike[~ntm], maturity[~ntm], riskFreeRate, priceMkt[~ntm], optionType[~ntm], method="Bisection")
         return impVol
+
     elif method == "Interp": # Cubic interpolation (vectors input ONLY)
         # NOTE: accuracy is compromised for speed!
         # Params: Kgrid ~ 4e-3, Vgrid ~ 2e-4
-        # TO-DO: Newton iteration instead of Bisection
         global bsIv_interpInit, bsIv_interpFunc
         if not bsIv_interpInit:
             def call(k,v):
                 return np.exp(-k/2)*norm.cdf(-k/v+v/2) - np.exp(k/2)*norm.cdf(-k/v-v/2)
-            K = np.arange(-5,5,4e-3) # log-moneyness
-            V = np.arange(1e-3,1,2e-4) # total implied vol
+            K = np.arange(-5,5,4e-3) # Log-moneyness
+            V = np.arange(1e-3,1,2e-4) # Total implied vol
             C = call(*np.meshgrid(K,V))
             bsIv_interpFunc = RectBivariateSpline(K,V,C.T)
             bsIv_interpInit = True
         k = np.log(strike/forwardPrice)
         put = (optionType == "put")
         priceMkt /= np.sqrt(spotPrice*strike*np.exp(-riskFreeRate*maturity))
-        priceMkt[put] += -np.exp(k[put]/2)+np.exp(-k[put]/2) # cast as call prices
+        priceMkt[put] += -np.exp(k[put]/2)+np.exp(-k[put]/2) # Cast as call prices
         def callInterp(impVol):
             return bsIv_interpFunc(k, impVol, grid=False)
         impVol0 = np.repeat(1e-10, nStrikes)
@@ -129,6 +138,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         impVol /= np.sqrt(maturity)
         return impVol
+
     elif method == "Chebychev": # Chebychev IV-interpolation
         # Ref: Glau, The Chebyshev Method for the Implied Volatility
         # TO-DO
@@ -218,8 +228,9 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
     if useGlobal:
         global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_ntm, \
             cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult, cmFFT_cpCFarg, cmFFT_cpCFmult, cmFFT_charFunc, cmFFT_charFuncLog
+
         if not cmFFT_init:
-            # initialize global params (only ONCE!)
+            # Initialize global params (only ONCE!)
             #### FFT params ####
             cmFFT_du = B/N
             cmFFT_u = np.arange(N)*cmFFT_du
@@ -238,11 +249,13 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             cmFFT_cpCFarg = cmFFT_u-(alpha+1)*1j
             cmFFT_cpCFmult = 1/(alpha**2+alpha-cmFFT_u**2+1j*(2*alpha+1)*cmFFT_u)
             cmFFT_init = True
+
         if charFunc != cmFFT_charFuncLog:
-            # update charFunc (for every NEW charFunc)
+            # Update charFunc (for every NEW charFunc)
             cmFFT_charFuncLog = charFunc
             if curryCharFunc: cmFFT_charFunc = charFunc(cmFFT_cpCFarg)
             else: cmFFT_charFunc = charFunc
+
         du = cmFFT_du
         u = cmFFT_u
         dk = cmFFT_dk
@@ -256,6 +269,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         cpCFarg = cmFFT_cpCFarg
         cpCFmult = cmFFT_cpCFmult
         charFunc = cmFFT_charFunc
+
     else:
         du = B/N
         u = np.arange(N)*du
@@ -270,9 +284,10 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         cpImult = np.exp(-alpha*k)/np.pi
         with np.errstate(divide='ignore'):
             otmImult = 1/(np.pi*np.sinh(alpha*k))
+
     if optionType in ["call", "put"]:
         if useGlobal:
-            def modCharFunc(u, maturity): # pre-calculated cpCFarg/cpCFmult
+            def modCharFunc(u, maturity): # Pre-calculated cpCFarg/cpCFmult
                 return charFunc(cpCFarg, maturity) * cpCFmult
         else:
             def modCharFunc(u, maturity):
@@ -284,6 +299,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         price = spline(logStrike)
         if optionType == "call": return price
         elif optionType == "put": return price-1+np.exp(logStrike)
+
     elif optionType == "OTM":
         def modCharFunc(u, maturity):
             return 1 / (1+1j*u) - 1 / (1j*u) - charFunc(u-1j, maturity) / (u**2-1j*u)
@@ -511,6 +527,39 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
         print(f"params: {params}")
         print(f"loss: {loss}")
         return loss
+    opt = minimize(objective, x0=params0, bounds=bounds)
+    print("Optimization output:", opt, sep="\n")
+    return opt.x
+
+def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, **kwargs):
+    # Calibrate model params to implied vols (pricing measure)
+    # NOTE: include useGlobal=True for curryCharFunc=True
+    if w is None: w = 1
+    maturity = np.array(maturity)
+    strike = np.exp(logStrike)
+    bidVol = optionImpVol["Bid"].to_numpy()
+    askVol = optionImpVol["Ask"].to_numpy()
+
+    if formulaType == "Lewis":
+        formula = LewisFormulaFFT
+    elif formulaType == "CarrMadan":
+        formula = CarrMadanFormulaFFT
+    riskFreeRate = kwargs["riskFreeRate"] if "riskFreeRate" in kwargs else 0
+    inversionMethod = kwargs["inversionMethod"] if "inversionMethod" in kwargs else "Bisection"
+
+    def objective(params):
+        params = {paramsLabel[i]: params[i] for i in range(len(params))}
+        # charFunc = model(**params)
+        # impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
+        charFunc = model(**params, curry=curryCharFunc)
+        price = np.concatenate([formula(charFunc, logStrike[maturity==T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in np.unique(maturity)], axis=None) # most costly
+        impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod)
+        loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
+        print(f"params: {params}")
+        print(f"loss: {loss}")
+        return loss
+
     opt = minimize(objective, x0=params0, bounds=bounds)
     print("Optimization output:", opt, sep="\n")
     return opt.x

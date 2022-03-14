@@ -238,7 +238,8 @@ def test_CalibrateHestonModelToImpVol(): # Benchmark!
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
-    x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Interp",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Interp",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
@@ -389,7 +390,8 @@ def test_CalibrateMertonModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MertonJumpCharFunc,paramsMERval,paramsMERkey,bounds=paramsMERbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMERkey)
     x.to_csv(dataFolder+"test_MertonCalibrationIv.csv", index=False)
 
@@ -466,7 +468,8 @@ def test_CalibrateSVJModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
     x.to_csv(dataFolder+"test_SVJCalibrationIv.csv", index=False)
 
@@ -497,7 +500,8 @@ def test_CalibrateVGModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGkey)
     x.to_csv(dataFolder+"test_VGCalibrationIv.csv", index=False)
 
@@ -528,7 +532,8 @@ def test_CalibrateRHPMModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVol(k,T,iv,rHestonPoorMansCharFunc,paramsRHPMval,paramsRHPMkey,bounds=paramsRHPMbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVol(k,T,iv,rHestonPoorMansCharFunc,paramsRHPMval,paramsRHPMkey,bounds=paramsRHPMbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,rHestonPoorMansCharFunc,paramsRHPMval,paramsRHPMkey,bounds=paramsRHPMbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsRHPMkey)
     x.to_csv(dataFolder+"test_RHPMCalibrationIv.csv", index=False)
 
@@ -606,7 +611,7 @@ if __name__ == '__main__':
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    # test_CalibrateHestonModelToImpVol()
+    test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
@@ -631,5 +636,5 @@ if __name__ == '__main__':
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()
     #### Speed Test ####
-    test_CalibrationSpeed()
+    # test_CalibrationSpeed()
     # test_CharFuncSpeed()
