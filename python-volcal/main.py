@@ -570,7 +570,7 @@ def test_CalibrationSpeed():
         impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
     from time import time
     t0 = time(); unit(k,T); t1 = time()
-    print(f"unit() takes {round(t1-t0,4)}s") # 0.40s = 0.25s (FFT price) + 0.15s (BS inversion)
+    print(f"unit() takes {round(t1-t0,4)}s") # 0.38s
 
 def test_CharFuncSpeed():
     alpha = 2
