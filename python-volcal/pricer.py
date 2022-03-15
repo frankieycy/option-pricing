@@ -225,7 +225,7 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
     alpha=2, N=2**16, B=4000, useGlobal=False, curryCharFunc=False, **kwargs):
     # Carr-Madan FFT formula for call/put/OTM
     # Works for vector logStrike; useGlobal=True in order for curryCharFunc=True
-    # Make this very efficient! (0.0084s per maturity * 28 maturities = 0.235s)
+    # Make this very efficient! (0.0081s per maturity * 28 maturities = 0.227s)
     if useGlobal:
         global cmFFT_init, cmFFT_du, cmFFT_u, cmFFT_dk, cmFFT_k, cmFFT_b, cmFFT_w, cmFFT_ntm, cmFFT_kntm, \
             cmFFT_Imult, cmFFT_cpImult, cmFFT_otmImult, cmFFT_cpCFarg, cmFFT_cpCFmult, cmFFT_charFunc, cmFFT_charFuncLog
@@ -297,8 +297,9 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             def modCharFunc(u, maturity):
                 return charFunc(u-(alpha+1)*1j, maturity) / (alpha**2+alpha-u**2+1j*(2*alpha+1)*u)
         # I = w * np.exp(1j*b*u) * modCharFunc(u, maturity) * du/3 # 0.010s (make this fast!)
-        I = Imult * modCharFunc(u, maturity) # 0.0068s
-        Ifft = cpImult * np.real(fft(I)) # 0.0010s
+        I = Imult * modCharFunc(u, maturity) # 0.0067s
+        # Ifft = cpImult * np.real(fft(I)) # 0.0009s
+        Ifft = cpImult * np.real(np.fft.fft(I)) # 0.0008s
         # spline = interp1d(kntm, Ifft[ntm], kind=interp) # 0.0008s
         spline = InterpolatedUnivariateSpline(kntm, Ifft[ntm], k=(3 if interp=="cubic" else 1)) # 0.0006s
         price = spline(logStrike)
@@ -312,7 +313,8 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
             return (modCharFunc(u-1j*alpha, maturity) - modCharFunc(u+1j*alpha, maturity)) / 2
         # I = w * np.exp(1j*b*u) * gamCharFunc(u, maturity) * du/3
         I = Imult * gamCharFunc(u, maturity)
-        Ifft = otmImult * np.real(fft(I))
+        # Ifft = otmImult * np.real(fft(I))
+        Ifft = otmImult * np.real(np.fft.fft(I))
         Ifft[N//2] = CarrMadanFormula(charFunc, 0, maturity, "OTM", alpha, **kwargs) # k = 0
         # spline = interp1d(kntm, Ifft[ntm], kind=interp)
         spline = InterpolatedUnivariateSpline(kntm, Ifft[ntm], k=(3 if interp=="cubic" else 1))
