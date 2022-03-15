@@ -7,13 +7,33 @@ from scipy.stats import norm
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize
 from scipy.integrate import quad
-from scipy.interpolate import splrep, splev, pchip, interp1d, InterpolatedUnivariateSpline, RectBivariateSpline
+from scipy.interpolate import splrep, splev, pchip, interp1d, \
+    InterpolatedUnivariateSpline, RectBivariateSpline
 plt.switch_backend("Agg")
 
-#### Black-Scholes #############################################################
+#### Global Variables ##########################################################
 
 bsIv_interpInit = False
 bsIv_interpFunc = None
+
+cmFFT_init = False
+cmFFT_du = None
+cmFFT_u = None
+cmFFT_dk = None
+cmFFT_k = None
+cmFFT_b = None
+cmFFT_w = None
+cmFFT_ntm = None
+cmFFT_kntm = None
+cmFFT_Imult = None
+cmFFT_cpImult = None
+cmFFT_otmImult = None
+cmFFT_cpCFarg = None
+cmFFT_cpCFmult = None
+cmFFT_charFunc = None
+cmFFT_charFuncLog = None
+
+#### Black-Scholes #############################################################
 
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes formula for call/put
@@ -23,10 +43,10 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     d2 = d1-totalImpVol
 
-    if isinstance(optionType, str): # Scalar calculations
+    if isinstance(optionType, str): # Scalar calculations (str optionType)
         return spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2) if optionType == "call" else \
             riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
-    else: # Vector calculations
+    else: # Vector calculations (vector optionType)
         # strike, maturity, impliedVol, optionType are vectors
         call = (optionType == "call")
         price = np.zeros(len(strike))
@@ -108,14 +128,14 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
         return impVol
 
     elif method == "Interp": # Cubic interpolation (vectors input ONLY)
-        # NOTE: accuracy is compromised for speed!
+        # Accuracy is compromised for speed!
         # Params: Kgrid ~ 4e-3, Vgrid ~ 2e-4
         global bsIv_interpInit, bsIv_interpFunc
         if not bsIv_interpInit:
             def call(k,v):
                 return np.exp(-k/2)*norm.cdf(-k/v+v/2) - np.exp(k/2)*norm.cdf(-k/v-v/2)
-            K = np.arange(-5,5,4e-3) # Log-moneyness
-            V = np.arange(1e-3,1,2e-4) # Total implied vol
+            K = np.arange(-5,5,4e-3) # Log-moneyness: log(K/F)
+            V = np.arange(1e-3,1,2e-4) # Total implied vol: sig*sqrt(T)
             C = call(*np.meshgrid(K,V))
             bsIv_interpFunc = RectBivariateSpline(K,V,C.T)
             bsIv_interpInit = True
@@ -144,28 +164,168 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
         # TO-DO
         return impVol
 
+#### Characteristic Function ###################################################
+# Characteristic Function: E(exp(i*u*XT)), XT = log(ST/S0)
+# Return charFunc with arguments (u, maturity)
+
+def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
+    # Characteristic function for Black-Scholes model
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp(1j*u*riskFreeRate*maturity-vol**2/2*u*(u+1j)*maturity)
+    return charFunc
+
+def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
+    # Characteristic function for Heston model
+    if curry:
+        def charFunc(u):
+            iur = 1j*u*riskFreeRate
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            def charFuncFixedU(u, maturity): # u is dummy
+                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+                C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+                return np.exp(iur*maturity+C*meanVar+D*currentVar)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+            C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
+    return charFunc
+
+def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
+    # Characteristic function for Merton-Jump model
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp(1j*u*riskFreeRate*maturity-vol**2/2*u*(u+1j)*maturity-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
+    return charFunc
+
+def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
+    # Characteristic function for Variance-Gamma model
+    # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
+    # Ref: Madan, The Variance Gamma Process and Option Pricing
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
+    return charFunc
+
+def CGMYCharFunc(curry=False):
+    # Characteristic function for CGMY model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
+    # Characteristic function for SVJ model (Heston-MertonJump)
+    if curry:
+        def charFunc(u):
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            chExp = 1j*u*riskFreeRate-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1)
+            def charFuncFixedU(u, maturity): # u is dummy
+                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+                C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+                return np.exp(chExp*maturity+C*meanVar+D*currentVar)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+            C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
+    return charFunc
+
+def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
+    # Characteristic function for SVJJ model (HestonJump-MertonJump)
+    # Ref: Gatheral, Volatility Workshop VW2.pdf
+    pass
+
+def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFreeRate=0, curry=False):
+    # Characteristic function for rHeston model (poor man's Heston approx)
+    # Heston approx: meanRevRate=0 hence no meanVar-dependence, currentVar is var swap price
+    # Ref: Gatheral, Roughening Heston
+    volOfVolFactor = np.sqrt(3/(2*hurstExp+2))*volOfVol/sp.special.gamma(hurstExp+1.5)
+    if curry:
+        def charFunc(u):
+            iur = 1j*u*riskFreeRate
+            alpha = -u**2/2-1j*u/2
+            def charFuncFixedU(u, maturity): # u is dummy
+                volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
+                beta = -correlation*volOfVolMod*1j*u
+                gamma = volOfVolMod**2/2
+                d = np.sqrt(beta**2-4*alpha*gamma)
+                rp = (beta+d)/(2*gamma)
+                rm = (beta-d)/(2*gamma)
+                g = rm/rp
+                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+                return np.exp(iur*maturity+D*currentVar)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
+            alpha = -u**2/2-1j*u/2
+            beta = -correlation*volOfVolMod*1j*u
+            gamma = volOfVolMod**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+            return np.exp(1j*u*riskFreeRate*maturity+D*currentVar)
+    return charFunc
+
+def rHestonPadeCharFunc(hurstExp, correlation, meanVar, currentVar, riskFreeRate=0, curry=False):
+    # Characteristic function for rHeston model (poor man's crude approx)
+    # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
+    # TO-DO
+    pass
+
 #### Pricing Formula ###########################################################
 # Return prices at S0=1 given logStrike k=log(K/F) (scalar/vector) and maturity T (scalar)
-# NOTE: **kwargs for deployment in Implied Vol functions
+# **kwargs for deployment in Implied Vol functions
 # Forward measure (riskFreeRate=0 in charFunc) is assumed, so price is undiscounted
 # TO-DO: non-zero riskFreeRate case? just multiply discount factor to formula?
-
-cmFFT_init = False
-cmFFT_du = None
-cmFFT_u = None
-cmFFT_dk = None
-cmFFT_k = None
-cmFFT_b = None
-cmFFT_w = None
-cmFFT_ntm = None
-cmFFT_kntm = None
-cmFFT_Imult = None
-cmFFT_cpImult = None
-cmFFT_otmImult = None
-cmFFT_cpCFarg = None
-cmFFT_cpCFmult = None
-cmFFT_charFunc = None
-cmFFT_charFuncLog = None
 
 def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
     # Lewis formula for call/put/OTM
@@ -180,6 +340,7 @@ def LewisFormula(charFunc, logStrike, maturity, optionType="OTM", **kwargs):
 def LewisFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp="cubic", N=2**12, B=1000, **kwargs):
     # Lewis FFT formula for call/put/OTM
     # Works for vector logStrike
+    # Does NOT support useGlobal, curryCharFunc
     # Unstable for short maturity
     du = B/N
     u = np.arange(N)*du
@@ -208,6 +369,7 @@ def CarrMadanFormula(charFunc, logStrike, maturity, optionType="OTM", alpha=2, *
         price = np.exp(-alpha*logStrike)/np.pi * quad(integrand, 0, np.inf)[0]
         if optionType == "call": return price
         elif optionType == "put": return price-1+np.exp(logStrike)
+
     elif optionType == "OTM":
         if np.abs(logStrike) < 1e-10:
             price0 = CarrMadanFormula(charFunc, -1e-4, maturity, "put", alpha, **kwargs)
@@ -338,6 +500,7 @@ def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, fo
 
 def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc, based on Lewis formula
+    # Much SLOWER than Bisection
     def impVolFunc(logStrike, maturity):
         def objective(vol):
             integrand = lambda u:  np.real(np.exp(-1j*u*logStrike) * (charFunc(u-1j/2, maturity) - BlackScholesCharFunc(vol, riskFreeRate)(u-1j/2, maturity)) / (u**2+.25))
@@ -345,151 +508,6 @@ def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs
         impVol = fsolve(objective, 0.4)[0]
         return impVol
     return impVolFunc
-
-#### Characteristic Function ###################################################
-# Characteristic Function: E(exp(i*u*XT)), XT = log(ST/S0)
-# Return charFunc with arguments (u, maturity)
-
-def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
-    # Characteristic function for Black-Scholes model
-    def charFunc(u, maturity):
-        return np.exp(1j*u*riskFreeRate*maturity-vol**2*maturity/2*u*(u+1j))
-    return charFunc
-
-def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
-    # Characteristic function for Heston model
-    if curry:
-        def charFunc(u):
-            iur = 1j*u*riskFreeRate
-            alpha = -u**2/2-1j*u/2
-            beta = meanRevRate-correlation*volOfVol*1j*u
-            gamma = volOfVol**2/2
-            d = np.sqrt(beta**2-4*alpha*gamma)
-            rp = (beta+d)/(2*gamma)
-            rm = (beta-d)/(2*gamma)
-            g = rm/rp
-            def charFuncFixedU(u, maturity): # u is dummy
-                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-                C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-                return np.exp(iur*maturity+C*meanVar+D*currentVar)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            alpha = -u**2/2-1j*u/2
-            beta = meanRevRate-correlation*volOfVol*1j*u
-            gamma = volOfVol**2/2
-            d = np.sqrt(beta**2-4*alpha*gamma)
-            rp = (beta+d)/(2*gamma)
-            rm = (beta-d)/(2*gamma)
-            g = rm/rp
-            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-            C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
-    return charFunc
-
-def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
-    # Characteristic function for Merton-Jump model
-    if curry:
-        def charFunc(u):
-            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1)
-            def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(chExp*maturity)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            return np.exp(1j*u*riskFreeRate*maturity-vol**2*maturity/2*u*(u+1j)-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
-    return charFunc
-
-def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
-    # Characteristic function for Variance-Gamma model
-    # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
-    # Ref: Madan, The Variance Gamma Process and Option Pricing
-    if curry:
-        def charFunc(u):
-            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
-            def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(chExp*maturity)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
-    return charFunc
-
-def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
-    # Characteristic function for SVJ model (Heston-MertonJump)
-    if curry:
-        def charFunc(u):
-            alpha = -u**2/2-1j*u/2
-            beta = meanRevRate-correlation*volOfVol*1j*u
-            gamma = volOfVol**2/2
-            d = np.sqrt(beta**2-4*alpha*gamma)
-            rp = (beta+d)/(2*gamma)
-            rm = (beta-d)/(2*gamma)
-            g = rm/rp
-            chExp = 1j*u*riskFreeRate-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1)
-            def charFuncFixedU(u, maturity): # u is dummy
-                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-                C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-                return np.exp(chExp*maturity+C*meanVar+D*currentVar)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            alpha = -u**2/2-1j*u/2
-            beta = meanRevRate-correlation*volOfVol*1j*u
-            gamma = volOfVol**2/2
-            d = np.sqrt(beta**2-4*alpha*gamma)
-            rp = (beta+d)/(2*gamma)
-            rm = (beta-d)/(2*gamma)
-            g = rm/rp
-            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-            C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
-            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
-    return charFunc
-
-def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
-    # Characteristic function for SVJJ model (HestonJump-MertonJump)
-    # TO-DO
-    pass
-
-def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFreeRate=0, curry=False):
-    # Characteristic function for rHeston model (poor man's Heston approx)
-    # Heston approx: meanRevRate=0 hence no meanVar-dependence, currentVar is var swap price
-    # Ref: Gatheral, Roughening Heston
-    volOfVolFactor = np.sqrt(3/(2*hurstExp+2))*volOfVol/sp.special.gamma(hurstExp+1.5)
-    if curry:
-        def charFunc(u):
-            iur = 1j*u*riskFreeRate
-            alpha = -u**2/2-1j*u/2
-            def charFuncFixedU(u, maturity): # u is dummy
-                volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
-                beta = -correlation*volOfVolMod*1j*u
-                gamma = volOfVolMod**2/2
-                d = np.sqrt(beta**2-4*alpha*gamma)
-                rp = (beta+d)/(2*gamma)
-                rm = (beta-d)/(2*gamma)
-                g = rm/rp
-                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-                return np.exp(iur*maturity+D*currentVar)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
-            alpha = -u**2/2-1j*u/2
-            beta = -correlation*volOfVolMod*1j*u
-            gamma = volOfVolMod**2/2
-            d = np.sqrt(beta**2-4*alpha*gamma)
-            rp = (beta+d)/(2*gamma)
-            rm = (beta-d)/(2*gamma)
-            g = rm/rp
-            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
-            return np.exp(1j*u*riskFreeRate*maturity+D*currentVar)
-    return charFunc
-
-def rHestonPadeCharFunc(hurstExp, correlation, meanVar, currentVar, riskFreeRate=0, curry=False):
-    # Characteristic function for rHeston model (poor man's crude approx)
-    # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
-    # TO-DO
-    pass
 
 #### Calibration ###############################################################
 
@@ -503,6 +521,7 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
         formula = LewisFormulaFFT
     elif formulaType == "CarrMadan":
         formula = CarrMadanFormulaFFT
+
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         charFunc = model(**params)
@@ -512,6 +531,7 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
         print(f"params: {params}")
         print(f"loss: {loss}")
         return loss
+
     opt = minimize(objective, x0=params0, bounds=bounds, method="SLSQP")
     print("Optimization output:", opt, sep="\n")
     return opt.x
@@ -519,22 +539,24 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
 def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
     bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, **kwargs):
     # Calibrate model params to implied vols (pricing measure)
-    # NOTE: include useGlobal=True for curryCharFunc=True
+    # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
     maturity = np.array(maturity)
     bidVol = optionImpVol["Bid"].to_numpy()
     askVol = optionImpVol["Ask"].to_numpy()
+
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         # charFunc = model(**params)
         # impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         charFunc = model(**params, curry=curryCharFunc)
         impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, curryCharFunc=curryCharFunc, **kwargs)
-        impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly
+        impVol = np.concatenate([impVolFunc(logStrike[maturity==T], T) for T in np.unique(maturity)], axis=None) # most costly: BS inversion for each T
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"params: {params}")
         print(f"loss: {loss}")
         return loss
+
     opt = minimize(objective, x0=params0, bounds=bounds)
     print("Optimization output:", opt, sep="\n")
     return opt.x
@@ -542,7 +564,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
 def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
     bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, **kwargs):
     # Calibrate model params to implied vols (pricing measure)
-    # NOTE: include useGlobal=True for curryCharFunc=True
+    # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
     maturity = np.array(maturity)
     strike = np.exp(logStrike)
@@ -562,7 +584,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         # impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         charFunc = model(**params, curry=curryCharFunc)
         price = np.concatenate([formula(charFunc, logStrike[maturity==T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in np.unique(maturity)], axis=None) # most costly
-        impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod)
+        impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod) # BS inversion for all T
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"params: {params}")
         print(f"loss: {loss}")
@@ -584,6 +606,7 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     nrow = int(np.ceil(Nexp/ncol))
     ncol = min(len(Texp),6)
     fig, ax = plt.subplots(nrow,ncol,figsize=(15,10))
+
     for i in range(nrow*ncol):
         ix,iy = i//ncol,i%ncol
         idx = (ix,iy) if nrow*ncol>6 else iy
@@ -604,6 +627,7 @@ def PlotImpliedVol(df, figname=None, ncol=6):
             ax_idx.set_ylabel("implied vol")
         else:
             ax_idx.axis("off")
+
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
