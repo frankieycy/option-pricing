@@ -33,6 +33,14 @@ cmFFT_cpCFmult = None
 cmFFT_charFunc = None
 cmFFT_charFuncLog = None
 
+cosFmla_init = False
+cosFmla_n = None
+cosFmla_expArg = None
+cosFmla_cfArg = None
+cosFmla_cosInt = None
+cosFmla_charFunc = None
+cosFmla_charFuncLog = None
+
 #### Black-Scholes #############################################################
 
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
@@ -484,20 +492,50 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         price = spline(logStrike)
         return price
 
-def COSFormula(charFunc, logStrike, maturity, optionType="call", N=100, a=-2, b=2, useGlobal=False, curryCharFunc=False, **kwargs):
+def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b=5, useGlobal=False, curryCharFunc=False, **kwargs):
     # COS formula for call/put
-    # TO-DO: global calculations cache
-    if optionType == "call": # cache
-        payoff = lambda x: np.maximum(np.exp(x)-1,0)
-    elif optionType == "put":
-        payoff = lambda x: np.maximum(1-np.exp(x),0)
+    def cosInt0(k,c,d):
+        return (np.cos(k*np.pi*(d-a)/(b-a))*np.exp(d)-np.cos(k*np.pi*(c-a)/(b-a))*np.exp(c)+(k*np.pi/(b-a))*(np.sin(k*np.pi*(d-a)/(b-a))*np.exp(d)-np.sin(k*np.pi*(c-a)/(b-a))*np.exp(c)))/(1+(k*np.pi/(b-a))**2)
+    def cosInt1(k,c,d):
+        with np.errstate(divide='ignore'):
+            return np.nan_to_num(((b-a)/(k*np.pi)))*(np.sin(k*np.pi*(d-a)/(b-a))-np.sin(k*np.pi*(c-a)/(b-a)))*(k!=0)+(d-c)*(k==0)
+    def cpCosInt(k):
+        if optionType == "call":
+            return 2/(b-a)*(cosInt0(k,0,b)-cosInt1(k,0,b))
+        elif optionType == "put":
+            return 2/(b-a)*(-cosInt0(k,a,0)+cosInt1(k,a,0))
+
+    if useGlobal:
+        global cosFmla_init, cosFmla_n, cosFmla_expArg, cosFmla_cfArg, cosFmla_cosInt, cosFmla_charFunc, cosFmla_charFuncLog
+
+        if not cosFmla_init:
+            cosFmla_n = np.arange(N)
+            cosFmla_expArg = 1j*np.pi*cosFmla_n
+            cosFmla_cfArg = np.pi*cosFmla_n/(b-a)
+            cosFmla_cosInt = cpCosInt(cosFmla_n)
+            cosFmla_init = True
+
+        if charFunc != cosFmla_charFuncLog:
+            # Update charFunc (for every NEW charFunc)
+            cosFmla_charFuncLog = charFunc
+            if curryCharFunc: cosFmla_charFunc = charFunc(cosFmla_cfArg)
+            else: cosFmla_charFunc = charFunc
+
+        n = cosFmla_n
+        expArg = cosFmla_expArg
+        cfVec = cosFmla_charFunc(cosFmla_cfArg, maturity)
+        cosInt = cosFmla_cosInt
+
+    else:
+        n = np.arange(N)
+        expArg = 1j*np.pi*n
+        cfVec = charFunc(np.pi*n/(b-a), maturity)
+        cosInt = cpCosInt(n)
+
     x = -logStrike
     K = np.exp(logStrike)
-    n = np.arange(N) # cache
-    ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), 1j*np.pi*n))
+    ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
     ftMtrx[:,0] *= 0.5
-    cfVec = charFunc(np.pi*n/(b-a), maturity) # cache
-    cosInt = 2/(b-a)*np.array([quad(lambda x: payoff(x)*np.cos(n*np.pi*(x-a)/(b-a)), a, b)[0] for n in range(N)]) # cache
     price = np.real(((ftMtrx*cfVec).T*K).T).dot(cosInt)
     return price
 
@@ -541,6 +579,8 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
         formula = LewisFormulaFFT
     elif formulaType == "CarrMadan":
         formula = CarrMadanFormulaFFT
+    elif formulaType == "COS":
+        formula = COSFormula
 
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
@@ -595,6 +635,8 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         formula = LewisFormulaFFT
     elif formulaType == "CarrMadan":
         formula = CarrMadanFormulaFFT
+    elif formulaType == "COS":
+        formula = COSFormula
     riskFreeRate = kwargs["riskFreeRate"] if "riskFreeRate" in kwargs else 0
     inversionMethod = kwargs["inversionMethod"] if "inversionMethod" in kwargs else "Bisection"
 
