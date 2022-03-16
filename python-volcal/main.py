@@ -186,6 +186,19 @@ def test_HestonSmileFFTForVariousDates():
         plt.savefig(dataFolder+f"test_HestonSmileBCC_FFT_T={np.round(T,2)}.png")
         plt.close()
 
+def test_HestonCOSFormula():
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),optionType="call",formulaType="COS")
+    k = np.arange(-0.4,0.4,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("Heston 1-Year Smile (BCC Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSmileBCC_COS.png")
+    plt.close()
+
 def test_HestonSmileLewis():
     impVolFunc = LewisCharFuncImpliedVol(HestonCharFunc(**paramsBCC))
     vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
@@ -608,6 +621,7 @@ if __name__ == '__main__':
     # test_HestonSmileFFT()
     # test_ShortDatedHestonSmileFFT()
     # test_HestonSmileFFTForVariousDates()
+    # test_HestonCOSFormula()
     # test_HestonSmileLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
