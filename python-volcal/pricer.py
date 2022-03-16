@@ -300,14 +300,15 @@ def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFre
         def charFunc(u):
             iur = 1j*u*riskFreeRate
             alpha = -u**2/2-1j*u/2
-            def charFuncFixedU(u, maturity): # u is dummy
+            def charFuncFixedU(u, maturity):
                 volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
-                beta = -correlation*volOfVolMod*1j*u
+                beta = -correlation*volOfVolMod*1j*u # u-dependence!
                 gamma = volOfVolMod**2/2
                 d = np.sqrt(beta**2-4*alpha*gamma)
                 rp = (beta+d)/(2*gamma)
                 rm = (beta-d)/(2*gamma)
-                g = rm/rp
+                # g = rm/rp
+                g = np.nan_to_num(rm/rp)
                 D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
                 return np.exp(iur*maturity+D*currentVar)
             return charFuncFixedU
@@ -531,18 +532,21 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
             # x = cosFmla_dict[maturity]['x']
             # K = cosFmla_dict[maturity]['K']
             # ftMtrx = cosFmla_dict[maturity]['ftMtrx']
-            ftMtrxK = cosFmla_dict[maturity]['ftMtrxK']
+            # ftMtrxK = cosFmla_dict[maturity]['ftMtrxK']
+            ftMtrxKI = cosFmla_dict[maturity]['ftMtrxKI']
         else:
             x = -logStrike
             K = np.exp(logStrike)
             ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
             ftMtrx[:,0] *= 0.5
             ftMtrxK = (ftMtrx.T*K).T
+            ftMtrxKI = ftMtrxK*cosInt
             cosFmla_dict[maturity] = {
                 'x': x,
                 'K': K,
                 'ftMtrx': ftMtrx,
                 'ftMtrxK': ftMtrxK,
+                'ftMtrxKI': ftMtrxKI,
             }
 
     else:
@@ -556,7 +560,8 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
         ftMtrx[:,0] *= 0.5
 
-    price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
+    # price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
+    price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
     return price
 
 #### Implied Vol ###############################################################
