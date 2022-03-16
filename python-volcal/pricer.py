@@ -39,24 +39,25 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     # Black Scholes formula for call/put
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
     totalImpVol = impliedVol*np.sqrt(maturity)
-    riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
+    discountFactor = np.exp(-riskFreeRate*maturity)
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     d2 = d1-totalImpVol
 
     if isinstance(optionType, str): # Scalar calculations (str optionType)
-        return spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2) if optionType == "call" else \
-            riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
+        return spotPrice * norm.cdf(d1) - discountFactor * strike * norm.cdf(d2) if optionType == "call" else \
+            discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
     else: # Vector calculations (vector optionType)
         # strike, maturity, impliedVol, optionType are vectors
         call = (optionType == "call")
         price = np.zeros(len(strike))
-        price[call] = spotPrice * norm.cdf(d1[call]) - riskFreeRateFactor[call] * strike[call] * norm.cdf(d2[call]) # call
-        price[~call] = riskFreeRateFactor[~call] * strike[~call] * norm.cdf(-d2[~call]) - spotPrice * norm.cdf(-d1[~call]) # put
+        if isinstance(discountFactor, float): discountFactor = np.repeat(discountFactor, len(strike))
+        price[call] = spotPrice * norm.cdf(d1[call]) - discountFactor[call] * strike[call] * norm.cdf(d2[call]) # call
+        price[~call] = discountFactor[~call] * strike[~call] * norm.cdf(-d2[~call]) - spotPrice * norm.cdf(-d1[~call]) # put
         return price
 
     # price = np.where(optionType == "call",
-    #     spotPrice * norm.cdf(d1) - riskFreeRateFactor * strike * norm.cdf(d2),
-    #     riskFreeRateFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
+    #     spotPrice * norm.cdf(d1) - discountFactor * strike * norm.cdf(d2),
+    #     discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
     # return price
 
 def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
@@ -68,10 +69,10 @@ def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, opti
 
 def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType):
     # Whether priceMkt lies within no-arb bounds
-    riskFreeRateFactor = np.exp(-riskFreeRate*maturity)
+    discountFactor = np.exp(-riskFreeRate*maturity)
     noArb = np.where(optionType == "call",
-        (priceMkt > np.maximum(spotPrice-strike*riskFreeRateFactor,0)) & (priceMkt < spotPrice),
-        (priceMkt > np.maximum(strike*riskFreeRateFactor-spotPrice,0)) & (priceMkt < strike*riskFreeRateFactor))
+        (priceMkt > np.maximum(spotPrice-strike*discountFactor,0)) & (priceMkt < spotPrice),
+        (priceMkt > np.maximum(strike*discountFactor-spotPrice,0)) & (priceMkt < strike*discountFactor))
     return noArb
 
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
@@ -483,6 +484,23 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         price = spline(logStrike)
         return price
 
+def COSFormula(charFunc, logStrike, maturity, optionType="call", N=100, a=-2, b=2, useGlobal=False, curryCharFunc=False, **kwargs):
+    # COS formula for call/put
+    # TO-DO: global calculations cache
+    if optionType == "call": # cache
+        payoff = lambda x: np.maximum(np.exp(x)-1,0)
+    elif optionType == "put":
+        payoff = lambda x: np.maximum(1-np.exp(x),0)
+    x = -logStrike
+    K = np.exp(logStrike)
+    n = np.arange(N) # cache
+    ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), 1j*np.pi*n))
+    ftMtrx[:,0] *= 0.5
+    cfVec = charFunc(np.pi*n/(b-a), maturity) # cache
+    cosInt = 2/(b-a)*np.array([quad(lambda x: payoff(x)*np.cos(n*np.pi*(x-a)/(b-a)), a, b)[0] for n in range(N)]) # cache
+    price = np.real(((ftMtrx*cfVec).T*K).T).dot(cosInt)
+    return price
+
 #### Implied Vol ###############################################################
 # Given charFunc, return impVolFunc with arguments (logStrike, maturity)
 
@@ -494,6 +512,8 @@ def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, fo
         formula = LewisFormulaFFT if FFT else LewisFormula
     elif formulaType == "CarrMadan":
         formula = CarrMadanFormulaFFT if FFT else CarrMadanFormula
+    elif formulaType == "COS":
+        formula = COSFormula
     def impVolFunc(logStrike, maturity):
         return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType, inversionMethod)
     return impVolFunc
