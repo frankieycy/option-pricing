@@ -38,6 +38,7 @@ cosFmla_n = None
 cosFmla_expArg = None
 cosFmla_cfArg = None
 cosFmla_cosInt = None
+cosFmla_dict = dict()
 cosFmla_charFunc = None
 cosFmla_charFuncLog = None
 
@@ -506,7 +507,7 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
             return 2/(b-a)*(-cosInt0(k,a,0)+cosInt1(k,a,0))
 
     if useGlobal:
-        global cosFmla_init, cosFmla_n, cosFmla_expArg, cosFmla_cfArg, cosFmla_cosInt, cosFmla_charFunc, cosFmla_charFuncLog
+        global cosFmla_init, cosFmla_n, cosFmla_expArg, cosFmla_cfArg, cosFmla_cosInt, cosFmla_dict, cosFmla_charFunc, cosFmla_charFuncLog
 
         if not cosFmla_init:
             cosFmla_n = np.arange(N)
@@ -526,16 +527,32 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         cfVec = cosFmla_charFunc(cosFmla_cfArg, maturity)
         cosInt = cosFmla_cosInt
 
+        if maturity in cosFmla_dict:
+            x = cosFmla_dict[maturity]['x']
+            K = cosFmla_dict[maturity]['K']
+            ftMtrx = cosFmla_dict[maturity]['ftMtrx']
+        else:
+            x = -logStrike
+            K = np.exp(logStrike)
+            ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
+            ftMtrx[:,0] *= 0.5
+            cosFmla_dict[maturity] = {
+                'x': x,
+                'K': K,
+                'ftMtrx': ftMtrx,
+            }
+
     else:
         n = np.arange(N)
         expArg = 1j*np.pi*n
         cfVec = charFunc(np.pi*n/(b-a), maturity)
         cosInt = cpCosInt(n)
 
-    x = -logStrike
-    K = np.exp(logStrike)
-    ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
-    ftMtrx[:,0] *= 0.5
+        x = -logStrike
+        K = np.exp(logStrike)
+        ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
+        ftMtrx[:,0] *= 0.5
+
     price = np.real(((ftMtrx*cfVec).T*K).T).dot(cosInt)
     return price
 
