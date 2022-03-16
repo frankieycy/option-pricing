@@ -252,8 +252,8 @@ def test_CalibrateHestonModelToImpVol(): # Benchmark!
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Interp",useGlobal=True,curryCharFunc=True)
-    # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
-    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
