@@ -528,18 +528,21 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         cosInt = cosFmla_cosInt
 
         if maturity in cosFmla_dict:
-            x = cosFmla_dict[maturity]['x']
-            K = cosFmla_dict[maturity]['K']
-            ftMtrx = cosFmla_dict[maturity]['ftMtrx']
+            # x = cosFmla_dict[maturity]['x']
+            # K = cosFmla_dict[maturity]['K']
+            # ftMtrx = cosFmla_dict[maturity]['ftMtrx']
+            ftMtrxK = cosFmla_dict[maturity]['ftMtrxK']
         else:
             x = -logStrike
             K = np.exp(logStrike)
             ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
             ftMtrx[:,0] *= 0.5
+            ftMtrxK = (ftMtrx.T*K).T
             cosFmla_dict[maturity] = {
                 'x': x,
                 'K': K,
                 'ftMtrx': ftMtrx,
+                'ftMtrxK': ftMtrxK,
             }
 
     else:
@@ -553,7 +556,7 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
         ftMtrx[:,0] *= 0.5
 
-    price = np.real(((ftMtrx*cfVec).T*K).T).dot(cosInt)
+    price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
     return price
 
 #### Implied Vol ###############################################################
