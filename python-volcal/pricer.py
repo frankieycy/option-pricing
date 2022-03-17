@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from time import time
 from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
@@ -652,9 +653,11 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
     # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
     maturity = np.array(maturity)
+    matUniq = np.unique(maturity)
     strike = np.exp(logStrike)
     bidVol = optionImpVol["Bid"].to_numpy()
     askVol = optionImpVol["Ask"].to_numpy()
+    logStrikeDict = {T: logStrike[maturity==T] for T in matUniq}
 
     if formulaType == "Lewis":
         formula = LewisFormulaFFT
@@ -670,7 +673,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         # charFunc = model(**params)
         # impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
         charFunc = model(**params, curry=curryCharFunc)
-        price = np.concatenate([formula(charFunc, logStrike[maturity==T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in np.unique(maturity)], axis=None) # most costly
+        price = np.concatenate([formula(charFunc, logStrikeDict[T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in matUniq], axis=None) # most costly
         impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod) # BS inversion for all T
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
         print(f"params: {params}")
