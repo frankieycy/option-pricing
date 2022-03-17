@@ -21,6 +21,13 @@ paramsVGkey = list(paramsVG.keys())
 paramsVGval = list(paramsVG.values())
 paramsVGbnd = ((0.01,1), (-1,1), (0.01,1))
 
+#### CGMY ######################################################################
+# Ref: CGMY, Stochastic Volatility for Levy Processes
+paramsCGMY = {"C": 0.002, "G": 10.781, "M": 9.230, "Y": 1.729} # converged
+paramsCGMYkey = list(paramsCGMY.keys())
+paramsCGMYval = list(paramsCGMY.values())
+paramsCGMYbnd = ((0.001,10), (0.01,20), (0.01,20), (0.01,1.99))
+
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
 # Empirical fits:

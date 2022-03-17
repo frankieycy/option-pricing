@@ -537,6 +537,51 @@ def test_ImpVolFromVGIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_VGImpliedVolIv.png")
 
+#### CGMY ######################################################################
+
+def test_CGMYSmile_COS():
+    impVolFunc = CharFuncImpliedVol(CGMYCharFunc(**paramsCGMY),optionType="call",formulaType="COS")
+    k = np.arange(-0.4,0.4,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("CGMY 1-Year Smile (CGMY Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_CGMYSmile_COS.png")
+    plt.close()
+
+def test_CalibrateCGMYModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,CGMYCharFunc,paramsCGMYval,paramsCGMYkey,bounds=paramsCGMYbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsCGMYkey)
+    x.to_csv(dataFolder+"test_CGMYCalibrationIv.csv", index=False)
+
+def test_ImpVolFromCGMYIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_CGMYCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsCGMYkey].iloc[0].to_dict()
+    # impVolFunc = CharFuncImpliedVol(CGMYCharFunc(**params),FFT=True)
+    impVolFunc = CharFuncImpliedVol(CGMYCharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_CGMYImpliedVolIv.png")
+
 #### rHeston ###################################################################
 
 def test_CalibrateRHPMModelToImpVol():
@@ -648,6 +693,10 @@ if __name__ == '__main__':
     #### VGamma ####
     # test_CalibrateVGModelToImpVol()
     # test_ImpVolFromVGIvCalibration()
+    #### CGMY ####
+    # test_CGMYSmile_COS()
+    # test_CalibrateCGMYModelToImpVol()
+    # test_ImpVolFromCGMYIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()

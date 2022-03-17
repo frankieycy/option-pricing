@@ -251,10 +251,20 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
             return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
     return charFunc
 
-def CGMYCharFunc(curry=False):
+def CGMYCharFunc(C, G, M, Y, curry=False):
     # Characteristic function for CGMY model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
-    pass
+    gammaY = sp.special.gamma(-Y)
+    if curry:
+        def charFunc(u):
+            chExp = C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-M**Y-G**Y)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-M**Y-G**Y))*maturity)
+    return charFunc
 
 def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
     # Characteristic function for SVJ model (Heston-MertonJump)
@@ -560,6 +570,8 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         K = np.exp(logStrike)
         ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
         ftMtrx[:,0] *= 0.5
+        ftMtrxK = (ftMtrx.T*K).T
+        ftMtrxKI = ftMtrxK*cosInt
 
     # price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
     price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
