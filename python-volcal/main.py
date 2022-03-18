@@ -213,6 +213,20 @@ def test_HestonSmileLewis():
     plt.savefig(dataFolder+"test_HestonSmileBCC_Lewis.png")
     plt.close()
 
+def test_HestonSkewLewis():
+    atmSkewFunc = LewisCharFuncImpliedSkewAtm(HestonCharFunc(**paramsBCC))
+    skew = lambda t: np.array([atmSkewFunc(t) for t in T]).reshape(-1)
+    T = np.arange(0.02,5,0.02)
+    sk = np.abs(skew(T))
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, sk, c='k', s=1)
+    plt.title("Heston Skew (BCC Params)")
+    plt.xlabel("maturity")
+    plt.ylabel("atm skew")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSkewBCC.png")
+    plt.close()
+
 def test_CalibrateHestonModelToCallPrice():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -464,6 +478,20 @@ def test_ImpVolFromMertonJumpIvCalibration():
 
 #### SVJ #######################################################################
 
+def test_SVJSkewLewis():
+    atmSkewFunc = LewisCharFuncImpliedSkewAtm(SVJCharFunc(**paramsSVJ))
+    skew = lambda t: np.array([atmSkewFunc(t) for t in T]).reshape(-1)
+    T = np.arange(0.02,5,0.02)
+    sk = np.abs(skew(T))
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, sk, c='k', s=1)
+    plt.title("SVJ Skew")
+    plt.xlabel("maturity")
+    plt.ylabel("atm skew")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_SVJSkew.png")
+    plt.close()
+
 def test_CalibrateSVJModelToCallPricePrx():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -702,6 +730,7 @@ if __name__ == '__main__':
     # test_HestonSmileFFTForVariousDates()
     # test_HestonCOSFormula()
     # test_HestonSmileLewis()
+    test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
     # test_CalibrateHestonModelToImpVol()
@@ -719,12 +748,13 @@ if __name__ == '__main__':
     # test_ImpVolFromMertonJumpCalibrationPrx()
     # test_ImpVolFromMertonJumpIvCalibration()
     #### SVJ ####
+    # test_SVJSkewLewis()
     # test_CalibrateSVJModelToCallPricePrx()
     # test_CalibrateSVJModelToImpVol()
     # test_ImpVolFromSVJIvCalibration()
     #### SVJJ ####
-    test_CalibrateSVJJModelToImpVol()
-    test_ImpVolFromSVJJIvCalibration()
+    # test_CalibrateSVJJModelToImpVol()
+    # test_ImpVolFromSVJJIvCalibration()
     #### VGamma ####
     # test_CalibrateVGModelToImpVol()
     # test_ImpVolFromVGIvCalibration()
