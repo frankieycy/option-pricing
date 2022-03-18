@@ -47,7 +47,7 @@ paramsSVJbnd = ((0.01,5), (-0.99,0), (0.1,1), (0.005,1), (0.005,1), (0,2), (-0.5
 #### SVJJ ######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
 # paramsSVJJ = {'meanRevRate': 0.467, 'correlation': -0.587, 'volOfVol': 0.478, 'meanVar': 0.077, 'currentVar': 0.006, 'varJump': 0.01, 'jumpInt': 0.137, 'jumpMean': -0.094, 'jumpSd': 0.158}
-paramsSVJJ = {'meanRevRate': 0.9069615739548296, 'correlation': -0.619659546836543, 'volOfVol': 0.3869597069187233, 'meanVar': 0.03097710828706043, 'currentVar': 0.005842956849646788, 'varJump': 0.08874498414314333, 'jumpInt': 0.2042720261322096, 'jumpMean': -0.07646950587413229, 'jumpSd': 0.11969310623322259}
+paramsSVJJ = {'meanRevRate': 1.3046679144468856, 'correlation': -0.5857376321265588, 'volOfVol': 0.4592390864331215, 'meanVar': 0.02850681643980028, 'currentVar': 0.0058234965902769845, 'varJump': 0.09423573360030929, 'jumpInt': 0.17201809439906735, 'jumpMean': -0.08271387288422008, 'jumpSd': 0.12814178149800548}
 paramsSVJJkey = list(paramsSVJJ.keys())
 paramsSVJJval = list(paramsSVJJ.values())
 paramsSVJJbnd = ((0.01,5), (-0.99,0), (0.1,1), (0.005,1), (0.005,1), (0.001,1), (0,2), (-0.5,0.5), (0.01,0.5))

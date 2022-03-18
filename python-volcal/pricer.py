@@ -302,6 +302,8 @@ def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJum
     # Ref: Gatheral, Volatility Workshop VW2.pdf; Andrew Matytsin (1999)
     if curry:
         def charFunc(u):
+            global svjjCF_I, svjjCF_matPrev
+            svjjCF_I = 0; svjjCF_matPrev = 0
             alpha = -u**2/2-1j*u/2
             beta = meanRevRate-correlation*volOfVol*1j*u
             gamma = volOfVol**2/2
@@ -312,8 +314,12 @@ def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJum
             J = np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)
             chExp0 = 1j*u*riskFreeRate-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)
             Dfunc = lambda t: rm*(1-np.exp(-d*t))/(1-g*np.exp(-d*t))
+            Ifunc = lambda t: np.exp(varJump*Dfunc(t))
             def charFuncFixedU(u, maturity):
-                I = quad_vec(lambda t: np.exp(varJump*Dfunc(t)),0,maturity)[0]/maturity
+                global svjjCF_I, svjjCF_matPrev
+                # I = quad_vec(lambda t: np.exp(varJump*Dfunc(t)),0,maturity)[0]/maturity
+                svjjCF_I += quad_vec(Ifunc,svjjCF_matPrev,maturity)[0]
+                svjjCF_matPrev = maturity; I = svjjCF_I/maturity
                 D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
                 C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
                 chExp1 = jumpInt*(J*I-1)
