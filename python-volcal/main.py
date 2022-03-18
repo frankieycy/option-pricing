@@ -516,17 +516,16 @@ def test_CalibrateSVJJModelToImpVol():
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVolFast(k,T,iv,SVJJCharFunc,paramsSVJJval,paramsSVJJkey,bounds=paramsSVJJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS")
-    x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJJkey)
     x.to_csv(dataFolder+"test_SVJJCalibrationIv.csv", index=False)
 
 def test_ImpVolFromSVJJIvCalibration():
-    # cal = pd.read_csv(dataFolder+"test_SVJJCalibrationIv.csv")
+    cal = pd.read_csv(dataFolder+"test_SVJJCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
     dfnew = list()
-    params = paramsSVJJ
-    # params = cal[paramsSVJJkey].iloc[0].to_dict()
+    params = cal[paramsSVJJkey].iloc[0].to_dict()
     # impVolFunc = CharFuncImpliedVol(SVJJCharFunc(**params),FFT=True)
     impVolFunc = CharFuncImpliedVol(SVJJCharFunc(**params),optionType="call",formulaType="COS")
     for T in Texp:
