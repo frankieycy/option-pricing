@@ -44,6 +44,13 @@ paramsSVJval = list(paramsSVJ.values())
 # paramsSVJbnd = ((0.01,10), (-0.99,0), (0.01,1), (0.01,1), (0.01,1), (0,2), (-0.9,0.5), (0.01,2))
 paramsSVJbnd = ((0.01,5), (-0.99,0), (0.1,1), (0.005,1), (0.005,1), (0,2), (-0.5,0.5), (0.01,0.5))
 
+#### SVJJ ######################################################################
+# Ref: Gatheral, Volatility Workshop VW2.pdf
+paramsSVJJ = {'meanRevRate': 1.15, 'correlation': -0.64, 'volOfVol': 0.39, 'meanVar': 0.04, 'currentVar': 0.04, 'varJump': 0.01, 'jumpInt': 0.2, 'jumpMean': -0.1, 'jumpSd': 0.2}
+paramsSVJJkey = list(paramsSVJJ.keys())
+paramsSVJJval = list(paramsSVJJ.values())
+paramsSVJJbnd = ((0.01,5), (-0.99,0), (0.1,1), (0.005,1), (0.005,1), (0.001,1), (0,2), (-0.5,0.5), (0.01,0.5))
+
 #### rHeston: Poor Man's Approx ################################################
 # Ref: Gatheral, Roughening Heston
 # paramsRHPM = {"hurstExp": 0.05, "correlation": -0.67, "volOfVol": 0.41, "currentVar": 0.01}

@@ -7,7 +7,7 @@ from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize
-from scipy.integrate import quad
+from scipy.integrate import quad, quad_vec
 from scipy.interpolate import splrep, splev, pchip, interp1d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
 plt.switch_backend("Agg")
@@ -297,10 +297,44 @@ def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt
             return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
     return charFunc
 
-def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
+def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJump, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
     # Characteristic function for SVJJ model (HestonJump-MertonJump)
-    # Ref: Gatheral, Volatility Workshop VW2.pdf
-    pass
+    # Ref: Gatheral, Volatility Workshop VW2.pdf; Andrew Matytsin (1999)
+    if curry:
+        def charFunc(u):
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            J = np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)
+            chExp0 = 1j*u*riskFreeRate-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)
+            Dfunc = lambda t: rm*(1-np.exp(-d*t))/(1-g*np.exp(-d*t))
+            def charFuncFixedU(u, maturity):
+                I = quad_vec(lambda t: np.exp(varJump*Dfunc(t)),0,maturity)[0]/maturity
+                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+                C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+                chExp1 = jumpInt*(J*I-1)
+                return np.exp((chExp0+chExp1)*maturity+C*meanVar+D*currentVar)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            alpha = -u**2/2-1j*u/2
+            beta = meanRevRate-correlation*volOfVol*1j*u
+            gamma = volOfVol**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            g = rm/rp
+            Dfunc = lambda t: rm*(1-np.exp(-d*t))/(1-g*np.exp(-d*t))
+            I = quad_vec(lambda t: np.exp(varJump*Dfunc(t)),0,maturity)[0]/maturity
+            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+            C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+            J = jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)*I-1-1j*u*(np.exp(jumpMean+jumpSd**2/2)-1))
+            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar+J)
+    return charFunc
 
 def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFreeRate=0, curry=False):
     # Characteristic function for rHeston model (poor man's Heston approx)
