@@ -372,7 +372,8 @@ def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFre
             d = np.sqrt(beta**2-4*alpha*gamma)
             rp = (beta+d)/(2*gamma)
             rm = (beta-d)/(2*gamma)
-            g = rm/rp
+            # g = rm/rp
+            g = np.nan_to_num(rm/rp)
             D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
             return np.exp(1j*u*riskFreeRate*maturity+D*currentVar)
     return charFunc
