@@ -315,7 +315,7 @@ def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJum
             chExp0 = 1j*u*riskFreeRate-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)
             Dfunc = lambda t: rm*(1-np.exp(-d*t))/(1-g*np.exp(-d*t))
             Ifunc = lambda t: np.exp(varJump*Dfunc(t))
-            def charFuncFixedU(u, maturity):
+            def charFuncFixedU(u, maturity): # u is dummy
                 global svjjCF_I, svjjCF_matPrev
                 # I = quad_vec(lambda t: np.exp(varJump*Dfunc(t)),0,maturity)[0]/maturity
                 svjjCF_I += quad_vec(Ifunc,svjjCF_matPrev,maturity)[0]
