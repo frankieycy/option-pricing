@@ -639,7 +639,7 @@ def CharFuncImpliedVolAtm(charFunc, optionType="OTM", riskFreeRate=0, FFT=False,
     impVolFunc = CharFuncImpliedVol(charFunc, optionType, riskFreeRate, FFT, formulaType, inversionMethod, **kwargs)
     def atmVolFunc(maturity):
         # Works for scalar maturity only
-        atmVol = impVolFunc([0], maturity)
+        atmVol = impVolFunc(np.array([0]), maturity)
         return atmVol
     return atmVolFunc
 
@@ -659,7 +659,7 @@ def LewisCharFuncImpliedSkewAtm(charFunc, optionType="OTM", riskFreeRate=0, FFT=
     impVolFunc = CharFuncImpliedVol(charFunc, optionType, riskFreeRate, FFT, formulaType, inversionMethod, **kwargs)
     def atmSkewFunc(maturity):
         # Works for scalar maturity only
-        atmVol = impVolFunc([0], maturity)
+        atmVol = impVolFunc(np.array([0]), maturity)
         integrand = lambda u: np.imag(u * charFunc(u-1j/2, maturity) / (u**2+.25))
         atmSkew = -np.exp(atmVol**2*maturity/8) * np.sqrt(2/(np.pi*maturity)) * quad(integrand, 0, np.inf)[0]
         return atmSkew
@@ -756,7 +756,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
     print("Optimization output:", opt, sep="\n")
     return opt.x
 
-#### Plotting Function #########################################################
+#### Plotting/Param Function ###################################################
 
 def PlotImpliedVol(df, figname=None, ncol=6):
     # Plot bid-ask implied volatilities based on df
@@ -793,6 +793,26 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
+
+def CalcAtmVolAndSkew(df):
+    # Plot implied vols & skews based on df, with cubic interpolation
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    Texp = df["Texp"].unique()
+    atmVol = list()
+    atmSkew = list()
+
+    for T in Texp:
+        dfT = df[df["Texp"]==T]
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        mid = ((dfT["Bid"]+dfT["Ask"])/2).to_numpy()
+        ntm = (k>-0.05)&(k<0.05)
+        spline = InterpolatedUnivariateSpline(k[ntm], mid[ntm])
+        atmVol.append(spline(0).item())
+        atmSkew.append(spline.derivatives(0)[1])
+
+    atmVol = np.array(atmVol)
+    atmSkew = np.array(atmSkew)
+    return {"Texp": Texp, "atmVol": atmVol, "atmSkew": atmSkew}
 
 #### Fwd Var Curve #############################################################
 

@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from scipy.stats import norm
 from pricer import *
 from params import *
@@ -535,6 +536,20 @@ def test_ImpVolFromSVJIvCalibration():
 
 #### SVJJ #######################################################################
 
+def test_SVJJSkewLewis():
+    atmSkewFunc = LewisCharFuncImpliedSkewAtm(SVJJCharFunc(**paramsSVJJ),optionType="call",formulaType="COS",inversionMethod="Newton",useGlobal=True)
+    skew = lambda t: np.array([atmSkewFunc(t) for t in tqdm(T)]).reshape(-1)
+    T = np.arange(0.02,5,0.02)
+    sk = np.abs(skew(T))
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, sk, c='k', s=1)
+    plt.title("SVJJ Skew")
+    plt.xlabel("maturity")
+    plt.ylabel("atm skew")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_SVJJSkew.png")
+    plt.close()
+
 def test_CalibrateSVJJModelToImpVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -714,6 +729,65 @@ def test_CharFuncSpeed():
     t0 = time(); unit(); t1 = time()
     print(f"unit() takes {round(t1-t0,4)}s")
 
+#### Calibration Results #######################################################
+
+def test_PlotCalibratedAtmVolAndSkew():
+    models = {
+        "Merton": {"CF": MertonJumpCharFunc, "params": paramsMERkey},
+        "Heston": {"CF": HestonCharFunc, "params": paramsBCCkey},
+        "VG":     {"CF": VarianceGammaCharFunc, "params": paramsVGkey},
+        "CGMY":   {"CF": CGMYCharFunc, "params": paramsCGMYkey},
+        "SVJ":    {"CF": SVJCharFunc, "params": paramsSVJkey},
+        "SVJJ":   {"CF": SVJJCharFunc, "params": paramsSVJJkey},
+    }
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    ivDict = CalcAtmVolAndSkew(df)
+    Texp = ivDict['Texp']
+    mktIv = ivDict['atmVol']
+    mktSk = ivDict['atmSkew']
+    T = np.linspace(Texp.min(), Texp.max(), 100)
+
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(Texp, 100*mktIv, c='k', s=10, zorder=1)
+    plt.title("ATM Vol")
+    plt.xlabel("maturity")
+    plt.ylabel("vol (%)")
+    plt.xlim(0.002,2.7)
+    plt.ylim(6,18)
+
+    for model in models.keys():
+        cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
+        params = cal[models[model]["params"]].iloc[0].to_dict()
+        atmVolFunc = CharFuncImpliedVolAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
+        vol = lambda t: np.array([atmVolFunc(t) for t in tqdm(T)]).reshape(-1)
+        plt.plot(T, 100*vol(T), label=model, zorder=0)
+
+    fig.tight_layout()
+    plt.legend()
+    plt.savefig(dataFolder+"calibration_atmVol.png")
+    plt.close()
+
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(Texp, np.abs(mktSk), c='k', s=10, zorder=1)
+    plt.title("ATM Skew")
+    plt.xlabel("maturity")
+    plt.ylabel("skew")
+    plt.xlim(0.002,2.7)
+    plt.ylim(0,4)
+
+    for model in models.keys():
+        cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
+        params = cal[models[model]["params"]].iloc[0].to_dict()
+        atmSkewFunc = LewisCharFuncImpliedSkewAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
+        skew = lambda t: np.array([atmSkewFunc(t) for t in tqdm(T)]).reshape(-1)
+        plt.plot(T, np.abs(skew(T)), label=model, zorder=0)
+
+    fig.tight_layout()
+    plt.legend()
+    plt.savefig(dataFolder+"calibration_atmSkew.png")
+    plt.close()
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -730,7 +804,7 @@ if __name__ == '__main__':
     # test_HestonSmileFFTForVariousDates()
     # test_HestonCOSFormula()
     # test_HestonSmileLewis()
-    test_HestonSkewLewis()
+    # test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
     # test_CalibrateHestonModelToImpVol()
@@ -753,6 +827,7 @@ if __name__ == '__main__':
     # test_CalibrateSVJModelToImpVol()
     # test_ImpVolFromSVJIvCalibration()
     #### SVJJ ####
+    # test_SVJJSkewLewis()
     # test_CalibrateSVJJModelToImpVol()
     # test_ImpVolFromSVJJIvCalibration()
     #### VGamma ####
@@ -768,3 +843,5 @@ if __name__ == '__main__':
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
+    #### Calibration Results ####
+    test_PlotCalibratedAtmVolAndSkew()
