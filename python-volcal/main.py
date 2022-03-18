@@ -733,13 +733,14 @@ def test_CharFuncSpeed():
 
 def test_PlotCalibratedAtmVolAndSkew():
     models = {
-        "Merton": {"CF": MertonJumpCharFunc, "params": paramsMERkey},
-        "Heston": {"CF": HestonCharFunc, "params": paramsBCCkey},
+        "Merton": {"CF": MertonJumpCharFunc,    "params": paramsMERkey},
+        "Heston": {"CF": HestonCharFunc,        "params": paramsBCCkey},
         "VG":     {"CF": VarianceGammaCharFunc, "params": paramsVGkey},
-        "CGMY":   {"CF": CGMYCharFunc, "params": paramsCGMYkey},
-        "SVJ":    {"CF": SVJCharFunc, "params": paramsSVJkey},
-        "SVJJ":   {"CF": SVJJCharFunc, "params": paramsSVJJkey},
+        "CGMY":   {"CF": CGMYCharFunc,          "params": paramsCGMYkey},
+        "SVJ":    {"CF": SVJCharFunc,           "params": paramsSVJkey},
+        "SVJJ":   {"CF": SVJJCharFunc,          "params": paramsSVJJkey},
     }
+
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     ivDict = CalcAtmVolAndSkew(df)
@@ -786,6 +787,36 @@ def test_PlotCalibratedAtmVolAndSkew():
     fig.tight_layout()
     plt.legend()
     plt.savefig(dataFolder+"calibration_atmSkew.png")
+    plt.close()
+
+def test_PlotAtmSkewPowerLawFit():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    ivDict = CalcAtmVolAndSkew(df)
+    Texp = ivDict['Texp']
+    mktIv = ivDict['atmVol']
+    mktSk = ivDict['atmSkew']
+    T = np.linspace(Texp.min(), Texp.max(), 100)
+
+    mktSkAbs = np.abs(mktSk)
+    fitFunc = lambda A,H,T: A/T**(0.5-H)
+    def objective(params):
+        return np.sum((fitFunc(*params,Texp)-mktSkAbs)**2)
+    opt = minimize(objective, x0=(0.5,0.1), bounds=((0,10),(0,0.5)))
+    print("Optimization output:", opt, sep="\n")
+
+    A,H = opt.x
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(Texp, mktSkAbs, c='k', s=10, zorder=1)
+    plt.plot(T, fitFunc(A,H,T), 'r--', zorder=0, label=r'$A/\tau^{1/2-H}$')
+    plt.title("ATM Skew Power-Law Fit: $A=%.3f, H=%.3f$" % (A,H))
+    plt.xlabel("maturity")
+    plt.ylabel("skew")
+    plt.xlim(0.002,2.7)
+    plt.ylim(0,3)
+    fig.tight_layout()
+    plt.legend()
+    plt.savefig(dataFolder+"calibration_atmSkewPowLawFit.png")
     plt.close()
 
 if __name__ == '__main__':
@@ -844,4 +875,5 @@ if __name__ == '__main__':
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
     #### Calibration Results ####
-    test_PlotCalibratedAtmVolAndSkew()
+    # test_PlotCalibratedAtmVolAndSkew()
+    test_PlotAtmSkewPowerLawFit()
