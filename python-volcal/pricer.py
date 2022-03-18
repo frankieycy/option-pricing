@@ -634,16 +634,36 @@ def CharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, fo
         return BlackScholesImpliedVol(1, np.exp(logStrike), maturity, riskFreeRate, formula(charFunc, logStrike, maturity, optionType, **kwargs), optionType, inversionMethod)
     return impVolFunc
 
+def CharFuncImpliedVolAtm(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", inversionMethod="Bisection", **kwargs):
+    # Implied skew for call/put/OTM priced with charFunc, based on Lewis formula
+    impVolFunc = CharFuncImpliedVol(charFunc, optionType, riskFreeRate, FFT, formulaType, inversionMethod, **kwargs)
+    def atmVolFunc(maturity):
+        # Works for scalar maturity only
+        atmVol = impVolFunc([0], maturity)
+        return atmVol
+    return atmVolFunc
+
 def LewisCharFuncImpliedVol(charFunc, optionType="OTM", riskFreeRate=0, **kwargs):
     # Implied volatility for call/put/OTM priced with charFunc, based on Lewis formula
     # Much SLOWER than Bisection
     def impVolFunc(logStrike, maturity):
         def objective(vol):
-            integrand = lambda u:  np.real(np.exp(-1j*u*logStrike) * (charFunc(u-1j/2, maturity) - BlackScholesCharFunc(vol, riskFreeRate)(u-1j/2, maturity)) / (u**2+.25))
+            integrand = lambda u: np.real(np.exp(-1j*u*logStrike) * (charFunc(u-1j/2, maturity) - BlackScholesCharFunc(vol, riskFreeRate)(u-1j/2, maturity)) / (u**2+.25))
             return quad(integrand, 0, np.inf)[0]
         impVol = fsolve(objective, 0.4)[0]
         return impVol
     return impVolFunc
+
+def LewisCharFuncImpliedSkewAtm(charFunc, optionType="OTM", riskFreeRate=0, FFT=False, formulaType="CarrMadan", inversionMethod="Bisection", **kwargs):
+    # Implied skew for call/put/OTM priced with charFunc, based on Lewis formula
+    impVolFunc = CharFuncImpliedVol(charFunc, optionType, riskFreeRate, FFT, formulaType, inversionMethod, **kwargs)
+    def atmSkewFunc(maturity):
+        # Works for scalar maturity only
+        atmVol = impVolFunc([0], maturity)
+        integrand = lambda u: np.imag(u * charFunc(u-1j/2, maturity) / (u**2+.25))
+        atmSkew = -np.exp(atmVol**2*maturity/8) * np.sqrt(2/(np.pi*maturity)) * quad(integrand, 0, np.inf)[0]
+        return atmSkew
+    return atmSkewFunc
 
 #### Calibration ###############################################################
 
