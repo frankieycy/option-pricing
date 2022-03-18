@@ -733,12 +733,13 @@ def test_CharFuncSpeed():
 
 def test_PlotCalibratedAtmVolAndSkew():
     models = {
-        "Merton": {"CF": MertonJumpCharFunc,    "params": paramsMERkey},
-        "Heston": {"CF": HestonCharFunc,        "params": paramsBCCkey},
-        "VG":     {"CF": VarianceGammaCharFunc, "params": paramsVGkey},
-        "CGMY":   {"CF": CGMYCharFunc,          "params": paramsCGMYkey},
-        "SVJ":    {"CF": SVJCharFunc,           "params": paramsSVJkey},
-        "SVJJ":   {"CF": SVJJCharFunc,          "params": paramsSVJJkey},
+        "Merton": {"CF": MertonJumpCharFunc,      "params": paramsMERkey},
+        "Heston": {"CF": HestonCharFunc,          "params": paramsBCCkey},
+        "VG":     {"CF": VarianceGammaCharFunc,   "params": paramsVGkey},
+        "CGMY":   {"CF": CGMYCharFunc,            "params": paramsCGMYkey},
+        "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
+        "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
+        # "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
     }
 
     df = pd.read_csv("spxVols20170424.csv")
