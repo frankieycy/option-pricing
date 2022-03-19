@@ -42,6 +42,12 @@ cosFmla_cosInt = None
 cosFmla_dict = dict()
 cosFmla_charFunc = None
 cosFmla_charFuncLog = None
+cosFmla_adptParams = {
+    0.005:  {'a': -5, 'b': 5, 'N': 6000},
+    0.5:    {'a': -3, 'b': 3, 'N': 2000},
+    99:     {'a': -5, 'b': 5, 'N': 1000},
+    # 99:     {'a': -5, 'b': 5, 'N': 4000},
+}
 
 #### Black-Scholes #############################################################
 
@@ -618,6 +624,75 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
     price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
     return price
 
+def COSFormulaAdpt(charFunc, logStrike, maturity, optionType="call", useGlobal=False, curryCharFunc=False, **kwargs):
+    # COS formula for call/put with adaptive (a,b,N)
+    if useGlobal:
+        global cosFmla_dict, cosFmla_charFunc, cosFmla_charFuncLog, cosFmla_adptParams
+
+        if maturity in cosFmla_dict: # Use cache
+            ftMtrxKI = cosFmla_dict[maturity]['ftMtrxKI']
+            cfArg = cosFmla_dict[maturity]['cfArg']
+
+        else: # Initialize
+            for T in cosFmla_adptParams:
+                if maturity < T: dictT = cosFmla_adptParams[T]
+            a,b,N = dictT['a'],dictT['b'],dictT['N']
+
+            def cosInt0(k,c,d):
+                return (np.cos(k*np.pi*(d-a)/(b-a))*np.exp(d)-np.cos(k*np.pi*(c-a)/(b-a))*np.exp(c)+(k*np.pi/(b-a))*(np.sin(k*np.pi*(d-a)/(b-a))*np.exp(d)-np.sin(k*np.pi*(c-a)/(b-a))*np.exp(c)))/(1+(k*np.pi/(b-a))**2)
+            def cosInt1(k,c,d):
+                with np.errstate(divide='ignore'):
+                    return np.nan_to_num(((b-a)/(k*np.pi)))*(np.sin(k*np.pi*(d-a)/(b-a))-np.sin(k*np.pi*(c-a)/(b-a)))*(k!=0)+(d-c)*(k==0)
+            def cpCosInt(k):
+                if optionType == "call":
+                    return 2/(b-a)*(cosInt0(k,0,b)-cosInt1(k,0,b))
+                elif optionType == "put":
+                    return 2/(b-a)*(-cosInt0(k,a,0)+cosInt1(k,a,0))
+
+            n = np.arange(N)
+            expArg = 1j*np.pi*n
+            cfArg = np.pi*n/(b-a)
+            cosInt = cpCosInt(n)
+
+            x = -logStrike
+            K = np.exp(logStrike)
+            ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
+            ftMtrx[:,0] *= 0.5
+            ftMtrxK = (ftMtrx.T*K).T
+            ftMtrxKI = ftMtrxK*cosInt
+            cosFmla_dict[maturity] = {
+                # 'x': x,
+                # 'K': K,
+                # 'ftMtrx': ftMtrx,
+                # 'ftMtrxK': ftMtrxK,
+                'ftMtrxKI': ftMtrxKI,
+                'cfArg': cfArg,
+            }
+
+        if charFunc != cosFmla_charFuncLog:
+            # Update charFunc (for every NEW charFunc)
+            cosFmla_charFuncLog = charFunc
+            if curryCharFunc: cosFmla_charFunc = charFunc(cfArg)
+            else: cosFmla_charFunc = charFunc
+
+        cfVec = cosFmla_charFunc(cfArg, maturity)
+
+    else:
+        n = np.arange(N)
+        expArg = 1j*np.pi*n
+        cfVec = charFunc(np.pi*n/(b-a), maturity)
+        cosInt = cpCosInt(n)
+
+        x = -logStrike
+        K = np.exp(logStrike)
+        ftMtrx = np.exp(np.multiply.outer((x-a)/(b-a), expArg))
+        ftMtrx[:,0] *= 0.5
+        ftMtrxK = (ftMtrx.T*K).T
+        ftMtrxKI = ftMtrxK*cosInt
+
+    price = np.real(np.sum(ftMtrxKI*cfVec,axis=1))
+    return price
+
 #### Implied Vol ###############################################################
 # Given charFunc, return impVolFunc with arguments (logStrike, maturity)
 
@@ -738,6 +813,8 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         formula = CarrMadanFormulaFFT
     elif formulaType == "COS":
         formula = COSFormula
+    elif formulaType == "COSAdpt":
+        formula = COSFormulaAdpt
     riskFreeRate = kwargs["riskFreeRate"] if "riskFreeRate" in kwargs else 0
     inversionMethod = kwargs["inversionMethod"] if "inversionMethod" in kwargs else "Bisection"
 
