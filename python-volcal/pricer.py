@@ -359,9 +359,10 @@ def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFre
         def charFunc(u):
             iur = 1j*u*riskFreeRate
             alpha = -u**2/2-1j*u/2
-            def charFuncFixedU(u, maturity):
+            betaFactor = -correlation*1j*u
+            def charFuncFixedU(u, maturity): # u is dummy
                 volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
-                beta = -correlation*volOfVolMod*1j*u # u-dependence!
+                beta = betaFactor*volOfVolMod
                 gamma = volOfVolMod**2/2
                 d = np.sqrt(beta**2-4*alpha*gamma)
                 rp = (beta+d)/(2*gamma)
@@ -384,6 +385,44 @@ def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFre
             g = np.nan_to_num(rm/rp)
             D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
             return np.exp(1j*u*riskFreeRate*maturity+D*currentVar)
+    return charFunc
+
+def rHestonPoorMansModCharFunc(hurstExp, meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
+    # Characteristic function for rHeston model (poor man's Heston approx modified)
+    # Ref: Gatheral, Roughening Heston
+    volOfVolFactor = np.sqrt(3/(2*hurstExp+2))*volOfVol/sp.special.gamma(hurstExp+1.5)
+    if curry:
+        def charFunc(u):
+            iur = 1j*u*riskFreeRate
+            alpha = -u**2/2-1j*u/2
+            betaFactor = -correlation*1j*u
+            def charFuncFixedU(u, maturity): # u is dummy
+                volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
+                beta = betaFactor*volOfVolMod
+                gamma = volOfVolMod**2/2
+                d = np.sqrt(beta**2-4*alpha*gamma)
+                rp = (beta+d)/(2*gamma)
+                rm = (beta-d)/(2*gamma)
+                # g = rm/rp
+                g = np.nan_to_num(rm/rp)
+                D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+                C = meanRevRate*(rm*maturity-2/volOfVolMod**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+                return np.exp(iur*maturity+C*meanVar+D*currentVar)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            volOfVolMod = volOfVolFactor/maturity**(0.5-hurstExp)
+            alpha = -u**2/2-1j*u/2
+            beta = -correlation*volOfVolMod*1j*u
+            gamma = volOfVolMod**2/2
+            d = np.sqrt(beta**2-4*alpha*gamma)
+            rp = (beta+d)/(2*gamma)
+            rm = (beta-d)/(2*gamma)
+            # g = rm/rp
+            g = np.nan_to_num(rm/rp)
+            D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+            C = meanRevRate*(rm*maturity-2/volOfVolMod**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+            return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
     return charFunc
 
 def rHestonPadeCharFunc(hurstExp, correlation, meanVar, currentVar, riskFreeRate=0, curry=False):
@@ -746,6 +785,8 @@ def CalibrateModelToOptionPrice(logStrike, maturity, optionPrice, model, params0
         formula = CarrMadanFormulaFFT
     elif formulaType == "COS":
         formula = COSFormula
+    elif formulaType == "COSAdpt":
+        formula = COSFormulaAdpt
 
     def objective(params):
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
