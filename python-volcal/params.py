@@ -60,4 +60,11 @@ paramsRHPMkey = list(paramsRHPM.keys())
 paramsRHPMval = list(paramsRHPM.values())
 paramsRHPMbnd = ((0,0.3), (-0.99,0.99), (0.01,1), (0.01,1))
 
+#### rHeston: Poor Man's Approx Modified #######################################
+# Ref: Gatheral, Roughening Heston
+paramsRHPMM = {"hurstExp": 0.1, "meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVar": 0.04, "currentVar": 0.04}
+paramsRHPMMkey = list(paramsRHPMM.keys())
+paramsRHPMMval = list(paramsRHPMM.values())
+paramsRHPMMbnd = ((0,0.3), (0.01,10), (-0.99,0.99), (0.01,2), (0.01,1), (0.01,1))
+
 #### rHeston: Pade Approx ######################################################
