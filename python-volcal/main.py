@@ -328,6 +328,27 @@ def test_ImpVolFromHestonIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIv.png")
 
+def test_ImpVolFromHestonIvCalibrationCOS():
+    # Adaptive grid for cosFmla:
+    # T<0.005:  a=-5, b=5, N=6000
+    # T<0.50:   a=-3, b=3, N=2000
+    # else:     a=-5, b=5, N=1000
+    cal = pd.read_csv(dataFolder+"test_HestonCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsBCCkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIvCOS.png")
+
 #### Merton ####################################################################
 
 def test_MertonJumpSmile():
@@ -839,10 +860,11 @@ if __name__ == '__main__':
     # test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    # test_CalibrateHestonModelToImpVol()
+    test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
+    # test_ImpVolFromHestonIvCalibrationCOS()
     #### Merton ####
     # test_MertonJumpSmile()
     # test_MertonJumpSmileSensitivity()
@@ -877,4 +899,4 @@ if __name__ == '__main__':
     # test_CharFuncSpeed()
     #### Calibration Results ####
     # test_PlotCalibratedAtmVolAndSkew()
-    test_PlotAtmSkewPowerLawFit()
+    # test_PlotAtmSkewPowerLawFit()
