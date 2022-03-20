@@ -17,6 +17,11 @@ plt.switch_backend("Agg")
 bsIv_interpInit = False
 bsIv_interpFunc = None
 
+bsIv_rationalInit = False
+bsIv_rationalLBnd = None
+bsIv_rationalUBnd = None
+bsIv_rationalIv = None
+
 cmFFT_init = False
 cmFFT_du = None
 cmFFT_u = None
@@ -104,7 +109,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
     if isinstance(optionType, str): # Cast optionType as vector
         if optionType == "OTM": optionType = np.where(strike > forwardPrice, "call", "put")
         else: optionType = np.repeat(optionType, nStrikes)
-    if isinstance(maturity, float): # Cast maturity as vector
+    if np.isscalar(maturity): # Cast maturity as vector
         maturity = np.repeat(maturity, nStrikes)
 
     if method == "Bisection": # Bisection search
@@ -147,6 +152,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
 
     elif method == "Interp": # Cubic interpolation (vectors input ONLY)
         # Accuracy is compromised for speed!
+        # In practice, batch Bisection (all T) is faster!
         # Params: Kgrid ~ 4e-3, Vgrid ~ 2e-4
         global bsIv_interpInit, bsIv_interpFunc
         if not bsIv_interpInit:
@@ -175,6 +181,26 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         impVol /= np.sqrt(maturity)
+        return impVol
+
+    elif method == "Rational": # Rational approx
+        # Ref: Li, Approximate Inversion of the Black–Scholes Formula using Rational Functions
+        global bsIv_rationalInit, bsIv_rationalLBnd, bsIv_rationalUBnd, bsIv_rationalIv
+        if not bsIv_rationalInit:
+            bsIv_rationalLBnd = lambda x: (-0.00424532412773*x+0.00099075112125*x**2)/(1+0.26674393279214*x+0.03360553011959*x**2)
+            bsIv_rationalUBnd = lambda x: (0.38292495908775+0.31382372544666*x+0.07116503261172*x**2)/(1+0.01380361926221*x+0.11791124749938*x**2)
+            bsIv_rationalIv = lambda x,c: (-0.969271876255*x+0.097428338274*c**0.5+1.750081126685*c)+(-0.068098378725*c**0.5-0.263473754689*c+4.714393825758*c**1.5+14.749084301452*c**2.0+0.440639436211*x-5.792537721792*x*c**0.5+3.529944137559*x*c-32.570660102526*x*c**1.5-5.267481008429*x**2-23.636495876611*x**2*c**0.5+76.398155779133*x**2*c-9.020361771283*x**3+41.855161781749*x**3*c**0.5-12.150611865704*x**4)/(1+6.268456292246*c**0.5+30.068281276567*c-11.473184324152*c**1.5-13.954993561151*c**2.0-6.284840445036*x-11.780036995036*x*c**0.5-230.101682610568*x*c+261.950288864225*x*c**1.5-2.310966989723*x**2+86.127219899668*x**2*c**0.5+20.090690444187*x**2*c+3.730181294225*x**3-50.117067019539*x**3*c**0.5+13.723711519422*x**4)
+        x = np.log(forwardPrice/strike)
+        c = priceMkt/spotPrice
+        itm = (x > 0)
+        put = (optionType == "put")
+        c[put] += 1-np.exp(-x[put]) # Cast as call prices
+        c[itm] = np.exp(x[itm])*(c[itm]-1)+1; x[itm] *= -1 # Cast as OTM
+        domain = (x>=-0.5)&(x<=0)&(c>bsIv_rationalLBnd(x))&(c<bsIv_rationalUBnd(x))
+        impVol[domain] = bsIv_rationalIv(x[domain],c[domain])/np.sqrt(maturity[domain])
+        if np.sum(~domain):
+            # Delegate options not in domain to Bisection
+            impVol[~domain] = BlackScholesImpliedVol(spotPrice, strike[~domain], maturity[~domain], riskFreeRate, priceMkt[~domain], optionType[~domain], method="Bisection")
         return impVol
 
     elif method == "Chebychev": # Chebychev IV-interpolation

@@ -25,6 +25,56 @@ def test_BlackScholesImpVolInterp():
     impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Interp")
     print(impVol)
 
+def test_BlackScholesImpVolRational():
+    # n = {
+    #     "01" : "-0.068098378725",
+    #     "10" : "+0.440639436211",
+    #     "02" : "-0.263473754689",
+    #     "11" : "-5.792537721792",
+    #     "20" : "-5.267481008429",
+    #     "03" : "+4.714393825758",
+    #     "12" : "+3.529944137559",
+    #     "21" : "-23.636495876611",
+    #     "30" : "-9.020361771283",
+    #     "04" : "+14.749084301452",
+    #     "13" : "-32.570660102526",
+    #     "22" : "+76.398155779133",
+    #     "31" : "+41.855161781749",
+    #     "40" : "-12.150611865704",
+    # }
+    # m = {
+    #     "01" : "+6.268456292246",
+    #     "10" : "-6.284840445036",
+    #     "02" : "+30.068281276567",
+    #     "11" : "-11.780036995036",
+    #     "20" : "-2.310966989723",
+    #     "03" : "-11.473184324152",
+    #     "12" : "-230.101682610568",
+    #     "21" : "+86.127219899668",
+    #     "30" : "+3.730181294225",
+    #     "04" : "-13.954993561151",
+    #     "13" : "+261.950288864225",
+    #     "22" : "+20.090690444187",
+    #     "31" : "-50.117067019539",
+    #     "40" : "+13.723711519422",
+    # }
+    # nFmla = ""; mFmla = "1"
+    # terms = 0
+    # for i in range(5):
+    #     for j in range(5):
+    #         idx = str(i)+str(j)
+    #         if i+j>=1 and i+j<=4:
+    #             nFmla += n[idx]+("*x" if i==1 else f"*x**{i}" if i>1 else "")+("*c" if j==2 else f"*c**{round(0.5*j,1)}" if j>0 else "")
+    #             mFmla += m[idx]+("*x" if i==1 else f"*x**{i}" if i>1 else "")+("*c" if j==2 else f"*c**{round(0.5*j,1)}" if j>0 else "")
+    #             terms += 1
+    # print("(%s)/(%s)"%(nFmla,mFmla))
+    # print(terms)
+    vol = np.array([0.23,0.20,0.18,0.15,0.12])
+    strike = np.array([0.9,1.0,1.1,1.2,1.5])
+    price = BlackScholesFormula(1,strike,1,0,vol,"call")
+    impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Rational")
+    print(impVol)
+
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -319,6 +369,7 @@ def test_ImpVolFromHestonIvCalibration():
     impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True)
     # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Newton")
     # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Interp")
+    # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),FFT=True,inversionMethod="Rational")
     # impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),optionType="call",formulaType="COS")
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
@@ -875,6 +926,7 @@ def test_PlotAtmSkewPowerLawFit():
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
+    # test_BlackScholesImpVolRational()
     # test_PlotImpliedVol()
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
