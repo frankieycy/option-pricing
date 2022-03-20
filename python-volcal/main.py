@@ -891,7 +891,7 @@ if __name__ == '__main__':
     # test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    # test_CalibrateHestonModelToImpVol()
+    test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
@@ -925,8 +925,8 @@ if __name__ == '__main__':
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()
-    test_CalibrateRHPMMModelToImpVol()
-    test_ImpVolFromRHPMMIvCalibration()
+    # test_CalibrateRHPMMModelToImpVol()
+    # test_ImpVolFromRHPMMIvCalibration()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
