@@ -61,16 +61,15 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     d1 = logMoneyness/totalImpVol+totalImpVol/2
     d2 = d1-totalImpVol
 
-    if isinstance(optionType, str): # Scalar calculations (str optionType)
+    if isinstance(optionType, str): # Uniform optionType
         return spotPrice * norm.cdf(d1) - discountFactor * strike * norm.cdf(d2) if optionType == "call" else \
             discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
-    else: # Vector calculations (vector optionType)
-        # strike, maturity, impliedVol, optionType are vectors
+    else: # Vector optionType
+        # strike & optionType must be vectors
         call = (optionType == "call")
         price = np.zeros(len(strike))
-        if isinstance(discountFactor, float): discountFactor = np.repeat(discountFactor, len(strike))
-        price[call] = spotPrice * norm.cdf(d1[call]) - discountFactor[call] * strike[call] * norm.cdf(d2[call]) # call
-        price[~call] = discountFactor[~call] * strike[~call] * norm.cdf(-d2[~call]) - spotPrice * norm.cdf(-d1[~call]) # put
+        price[call] = (spotPrice[call] if isinstance(spotPrice, np.ndarray) else spotPrice) * norm.cdf(d1[call]) - (discountFactor[call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[call] * norm.cdf(d2[call]) # call
+        price[~call] = (discountFactor[~call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[~call] * norm.cdf(-d2[~call]) - (spotPrice[~call] if isinstance(spotPrice, np.ndarray) else spotPrice) * norm.cdf(-d1[~call]) # put
         return price
 
     # price = np.where(optionType == "call",
