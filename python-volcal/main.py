@@ -924,6 +924,54 @@ def test_PlotAtmSkewPowerLawFit():
     plt.savefig(dataFolder+"calibration_atmSkewPowLawFit.png")
     plt.close()
 
+def test_SpeedProfile():
+    models = {
+        "Merton": {
+            "CF": MertonJumpCharFunc,
+            "paramsVal": paramsMERval,
+            "paramsKey": paramsMERkey,
+            "paramsBnd": paramsMERbnd,
+        },
+        "Heston": {
+            "CF": HestonCharFunc,
+            "paramsVal": paramsBCCval,
+            "paramsKey": paramsBCCkey,
+            "paramsBnd": paramsBCCbnd,
+        },
+        "VG": {
+            "CF": VarianceGammaCharFunc,
+            "paramsVal": paramsVGval,
+            "paramsKey": paramsVGkey,
+            "paramsBnd": paramsVGbnd,
+        },
+        "CGMY": {
+            "CF": CGMYCharFunc,
+            "paramsVal": paramsCGMYval,
+            "paramsKey": paramsCGMYkey,
+            "paramsBnd": paramsCGMYbnd,
+        },
+        "SVJ": {
+            "CF": SVJCharFunc,
+            "paramsVal": paramsSVJval,
+            "paramsKey": paramsSVJkey,
+            "paramsBnd": paramsSVJbnd,
+        },
+    }
+
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+
+    for model in models.keys():
+        startTime = time()
+        CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
+        endTime = time()
+        print(f"{model}: {endTime-startTime}s")
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -986,3 +1034,4 @@ if __name__ == '__main__':
     #### Calibration Results ####
     # test_PlotCalibratedAtmVolAndSkew()
     # test_PlotAtmSkewPowerLawFit()
+    # test_SpeedProfile()
