@@ -229,7 +229,7 @@ def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.exp(1j*u*riskFreeRate*maturity-vol**2/2*u*(u+1j)*maturity)
+            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j))*maturity)
     return charFunc
 
 def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
@@ -273,7 +273,7 @@ def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=Fal
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.exp(1j*u*riskFreeRate*maturity-vol**2/2*u*(u+1j)*maturity-1j*u*jumpInt*maturity*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))
+            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))*maturity)
     return charFunc
 
 def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
@@ -293,7 +293,7 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
 
 def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
     # Characteristic function for CGMY model
-    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
     gammaY = sp.special.gamma(-Y)
     if curry:
         def charFunc(u):
@@ -304,6 +304,21 @@ def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
     else:
         def charFunc(u, maturity):
             return np.exp((1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
+    return charFunc
+
+def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
+    # Characteristic function for extended CGMY model
+    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
+    gammaY = sp.special.gamma(-Y)
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
     return charFunc
 
 def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
