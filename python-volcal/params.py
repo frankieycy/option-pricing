@@ -23,10 +23,11 @@ paramsVGbnd = ((0.01,1), (-1,1), (0.01,1))
 
 #### CGMY ######################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes
-paramsCGMY = {"C": 0.002, "G": 10.781, "M": 9.230, "Y": 1.729} # converged
+# paramsCGMY = {"C": 0.005, "G": 10, "M": 10, "Y": 1.7}
+paramsCGMY = {"C": 0.002, "G": 11.019, "M": 9.011, "Y": 1.761} # converged
 paramsCGMYkey = list(paramsCGMY.keys())
 paramsCGMYval = list(paramsCGMY.values())
-paramsCGMYbnd = ((0.001,10), (0.01,20), (0.01,20), (0.01,1.99))
+paramsCGMYbnd = ((0.001,10), (1.005,20), (1.005,20), (0.01,1.99))
 
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
