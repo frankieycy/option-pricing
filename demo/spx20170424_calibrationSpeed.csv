@@ -1,0 +1,5 @@
+model,startParams,endParams,timeToConverge(s),Neval,timePerEval(s)
+Merton,{"vol": 0.1; "jumpInt": 0.1; "jumpMean": -0.4; "jumpSd": 0.2},{"vol": 0.07455851; "jumpInt": 0.39304305; "jumpMean": -0.08304958; "jumpSd": 0.10321208},15.396620988845825,345,0.0446278869241908
+Heston,{"meanRevRate": 1.15; "correlation": -0.64; "volOfVol": 0.39; "meanVar": 0.04; "currentVar": 0.04},{"meanRevRate": 0.59677228; "correlation": -0.60225203; "volOfVol": 1.17883157; "meanVar": 0.09853366; "currentVar": 0.01},32.909197092056274,606,0.0543056057624691
+VG,{"vol": 0.12; "drift": -0.14; "timeChgVar": 0.17},{"vol": 0.09500468; "drift": -0.09611777; "timeChgVar": 0.2885038},5.851643085479736,124,0.047190670044191425
+CGMY,{"C": 0.05; "G": 10; "M": 10; "Y": 1.5},{"C": 0.00304176192; "G": 10.6880443; "M": 9.30821687; "Y": 1.68199584},16.138355016708374,365,0.04421467127865308
