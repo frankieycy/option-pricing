@@ -135,7 +135,8 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             return BlackScholesFormula(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm) - priceMktNtm
         def objectiveDeriv(impVol):
             return BlackScholesVega(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm)
-        impVol0 = np.repeat(0.4, np.sum(ntm))
+        # impVol0 = np.repeat(0.4, np.sum(ntm))
+        impVol0 = np.sqrt(2*np.pi/maturityNtm)*priceMktNtm/spotPrice
         impVol1 = np.repeat(0., np.sum(ntm))
         for i in range(40): # Iterate for NTM options
             step = objective(impVol0) / objectiveDeriv(impVol0)
@@ -232,6 +233,8 @@ def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
             return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j))*maturity)
     return charFunc
 
+#### Diffusion
+
 def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
     # Characteristic function for Heston model
     if curry:
@@ -263,6 +266,8 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, risk
             return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
     return charFunc
 
+#### Jump
+
 def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
     # Characteristic function for Merton-Jump model
     if curry:
@@ -276,50 +281,7 @@ def MertonJumpCharFunc(vol, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=Fal
             return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)-1j*u*jumpInt*(np.exp(jumpMean+jumpSd**2/2)-1)+jumpInt*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)-1))*maturity)
     return charFunc
 
-def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
-    # Characteristic function for Variance-Gamma model
-    # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
-    # Ref: Madan, The Variance Gamma Process and Option Pricing
-    if curry:
-        def charFunc(u):
-            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
-            def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(chExp*maturity)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
-    return charFunc
-
-def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
-    # Characteristic function for CGMY model
-    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
-    gammaY = sp.special.gamma(-Y)
-    if curry:
-        def charFunc(u):
-            chExp = 1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
-            def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(chExp*maturity)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            return np.exp((1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
-    return charFunc
-
-def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
-    # Characteristic function for extended CGMY model
-    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
-    gammaY = sp.special.gamma(-Y)
-    if curry:
-        def charFunc(u):
-            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
-            def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(chExp*maturity)
-            return charFuncFixedU
-    else:
-        def charFunc(u, maturity):
-            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
-    return charFunc
+#### Jump-diffusion
 
 def SVJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, jumpInt, jumpMean, jumpSd, riskFreeRate=0, curry=False):
     # Characteristic function for SVJ model (Heston-MertonJump)
@@ -396,6 +358,87 @@ def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJum
             J = jumpInt*maturity*(np.exp(1j*u*jumpMean-u**2*jumpSd**2/2)*I-1-1j*u*(np.exp(jumpMean+jumpSd**2/2)-1))
             return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar+J)
     return charFunc
+
+#### Time-changed
+
+def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
+    # Characteristic function for Variance-Gamma model
+    # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
+    # Ref: Madan, The Variance Gamma Process and Option Pricing
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
+    return charFunc
+
+def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
+    # Characteristic function for CGMY model
+    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
+    gammaY = sp.special.gamma(-Y)
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
+    return charFunc
+
+def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
+    # Characteristic function for extended CGMY model
+    # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
+    gammaY = sp.special.gamma(-Y)
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
+    return charFunc
+
+def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
+    # Characteristic function for pn-CGMY model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+def NIGCharFunc(riskFreeRate=0, curry=False):
+    # Characteristic function for NIG model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+#### Stochastic-arrival
+
+def CIRCharFunc(meanRevRate, mean, vol, curry=False):
+    # Characteristic function for CIR process (NOT for stock price!)
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+def VGSACharFunc(vol, drift, timeChgVar, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
+    # Characteristic function for VG-SA model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+def CGMYSACharFunc(C, CRatio, G, M, Yp, Yn, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
+    # Characteristic function for CGMY-SA model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+def NIGSACharFunc(riskFreeRate=0, curry=False):
+    # Characteristic function for NIG-SA model
+    # Ref: CGMY, Stochastic Volatility for Levy Processes
+    pass
+
+#### Fractional BM
 
 def rHestonPoorMansCharFunc(hurstExp, correlation, volOfVol, currentVar, riskFreeRate=0, curry=False):
     # Characteristic function for rHeston model (poor man's Heston approx)
