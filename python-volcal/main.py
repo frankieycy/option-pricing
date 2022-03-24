@@ -851,6 +851,36 @@ def test_ImpVolFromVGSAIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_VGSAImpliedVolIv.png")
 
+def test_CalibrateCGMYSAModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,CGMYSACharFunc,paramsCGMYSAval,paramsCGMYSAkey,bounds=paramsCGMYSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",a=-3,b=3)
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsCGMYSAkey)
+    x.to_csv(dataFolder+"test_CGMYSACalibrationIv.csv", index=False)
+
+def test_ImpVolFromCGMYSAIvCalibration():
+    # Price calculations are unstable for large maturities
+    cal = pd.read_csv(dataFolder+"test_CGMYSACalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsCGMYSAkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(CGMYSACharFunc(**params),optionType="call",formulaType="COS",a=-3,b=3)
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_CGMYSAImpliedVolIv.png")
+
 #### rHeston ###################################################################
 
 def test_CalibrateRHPMModelToImpVol():
@@ -1149,8 +1179,10 @@ if __name__ == '__main__':
     # test_CalibratePNCGMYModelToImpVol()
     # test_ImpVolFromPNCGMYIvCalibration()
     #### SA ####
-    test_CalibrateVGSAModelToImpVol()
-    test_ImpVolFromVGSAIvCalibration()
+    # test_CalibrateVGSAModelToImpVol()
+    # test_ImpVolFromVGSAIvCalibration()
+    test_CalibrateCGMYSAModelToImpVol()
+    test_ImpVolFromCGMYSAIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()
