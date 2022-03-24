@@ -50,7 +50,7 @@ paramsPNCGMYbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01
 #### SA ########################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes
 # paramsVGSA = {"C": 22, "G": 55, "M": 80, "saMeanRevRate": 1.2, "saMean": 16, "saVol": 23}
-paramsVGSA = {"C": 4.045, "G": 22.294, "M": 42.238, "saMeanRevRate": 0.039, "saMean": 20.852, "saVol": 7.389} # converged
+paramsVGSA = {"C": 4.170, "G": 22.558, "M": 43.061, "saMeanRevRate": 0.046, "saMean": 17.021, "saVol": 7.348} # converged
 paramsVGSAkey = list(paramsVGSA.keys())
 paramsVGSAval = list(paramsVGSA.values())
 paramsVGSAbnd = ((0.001,50), (1.005,100), (1.005,100), (0.01,10), (0.01,50), (0.01,50))
