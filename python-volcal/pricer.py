@@ -135,8 +135,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             return BlackScholesFormula(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm) - priceMktNtm
         def objectiveDeriv(impVol):
             return BlackScholesVega(spotPrice, strikeNtm, maturityNtm, riskFreeRate, impVol, optionTypeNtm)
-        # impVol0 = np.repeat(0.4, np.sum(ntm))
-        impVol0 = np.sqrt(2*np.pi/maturityNtm)*priceMktNtm/spotPrice
+        impVol0 = np.repeat(0.4, np.sum(ntm))
         impVol1 = np.repeat(0., np.sum(ntm))
         for i in range(40): # Iterate for NTM options
             step = objective(impVol0) / objectiveDeriv(impVol0)
@@ -376,6 +375,12 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
             return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
     return charFunc
 
+def VarianceGammaLevyCharFunc(C, G, M, riskFreeRate=0, curry=False):
+    # Characteristic function for Variance-Gamma model (Levy measure parametrization)
+    # Ref: Madan, The Variance Gamma Process and Option Pricing
+    # TO-DO
+    pass
+
 def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
     # Characteristic function for CGMY model
     # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
@@ -409,33 +414,49 @@ def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
 def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
     # Characteristic function for pn-CGMY model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
-    pass
+    gammaYp = sp.special.gamma(-Yp)
+    gammaYn = sp.special.gamma(-Yn)
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-(M-1)**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-(G+1)**Yn))
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-(M-1)**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-(G+1)**Yn)))*maturity)
+    return charFunc
 
 def NIGCharFunc(riskFreeRate=0, curry=False):
     # Characteristic function for NIG model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # TO-DO
     pass
 
 #### Stochastic-arrival
 
-def CIRCharFunc(meanRevRate, mean, vol, curry=False):
+def CIRCharFunc(initVal, meanRevRate, mean, vol, curry=False):
     # Characteristic function for CIR process (NOT for stock price!)
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # TO-DO
     pass
 
 def VGSACharFunc(vol, drift, timeChgVar, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
     # Characteristic function for VG-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # TO-DO
     pass
 
 def CGMYSACharFunc(C, CRatio, G, M, Yp, Yn, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
     # Characteristic function for CGMY-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # TO-DO
     pass
 
 def NIGSACharFunc(riskFreeRate=0, curry=False):
     # Characteristic function for NIG-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    # TO-DO
     pass
 
 #### Fractional BM

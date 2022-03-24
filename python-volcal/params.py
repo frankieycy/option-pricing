@@ -35,6 +35,12 @@ paramsECGMYkey = list(paramsECGMY.keys())
 paramsECGMYval = list(paramsECGMY.values())
 paramsECGMYbnd = ((0,1), (0.001,10), (1.005,20), (1.005,20), (0.01,1.99))
 
+# paramsPNCGMY = {"C": 0.002, "CRatio": 1, "G": 11.019, "M": 9.011, "Yp": 1.761, "Yn": 1.761}
+paramsPNCGMY = {"C": 0.007, "CRatio": 1.311, "G": 4.436, "M": 16.234, "Yp": 1.332, "Yn": 1.526} # converged
+paramsPNCGMYkey = list(paramsPNCGMY.keys())
+paramsPNCGMYval = list(paramsPNCGMY.values())
+paramsPNCGMYbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99))
+
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
 # Empirical fits:
