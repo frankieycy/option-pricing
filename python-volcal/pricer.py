@@ -472,30 +472,46 @@ def CIRCharFunc(initVal, meanRevRate, mean, vol, curry=False):
 def VGSACharFunc(C, G, M, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
     # Characteristic function for VG-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
+    chExp = lambda u: np.log((M*G)/((M-1j*u)*(G+1j*u))) # VG char exponent
     if curry:
         def charFunc(u):
             iu = 1j*u
             iur = 1j*u*riskFreeRate
-            chExp = lambda u: np.log((M*G)/((M-1j*u)*(G+1j*u)))
             chExp0 = -1j*chExp(u)
             chExp1 = -1j*chExp(-1j)
             cirCF0 = CIRCharFunc(C, saMeanRevRate, saMean, saVol, curry=True)(chExp0)
             cirCF1 = CIRCharFunc(C, saMeanRevRate, saMean, saVol, curry=True)(chExp1)
             def charFuncFixedU(u, maturity): # u is dummy
-                return np.exp(iur*maturity)*cirCF0(chExp0,maturity)/cirCF1(chExp1,maturity)**iu
+                return np.exp(iur*maturity)*np.nan_to_num(cirCF0(chExp0,maturity)/cirCF1(chExp1,maturity)**iu)
             return charFuncFixedU
     else:
         cirCF = CIRCharFunc(C, saMeanRevRate, saMean, saVol)
         def charFunc(u, maturity):
-            chExp = lambda u: np.log((M*G)/((M-1j*u)*(G+1j*u))) # VG characteristic exponent
-            return np.exp(1j*u*riskFreeRate*maturity)*cirCF(-1j*chExp(u),maturity)/cirCF(-1j*chExp(-1j),maturity)**(1j*u)
+            return np.exp(1j*u*riskFreeRate*maturity)*np.nan_to_num(cirCF(-1j*chExp(u),maturity)/cirCF(-1j*chExp(-1j),maturity)**(1j*u))
     return charFunc
 
 def CGMYSACharFunc(C, CRatio, G, M, Yp, Yn, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
     # Characteristic function for CGMY-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
-    # TO-DO
-    pass
+    gammaYp = sp.special.gamma(-Yp)
+    gammaYn = sp.special.gamma(-Yn)
+    chExp = lambda u: C*(gammaYp*((M-1j*u)**Yp-M**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-G**Yn)) # CGMY char exponent
+    if curry:
+        def charFunc(u):
+            iu = 1j*u
+            iur = 1j*u*riskFreeRate
+            chExp0 = -1j*chExp(u)
+            chExp1 = -1j*chExp(-1j)
+            cirCF0 = CIRCharFunc(C, saMeanRevRate, saMean, saVol, curry=True)(chExp0)
+            cirCF1 = CIRCharFunc(C, saMeanRevRate, saMean, saVol, curry=True)(chExp1)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(iur*maturity)*np.nan_to_num(cirCF0(chExp0,maturity)/cirCF1(chExp1,maturity)**iu)
+            return charFuncFixedU
+    else:
+        cirCF = CIRCharFunc(C, saMeanRevRate, saMean, saVol)
+        def charFunc(u, maturity):
+            return np.exp(1j*u*riskFreeRate*maturity)*np.nan_to_num(cirCF(-1j*chExp(u),maturity)/cirCF(-1j*chExp(-1j),maturity)**(1j*u))
+    return charFunc
 
 def NIGSACharFunc(riskFreeRate=0, curry=False):
     # Characteristic function for NIG-SA model

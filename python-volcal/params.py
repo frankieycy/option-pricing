@@ -55,10 +55,11 @@ paramsVGSAkey = list(paramsVGSA.keys())
 paramsVGSAval = list(paramsVGSA.values())
 paramsVGSAbnd = ((0.001,50), (1.005,100), (1.005,100), (0.01,10), (0.01,50), (0.01,50))
 
-# paramsCGMYSA = {"C": 0.002, "G": 11.019, "M": 9.011, "Y": 1.761}
-# paramsCGMYSAkey = list(paramsCGMYSA.keys())
-# paramsCGMYSAval = list(paramsCGMYSA.values())
-# paramsCGMYSAbnd = ((0.001,10), (1.005,20), (1.005,20), (0.01,1.99))
+# paramsCGMYSA = {"C": 0.042, "CRatio": 1.187, "G": 4.397, "M": 16.402, "Yp": 1.628, "Yn": 1.782, "saMeanRevRate": 0.033, "saMean": 16.535, "saVol": 6.318}
+paramsCGMYSA = {"C": 0.044, "CRatio": 1.185, "G": 4.397, "M": 16.402, "Yp": 1.634, "Yn": 1.766, "saMeanRevRate": 0.028, "saMean": 16.532, "saVol": 6.318} # converged
+paramsCGMYSAkey = list(paramsCGMYSA.keys())
+paramsCGMYSAval = list(paramsCGMYSA.values())
+paramsCGMYSAbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99), (0.01,10), (0.01,50), (0.01,50))
 
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
