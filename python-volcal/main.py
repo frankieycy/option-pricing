@@ -829,19 +829,20 @@ def test_CalibrateVGSAModelToImpVol():
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVolFast(k,T,iv,VGSACharFunc,paramsVGSAval,paramsVGSAkey,bounds=paramsVGSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",a=-2,b=2)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,VGSACharFunc,paramsVGSAval,paramsVGSAkey,bounds=paramsVGSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",a=-0.5,b=0.5)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGSAkey)
     x.to_csv(dataFolder+"test_VGSACalibrationIv.csv", index=False)
 
 def test_ImpVolFromVGSAIvCalibration():
     # Price calculations are unstable for large maturities
+    # TO-DO: try larger a,b bound
     cal = pd.read_csv(dataFolder+"test_VGSACalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
     dfnew = list()
     params = cal[paramsVGSAkey].iloc[0].to_dict()
-    impVolFunc = CharFuncImpliedVol(VGSACharFunc(**params),optionType="call",formulaType="COS",a=-2,b=2)
+    impVolFunc = CharFuncImpliedVol(VGSACharFunc(**params),optionType="call",formulaType="COS",a=-0.5,b=0.5)
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
@@ -1149,7 +1150,7 @@ if __name__ == '__main__':
     # test_CalibratePNCGMYModelToImpVol()
     # test_ImpVolFromPNCGMYIvCalibration()
     #### SA ####
-    # test_CalibrateVGSAModelToImpVol()
+    test_CalibrateVGSAModelToImpVol()
     test_ImpVolFromVGSAIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
