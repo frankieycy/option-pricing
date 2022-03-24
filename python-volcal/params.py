@@ -47,6 +47,18 @@ paramsPNCGMYkey = list(paramsPNCGMY.keys())
 paramsPNCGMYval = list(paramsPNCGMY.values())
 paramsPNCGMYbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99))
 
+#### SA ########################################################################
+# Ref: CGMY, Stochastic Volatility for Levy Processes
+paramsVGSA = {"C": 22, "G": 55, "M": 80, "saMeanRevRate": 1.2, "saMean": 16, "saVol": 23}
+paramsVGSAkey = list(paramsVGSA.keys())
+paramsVGSAval = list(paramsVGSA.values())
+paramsVGSAbnd = ((0.001,50), (1.005,100), (1.005,100), (0.01,10), (0.01,50), (0.01,50))
+
+# paramsCGMYSA = {"C": 0.002, "G": 11.019, "M": 9.011, "Y": 1.761}
+# paramsCGMYSAkey = list(paramsCGMYSA.keys())
+# paramsCGMYSAval = list(paramsCGMYSA.values())
+# paramsCGMYSAbnd = ((0.001,10), (1.005,20), (1.005,20), (0.01,1.99))
+
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
 # Empirical fits:
