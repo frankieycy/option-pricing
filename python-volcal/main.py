@@ -687,6 +687,35 @@ def test_ImpVolFromVGIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_VGImpliedVolIv.png")
 
+def test_CalibrateVGLModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,VarianceGammaLevyCharFunc,paramsVGLval,paramsVGLkey,bounds=paramsVGLbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGLkey)
+    x.to_csv(dataFolder+"test_VGLCalibrationIv.csv", index=False)
+
+def test_ImpVolFromVGLIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_VGLCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsVGLkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(VarianceGammaLevyCharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_VGLImpliedVolIv.png")
+
 #### CGMY ######################################################################
 
 def test_CGMYSmile_COS():
@@ -1078,14 +1107,16 @@ if __name__ == '__main__':
     #### VGamma ####
     # test_CalibrateVGModelToImpVol()
     # test_ImpVolFromVGIvCalibration()
+    test_CalibrateVGLModelToImpVol()
+    test_ImpVolFromVGLIvCalibration()
     #### CGMY ####
     # test_CGMYSmile_COS()
     # test_CalibrateCGMYModelToImpVol()
     # test_ImpVolFromCGMYIvCalibration()
     # test_CalibrateECGMYModelToImpVol()
     # test_ImpVolFromECGMYIvCalibration()
-    test_CalibratePNCGMYModelToImpVol()
-    test_ImpVolFromPNCGMYIvCalibration()
+    # test_CalibratePNCGMYModelToImpVol()
+    # test_ImpVolFromPNCGMYIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()

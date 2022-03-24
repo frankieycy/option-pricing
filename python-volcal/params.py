@@ -21,6 +21,12 @@ paramsVGkey = list(paramsVG.keys())
 paramsVGval = list(paramsVG.values())
 paramsVGbnd = ((0.01,1), (-1,1), (0.01,1))
 
+# paramsVGL = {"C": 2, "G": 40, "M": 40}
+paramsVGL = {"C": 25.131, "G": 80.086, "M": 80.006} # converged
+paramsVGLkey = list(paramsVGL.keys())
+paramsVGLval = list(paramsVGL.values())
+paramsVGLbnd = ((0.001,50), (1.005,100), (1.005,100))
+
 #### CGMY ######################################################################
 # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
 # paramsCGMY = {"C": 0.005, "G": 10, "M": 10, "Y": 1.7}

@@ -361,7 +361,7 @@ def SVJJCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, varJum
 #### Time-changed
 
 def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
-    # Characteristic function for Variance-Gamma model
+    # Characteristic function for Variance-Gamma model (Brownian parametrization)
     # Xt = drift*gamma(t;1,timeChgVar) + vol*W(gamma(t;1,timeChgVar))
     # Ref: Madan, The Variance Gamma Process and Option Pricing
     if curry:
@@ -377,12 +377,22 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
 
 def VarianceGammaLevyCharFunc(C, G, M, riskFreeRate=0, curry=False):
     # Characteristic function for Variance-Gamma model (Levy measure parametrization)
+    # Levy measure k(x) = C*exp(G*x)/|x| for x<0, C*exp(-M*x)/x for x>0
     # Ref: Madan, The Variance Gamma Process and Option Pricing
-    # TO-DO
-    pass
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate+C*np.log(((M-1)*(G+1))/((M-1j*u)*(G+1j*u)))
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate+C*np.log(((M-1)*(G+1))/((M-1j*u)*(G+1j*u))))*maturity)
+    return charFunc
 
 def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
     # Characteristic function for CGMY model
+    # Levy measure k(x) = C*exp(G*x)/|x|^(Y+1) for x<0, C*exp(-M*x)/x^Y for x>0
     # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
     gammaY = sp.special.gamma(-Y)
     if curry:
@@ -413,6 +423,7 @@ def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
 
 def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
     # Characteristic function for pn-CGMY model
+    # Levy measure k(x) = Cn*exp(G*x)/|x|^(Yn+1) for x<0, Cp*exp(-M*x)/x^(Yp+1) for x>0
     # Ref: CGMY, Stochastic Volatility for Levy Processes
     gammaYp = sp.special.gamma(-Yp)
     gammaYn = sp.special.gamma(-Yn)
