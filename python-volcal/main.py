@@ -819,6 +819,50 @@ def test_ImpVolFromPNCGMYIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_pnCGMYImpliedVolIv.png")
 
+#### NIG #######################################################################
+
+def test_NIGSmile_COS():
+    impVolFunc = CharFuncImpliedVol(NIGCharFunc(**paramsNIG),optionType="call",formulaType="COS")
+    k = np.arange(-0.4,0.4,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("NIG 1-Year Smile (NIG Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_NIGSmile_COS.png")
+    plt.close()
+
+def test_CalibrateNIGModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,NIGCharFunc,paramsNIGval,paramsNIGkey,bounds=paramsNIGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsNIGkey)
+    x.to_csv(dataFolder+"test_NIGCalibrationIv.csv", index=False)
+
+def test_ImpVolFromNIGIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_NIGCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsNIGkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(NIGCharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_NIGImpliedVolIv.png")
+
 #### SA ########################################################################
 
 def test_CalibrateVGSAModelToImpVol():
@@ -880,6 +924,35 @@ def test_ImpVolFromCGMYSAIvCalibration():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_CGMYSAImpliedVolIv.png")
+
+def test_CalibrateNIGSAModelToImpVol():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,NIGSACharFunc,paramsNIGSAval,paramsNIGSAkey,bounds=paramsNIGSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsNIGSAkey)
+    x.to_csv(dataFolder+"test_NIGSACalibrationIv.csv", index=False)
+
+def test_ImpVolFromNIGSAIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_NIGSACalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsNIGSAkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(NIGSACharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_NIGSAImpliedVolIv.png")
 
 #### rHeston ###################################################################
 
@@ -1178,11 +1251,17 @@ if __name__ == '__main__':
     # test_ImpVolFromECGMYIvCalibration()
     # test_CalibratePNCGMYModelToImpVol()
     # test_ImpVolFromPNCGMYIvCalibration()
+    #### NIG ####
+    # test_NIGSmile_COS()
+    # test_CalibrateNIGModelToImpVol()
+    # test_ImpVolFromNIGIvCalibration()
     #### SA ####
     # test_CalibrateVGSAModelToImpVol()
     # test_ImpVolFromVGSAIvCalibration()
-    test_CalibrateCGMYSAModelToImpVol()
-    test_ImpVolFromCGMYSAIvCalibration()
+    # test_CalibrateCGMYSAModelToImpVol()
+    # test_ImpVolFromCGMYSAIvCalibration()
+    test_CalibrateNIGSAModelToImpVol()
+    test_ImpVolFromNIGSAIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()

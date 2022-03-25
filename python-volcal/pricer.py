@@ -438,11 +438,19 @@ def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
             return np.exp((1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-(M-1)**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-(G+1)**Yn)))*maturity)
     return charFunc
 
-def NIGCharFunc(riskFreeRate=0, curry=False):
+def NIGCharFunc(vol, drift, timeChgDrift, riskFreeRate=0, curry=False):
     # Characteristic function for NIG model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
-    # TO-DO
-    pass
+    if curry:
+        def charFunc(u):
+            chExp = (1j*u*riskFreeRate+np.sqrt(timeChgDrift**2-2*drift-vol**2)-np.sqrt(timeChgDrift**2-2*drift*1j*u+vol**2*u**2))
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate+np.sqrt(timeChgDrift**2-2*drift-vol**2)-np.sqrt(timeChgDrift**2-2*drift*1j*u+vol**2*u**2))*maturity)
+    return charFunc
 
 #### Stochastic-arrival
 
@@ -513,11 +521,26 @@ def CGMYSACharFunc(C, CRatio, G, M, Yp, Yn, saMeanRevRate, saMean, saVol, riskFr
             return np.exp(1j*u*riskFreeRate*maturity)*np.nan_to_num(cirCF(-1j*chExp(u),maturity)/cirCF(-1j*chExp(-1j),maturity)**(1j*u))
     return charFunc
 
-def NIGSACharFunc(riskFreeRate=0, curry=False):
+def NIGSACharFunc(vol, drift, timeChgDrift, saMeanRevRate, saMean, saVol, riskFreeRate=0, curry=False):
     # Characteristic function for NIG-SA model
     # Ref: CGMY, Stochastic Volatility for Levy Processes
-    # TO-DO
-    pass
+    chExp = lambda u: timeChgDrift-np.sqrt(timeChgDrift**2-2*drift*1j*u+u**2) # NIG char exponent
+    if curry:
+        def charFunc(u):
+            iu = 1j*u
+            iur = 1j*u*riskFreeRate
+            chExp0 = -1j*chExp(u)
+            chExp1 = -1j*chExp(-1j)
+            cirCF0 = CIRCharFunc(vol, saMeanRevRate, saMean, saVol, curry=True)(chExp0)
+            cirCF1 = CIRCharFunc(vol, saMeanRevRate, saMean, saVol, curry=True)(chExp1)
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(iur*maturity)*np.nan_to_num(cirCF0(chExp0,maturity)/cirCF1(chExp1,maturity)**iu)
+            return charFuncFixedU
+    else:
+        cirCF = CIRCharFunc(vol, saMeanRevRate, saMean, saVol)
+        def charFunc(u, maturity):
+            return np.exp(1j*u*riskFreeRate*maturity)*np.nan_to_num(cirCF(-1j*chExp(u),maturity)/cirCF(-1j*chExp(-1j),maturity)**(1j*u))
+    return charFunc
 
 #### Fractional BM
 
