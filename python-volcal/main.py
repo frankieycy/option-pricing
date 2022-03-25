@@ -1194,6 +1194,42 @@ def test_SpeedProfile():
         endTime = time()
         print(f"{model}: {endTime-startTime}s")
 
+#### Plot Implied Vol Surface ##################################################
+
+def test_PlotImpliedVolSurface():
+    run = 2
+
+    models = {
+        "Merton": {"CF": MertonJumpCharFunc,      "params": paramsMERkey},
+        "Heston": {"CF": HestonCharFunc,          "params": paramsBCCkey},
+        "VG":     {"CF": VarianceGammaCharFunc,   "params": paramsVGkey},
+        "CGMY":   {"CF": CGMYCharFunc,            "params": paramsCGMYkey},
+        "NIG":    {"CF": NIGCharFunc,             "params": paramsNIGkey},
+        "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
+        "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
+        "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
+    }
+
+    k = np.arange(-0.3,0.3,0.01)
+    T = np.arange(0.05,2.05,0.05)
+    X,Y = np.meshgrid(k,T)
+    IV = dict()
+
+    if run == 1:
+        for model in models.keys():
+            cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
+            params = cal[models[model]["params"]].iloc[0].to_dict()
+            impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params),optionType="call",formulaType="COS")
+            Z = np.array([impVolFunc(k,t) for t in T])
+            Z[Z<1e-8] = np.nan
+            df = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
+            df.to_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv",index=False)
+
+    else:
+        for model in models.keys():
+            df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
+            PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -1260,8 +1296,8 @@ if __name__ == '__main__':
     # test_ImpVolFromVGSAIvCalibration()
     # test_CalibrateCGMYSAModelToImpVol()
     # test_ImpVolFromCGMYSAIvCalibration()
-    test_CalibrateNIGSAModelToImpVol()
-    test_ImpVolFromNIGSAIvCalibration()
+    # test_CalibrateNIGSAModelToImpVol()
+    # test_ImpVolFromNIGSAIvCalibration()
     #### rHeston ####
     # test_CalibrateRHPMModelToImpVol()
     # test_ImpVolFromRHPMIvCalibration()
@@ -1274,3 +1310,5 @@ if __name__ == '__main__':
     # test_PlotCalibratedAtmVolAndSkew()
     # test_PlotAtmSkewPowerLawFit()
     # test_SpeedProfile()
+    #### Plot IVS ####
+    test_PlotImpliedVolSurface()

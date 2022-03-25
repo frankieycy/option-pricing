@@ -1098,6 +1098,27 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     plt.savefig(figname)
     plt.close()
 
+def PlotImpliedVolSurface(df, figname=None, model=None):
+    # Plot implied vol surface based on df
+    # Columns: "Log-strike","Texp","IV"
+    if not figname: figname = "IVS.png"
+
+    logStrike = df["Log-strike"]
+    maturity  = df["Texp"]
+    impVol    = df["IV"]*100
+
+    fig = plt.figure(figsize=(6,6))
+    ax = plt.axes(projection="3d")
+    surf = ax.plot_trisurf(logStrike,maturity,impVol)
+    ax.set_xlabel("log-strike")
+    ax.set_ylabel("maturity")
+    ax.set_zlabel("implied vol")
+    if model: ax.set_title(model)
+
+    fig.tight_layout()
+    plt.savefig(figname)
+    plt.close()
+
 def CalcAtmVolAndSkew(df):
     # Plot implied vols & skews based on df, with cubic interpolation
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
