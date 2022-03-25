@@ -47,6 +47,13 @@ paramsPNCGMYkey = list(paramsPNCGMY.keys())
 paramsPNCGMYval = list(paramsPNCGMY.values())
 paramsPNCGMYbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99))
 
+#### NIG ######################################################################
+# Ref: CGMY, Stochastic Volatility for Levy Processes
+paramsNIG = {"vol": 0.426, "drift": 0.190, "timeChgDrift": 23.761} # converged
+paramsNIGkey = list(paramsNIG.keys())
+paramsNIGval = list(paramsNIG.values())
+paramsNIGbnd = ((0.01,1), (-1,1), (0.01,50))
+
 #### SA ########################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes
 # paramsVGSA = {"C": 22, "G": 55, "M": 80, "saMeanRevRate": 1.2, "saMean": 16, "saVol": 23}
@@ -60,6 +67,11 @@ paramsCGMYSA = {"C": 0.044, "CRatio": 1.185, "G": 4.397, "M": 16.402, "Yp": 1.63
 paramsCGMYSAkey = list(paramsCGMYSA.keys())
 paramsCGMYSAval = list(paramsCGMYSA.values())
 paramsCGMYSAbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99), (0.01,10), (0.01,50), (0.01,50))
+
+paramsNIGSA = {"vol": 0.301, "drift": -5.156, "timeChgDrift": 27.149, "saMeanRevRate": 0.0006, "saMean": 16.517, "saVol": 5.871} # converged
+paramsNIGSAkey = list(paramsNIGSA.keys())
+paramsNIGSAval = list(paramsNIGSA.values())
+paramsNIGSAbnd = ((0.01,1), (-10,10), (0.01,100), (0.00001,10), (0.01,50), (0.01,50))
 
 #### SVJ #######################################################################
 # Ref: Gatheral, Volatility Workshop VW2.pdf
