@@ -1197,7 +1197,7 @@ def test_SpeedProfile():
 #### Plot Implied Vol Surface ##################################################
 
 def test_PlotImpliedVolSurface():
-    run = 2
+    run = [2]
 
     models = {
         "Merton": {"CF": MertonJumpCharFunc,      "params": paramsMERkey},
@@ -1211,21 +1211,20 @@ def test_PlotImpliedVolSurface():
     }
 
     k = np.arange(-0.3,0.3,0.01)
-    T = np.arange(0.05,2.05,0.05)
+    T = np.arange(0.1,2.1,0.1)
     X,Y = np.meshgrid(k,T)
-    IV = dict()
 
-    if run == 1:
+    if 1 in run:
         for model in models.keys():
             cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
             params = cal[models[model]["params"]].iloc[0].to_dict()
-            impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params),optionType="call",formulaType="COS")
+            impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params),optionType="call",formulaType="COS",N=6000)
             Z = np.array([impVolFunc(k,t) for t in T])
             Z[Z<1e-8] = np.nan
             df = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
             df.to_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv",index=False)
 
-    else:
+    elif 2 in run:
         for model in models.keys():
             df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
             PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)

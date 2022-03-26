@@ -1109,13 +1109,12 @@ def PlotImpliedVolSurface(df, figname=None, model=None):
 
     fig = plt.figure(figsize=(6,6))
     ax = plt.axes(projection="3d")
-    surf = ax.plot_trisurf(logStrike,maturity,impVol)
+    surf = ax.plot_trisurf(logStrike,maturity,impVol,cmap='summer')
     ax.set_xlabel("log-strike")
     ax.set_ylabel("maturity")
     ax.set_zlabel("implied vol")
     if model: ax.set_title(model)
 
-    fig.tight_layout()
     plt.savefig(figname)
     plt.close()
 
