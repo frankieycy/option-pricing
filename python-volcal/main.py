@@ -1197,7 +1197,7 @@ def test_SpeedProfile():
 #### Plot Implied Vol Surface ##################################################
 
 def test_PlotImpliedVolSurface():
-    run = [2]
+    run = [1,2]
 
     models = {
         "Merton": {"CF": MertonJumpCharFunc,      "params": paramsMERkey},
@@ -1208,6 +1208,9 @@ def test_PlotImpliedVolSurface():
         "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
         "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
         "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
+        # "VGSA":   {"CF": VGSACharFunc,            "params": paramsVGSAkey},
+        # "CGMYSA": {"CF": CGMYSACharFunc,          "params": paramsCGMYSAkey},
+        # "NIGSA":  {"CF": NIGSACharFunc,           "params": paramsNIGSAkey},
     }
 
     k = np.arange(-0.3,0.3,0.01)
@@ -1224,7 +1227,7 @@ def test_PlotImpliedVolSurface():
             df = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
             df.to_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv",index=False)
 
-    elif 2 in run:
+    if 2 in run:
         for model in models.keys():
             df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
             PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)
