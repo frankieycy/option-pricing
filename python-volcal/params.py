@@ -3,7 +3,7 @@
 paramsBCC = {"meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVar": 0.04, "currentVar": 0.04}
 paramsBCCkey = list(paramsBCC.keys())
 paramsBCCval = list(paramsBCC.values())
-paramsBCCbnd = ((0.01,10), (-0.99,0.99), (0.01,2), (0.01,1), (0.01,1))
+paramsBCCbnd = ((0.01,10), (-0.99,0.99), (0.01,2), (0.01,1), (0.001,1))
 # paramsBCCbnd = ((0,10), (-1,1), (0,10), (0.01,1), (0,1))
 
 #### Merton ####################################################################

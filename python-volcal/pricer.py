@@ -1052,6 +1052,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         price = np.concatenate([formula(charFunc, logStrikeDict[T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in matUniq], axis=None) # most costly
         impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod) # BS inversion for all T
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
+        # loss = np.sum(w*(impVol-(bidVol+askVol)/2)**2)
         print(f"params: {params}")
         print(f"loss: {loss}")
         return loss
@@ -1071,7 +1072,7 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     Nexp = len(Texp)
     nrow = int(np.ceil(Nexp/ncol))
     ncol = min(len(Texp),6)
-    fig, ax = plt.subplots(nrow,ncol,figsize=(15,10))
+    fig, ax = plt.subplots(nrow,ncol,figsize=(2.5*ncol,2*nrow))
 
     for i in range(nrow*ncol):
         ix,iy = i//ncol,i%ncol
