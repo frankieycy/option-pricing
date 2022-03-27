@@ -1266,6 +1266,99 @@ def test_ImpVolFromHestonIvCalibration2005():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIv.png")
 
+def test_CalibrateModels2005():
+    models = {
+        "Merton": {
+            "CF": MertonJumpCharFunc,
+            "paramsVal": paramsMERval,
+            "paramsKey": paramsMERkey,
+            "paramsBnd": paramsMERbnd,
+        },
+        "Heston": {
+            "CF": HestonCharFunc,
+            "paramsVal": paramsBCCval,
+            "paramsKey": paramsBCCkey,
+            "paramsBnd": paramsBCCbnd,
+        },
+        "RHPM": {
+            "CF": rHestonPoorMansCharFunc,
+            "paramsVal": paramsRHPMval,
+            "paramsKey": paramsRHPMkey,
+            "paramsBnd": paramsRHPMbnd,
+        },
+        "RHPMM": {
+            "CF": rHestonPoorMansModCharFunc,
+            "paramsVal": paramsRHPMMval,
+            "paramsKey": paramsRHPMMkey,
+            "paramsBnd": paramsRHPMMbnd,
+        },
+        "VG": {
+            "CF": VarianceGammaCharFunc,
+            "paramsVal": paramsVGval,
+            "paramsKey": paramsVGkey,
+            "paramsBnd": paramsVGbnd,
+        },
+        "SVJ": {
+            "CF": SVJCharFunc,
+            "paramsVal": paramsSVJval,
+            "paramsKey": paramsSVJkey,
+            "paramsBnd": paramsSVJbnd,
+        },
+        # "NIG": {
+        #     "CF": NIGCharFunc,
+        #     "paramsVal": paramsNIGval,
+        #     "paramsKey": paramsNIGkey,
+        #     "paramsBnd": paramsNIGbnd,
+        # },
+        # "CGMY": {
+        #     "CF": CGMYCharFunc,
+        #     "paramsVal": paramsCGMYval,
+        #     "paramsKey": paramsCGMYkey,
+        #     "paramsBnd": paramsCGMYbnd,
+        # },
+        # "VGSA": {
+        #     "CF": VGSACharFunc,
+        #     "paramsVal": paramsVGSAval,
+        #     "paramsKey": paramsVGSAkey,
+        #     "paramsBnd": paramsVGSAbnd,
+        # },
+        # "NIGSA": {
+        #     "CF": NIGSACharFunc,
+        #     "paramsVal": paramsNIGSAval,
+        #     "paramsKey": paramsNIGSAkey,
+        #     "paramsBnd": paramsNIGSAbnd,
+        # },
+        # "CGMYSA": {
+        #     "CF": CGMYSACharFunc,
+        #     "paramsVal": paramsCGMYSAval,
+        #     "paramsKey": paramsCGMYSAkey,
+        #     "paramsBnd": paramsCGMYSAbnd,
+        # },
+    }
+
+    df = pd.read_csv("spxVols20050509.csv")
+    df = df.drop(df.columns[0], axis=1).dropna()
+    T = df["Texp"]; Texp = T.unique()
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.2)
+    iv = df[["Bid","Ask"]]
+
+    for model in models.keys():
+        x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
+        impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x),optionType="call",formulaType="COS")
+        x = pd.DataFrame(x.reshape(1,-1), columns=models[model]["paramsKey"])
+        x.to_csv(dataFolder+f"Calibration-2005/test_{model}CalibrationIv.csv", index=False)
+
+        dfnew = list()
+        for t in Texp:
+            dfT = df[df["Texp"]==t].copy()
+            kT = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+            dfT["Fit"] = impVolFunc(kT,t)
+            dfnew.append(dfT)
+        dfnew = pd.concat(dfnew)
+        PlotImpliedVol(dfnew, dataFolder+f"Calibration-2005/test_{model}ImpliedVolIv.png")
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -1349,5 +1442,6 @@ if __name__ == '__main__':
     #### Plot IVS ####
     # test_PlotImpliedVolSurface()
     #### Check ####
-    test_CalibrateHestonModelToImpVol2005()
-    test_ImpVolFromHestonIvCalibration2005()
+    # test_CalibrateHestonModelToImpVol2005()
+    # test_ImpVolFromHestonIvCalibration2005()
+    test_CalibrateModels2005()
