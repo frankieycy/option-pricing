@@ -1084,11 +1084,13 @@ def PlotImpliedVol(df, figname=None, ncol=6):
             k = np.log(dfT["Strike"]/dfT["Fwd"])
             bid = dfT["Bid"]
             ask = dfT["Ask"]
-            ax_idx.scatter(k,bid,c='r',s=5)
-            ax_idx.scatter(k,ask,c='b',s=5)
+            ax_idx.scatter(k,bid,c='r',s=2,marker="^")
+            ax_idx.scatter(k,ask,c='b',s=2,marker="v")
             if "Fit" in dfT:
                 fit = dfT["Fit"]
-                ax_idx.scatter(k,fit,c='k',s=5)
+                i = (fit>1e-2)
+                # ax_idx.scatter(k[i],fit[i],c='k',s=2)
+                ax_idx.plot(k[i],fit[i],'k',linewidth=1)
             ax_idx.set_title(rf"$T={np.round(T,3)}$")
             ax_idx.set_xlabel("log-strike")
             ax_idx.set_ylabel("implied vol")
