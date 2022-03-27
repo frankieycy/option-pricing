@@ -307,11 +307,13 @@ def test_CalibrateHestonModelToCallPricePrx():
 
 def test_CalibrateHestonModelToImpVol(): # Benchmark!
     df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20170424_tiny.csv")
     df = df.drop(df.columns[0], axis=1)
     T = df["Texp"]
     k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
+    # w = 1/(df["Ask"]-df["Bid"]).to_numpy()
     iv = df[["Bid","Ask"]]
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call")
     # x = CalibrateModelToImpliedVol(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Newton")
@@ -363,6 +365,7 @@ def test_ImpVolFromHestonCalibrationPrx():
 def test_ImpVolFromHestonIvCalibration():
     cal = pd.read_csv(dataFolder+"test_HestonCalibrationIv.csv")
     df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20170424_tiny.csv")
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
     dfnew = list()
