@@ -1,5 +1,6 @@
 #### Heston ####################################################################
 # Ref: Bakshi, Cao & Chen (1997)
+# paramsBCC = {"meanRevRate": 2.052, "correlation": -0.711, "volOfVol": 0.587, "meanVar": 0.0138, "currentVar": 0.036}
 paramsBCC = {"meanRevRate": 1.15, "correlation": -0.64, "volOfVol": 0.39, "meanVar": 0.04, "currentVar": 0.04}
 paramsBCCkey = list(paramsBCC.keys())
 paramsBCCval = list(paramsBCC.values())

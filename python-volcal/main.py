@@ -1235,6 +1235,37 @@ def test_PlotImpliedVolSurface():
             df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
             PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)
 
+#### Results Check #############################################################
+
+def test_CalibrateHestonModelToImpVol2005():
+    df = pd.read_csv("spxVols20050509.csv")
+    df = df.drop(df.columns[0], axis=1).dropna()
+    T = df["Texp"]
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
+    x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
+
+def test_ImpVolFromHestonIvCalibration2005():
+    cal = pd.read_csv(dataFolder+"test_HestonCalibrationIv.csv")
+    df = pd.read_csv("spxVols20050509.csv").dropna()
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    params = cal[paramsBCCkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(HestonCharFunc(**params),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_HestonImpliedVolIv.png")
+
 if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -1316,4 +1347,7 @@ if __name__ == '__main__':
     # test_PlotAtmSkewPowerLawFit()
     # test_SpeedProfile()
     #### Plot IVS ####
-    test_PlotImpliedVolSurface()
+    # test_PlotImpliedVolSurface()
+    #### Check ####
+    test_CalibrateHestonModelToImpVol2005()
+    test_ImpVolFromHestonIvCalibration2005()
