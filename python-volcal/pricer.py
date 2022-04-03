@@ -6,7 +6,7 @@ from time import time
 from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
-from scipy.optimize import fsolve, minimize
+from scipy.optimize import fsolve, minimize, dual_annealing
 from scipy.integrate import quad, quad_vec
 from scipy.interpolate import splrep, splev, pchip, interp1d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
@@ -366,7 +366,7 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
     # Ref: Madan, The Variance Gamma Process and Option Pricing
     if curry:
         def charFunc(u):
-            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
+            chExp = 1j*u*(riskFreeRate+1/timeChgVar*np.nan_to_num(np.log(1-(drift+vol**2/2)*timeChgVar)))-np.log(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)/timeChgVar
             def charFuncFixedU(u, maturity): # u is dummy
                 return np.exp(chExp*maturity)
             return charFuncFixedU
@@ -1022,7 +1022,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
     return opt.x
 
 def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
-    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, **kwargs):
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, annealing=False, **kwargs):
     # Calibrate model params to implied vols (pricing measure)
     # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
@@ -1057,7 +1057,13 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         print(f"loss: {loss}")
         return loss
 
-    opt = minimize(objective, x0=params0, bounds=bounds)
+    if annealing:
+        opt0 = dual_annealing(objective, bounds=bounds, maxfun=1000)
+        opt = minimize(objective, x0=opt0.x, bounds=bounds)
+
+    else:
+        opt = minimize(objective, x0=params0, bounds=bounds)
+
     print("Optimization output:", opt, sep="\n")
     return opt.x
 
