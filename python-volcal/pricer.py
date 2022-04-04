@@ -6,7 +6,8 @@ from time import time
 from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
-from scipy.optimize import fsolve, minimize, dual_annealing
+from scipy.optimize import fsolve, minimize, dual_annealing, \
+    shgo, differential_evolution
 from scipy.integrate import quad, quad_vec
 from scipy.interpolate import splrep, splev, pchip, interp1d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
@@ -443,7 +444,7 @@ def NIGCharFunc(vol, drift, timeChgDrift, riskFreeRate=0, curry=False):
     # Ref: CGMY, Stochastic Volatility for Levy Processes
     if curry:
         def charFunc(u):
-            chExp = (1j*u*riskFreeRate+np.sqrt(timeChgDrift**2-2*drift-vol**2)-np.sqrt(timeChgDrift**2-2*drift*1j*u+vol**2*u**2))
+            chExp = (1j*u*riskFreeRate+np.nan_to_num(np.sqrt(timeChgDrift**2-2*drift-vol**2))-np.sqrt(timeChgDrift**2-2*drift*1j*u+vol**2*u**2))
             def charFuncFixedU(u, maturity): # u is dummy
                 return np.exp(chExp*maturity)
             return charFuncFixedU
@@ -1022,7 +1023,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
     return opt.x
 
 def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
-    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, annealing=False, **kwargs):
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, optMethod="Gradient", **kwargs):
     # Calibrate model params to implied vols (pricing measure)
     # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
@@ -1057,12 +1058,23 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         print(f"loss: {loss}")
         return loss
 
-    if annealing:
+    if optMethod == "Gradient":
+        opt = minimize(objective, x0=params0, bounds=bounds)
+
+    elif optMethod == "Annealing":
         opt0 = dual_annealing(objective, bounds=bounds, maxfun=1000)
         opt = minimize(objective, x0=opt0.x, bounds=bounds)
 
-    else:
-        opt = minimize(objective, x0=params0, bounds=bounds)
+    elif optMethod == "SHGO":
+        opt0 = shgo(objective, bounds=bounds)
+        opt = minimize(objective, x0=opt0.x, bounds=bounds)
+
+    elif optMethod == "Evolution":
+        opt0 = differential_evolution(objective, bounds=bounds)
+        opt = minimize(objective, x0=opt0.x, bounds=bounds)
+
+    elif optMethod == "Basin":
+        pass
 
     print("Optimization output:", opt, sep="\n")
     return opt.x
