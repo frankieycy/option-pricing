@@ -7,7 +7,7 @@ from math import isclose
 from scipy.stats import norm
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize, dual_annealing, \
-    shgo, differential_evolution
+    shgo, differential_evolution, basinhopping
 from scipy.integrate import quad, quad_vec
 from scipy.interpolate import splrep, splev, pchip, interp1d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
@@ -1069,12 +1069,22 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         opt0 = shgo(objective, bounds=bounds)
         opt = minimize(objective, x0=opt0.x, bounds=bounds)
 
-    elif optMethod == "Evolution":
+    elif optMethod == "Evolution": # Best performance so far!
         opt0 = differential_evolution(objective, bounds=bounds)
         opt = minimize(objective, x0=opt0.x, bounds=bounds)
 
     elif optMethod == "Basin":
-        pass
+        class basinBnd:
+            def __init__(self):
+                self.xmin = np.array([b[0] for b in bounds])
+                self.xmax = np.array([b[1] for b in bounds])
+            def __call__(self, **kwargs):
+                x = kwargs["x_new"]
+                tmax = bool(np.all(x <= self.xmax))
+                tmin = bool(np.all(x >= self.xmin))
+                return tmax and tmin
+        opt0 = basinhopping(objective, x0=params0, accept_test=basinBnd())
+        opt = minimize(objective, x0=opt0.x, bounds=bounds)
 
     print("Optimization output:", opt, sep="\n")
     return opt.x
