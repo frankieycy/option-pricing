@@ -64,6 +64,7 @@ paramsVGSAval = list(paramsVGSA.values())
 paramsVGSAbnd = ((0.001,50), (1.005,100), (1.005,100), (0.01,10), (0.01,50), (0.01,50))
 
 # paramsCGMYSA = {"C": 0.042, "CRatio": 1.187, "G": 4.397, "M": 16.402, "Yp": 1.628, "Yn": 1.782, "saMeanRevRate": 0.033, "saMean": 16.535, "saVol": 6.318}
+# paramsCGMYSA = {'C': 0.2862541148423903, 'CRatio': 1.9749569272052367, 'G': 8.283259888324903, 'M': 15.764348804117436, 'Yp': 0.810318258561253, 'Yn': 0.8415294714657541, 'saMeanRevRate': 7.001221672704461, 'saMean': 0.16351428800258105, 'saVol': 1.51818474575785}
 paramsCGMYSA = {"C": 0.044, "CRatio": 1.185, "G": 4.397, "M": 16.402, "Yp": 1.634, "Yn": 1.766, "saMeanRevRate": 0.028, "saMean": 16.532, "saVol": 6.318} # converged
 paramsCGMYSAkey = list(paramsCGMYSA.keys())
 paramsCGMYSAval = list(paramsCGMYSA.values())
