@@ -592,6 +592,7 @@ def test_CalibrateSVJModelToImpVol():
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
     # x = CalibrateModelToImpliedVol(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
     x = CalibrateModelToImpliedVolFast(k,T,iv,SVJCharFunc,paramsSVJval,paramsSVJkey,bounds=paramsSVJbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsSVJkey)
     x.to_csv(dataFolder+"test_SVJCalibrationIv.csv", index=False)
@@ -670,6 +671,7 @@ def test_CalibrateVGModelToImpVol():
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
     # x = CalibrateModelToImpliedVol(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
     x = CalibrateModelToImpliedVolFast(k,T,iv,VarianceGammaCharFunc,paramsVGval,paramsVGkey,bounds=paramsVGbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGkey)
     x.to_csv(dataFolder+"test_VGCalibrationIv.csv", index=False)
@@ -878,6 +880,7 @@ def test_CalibrateVGSAModelToImpVol():
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.1)
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVolFast(k,T,iv,VGSACharFunc,paramsVGSAval,paramsVGSAkey,bounds=paramsVGSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",a=-1,b=1)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,VGSACharFunc,paramsVGSAval,paramsVGSAkey,bounds=paramsVGSAbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution",a=-1,b=1)
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsVGSAkey)
     x.to_csv(dataFolder+"test_VGSACalibrationIv.csv", index=False)
 
