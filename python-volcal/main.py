@@ -1239,6 +1239,22 @@ def test_PlotImpliedVolSurface():
             df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
             PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)
 
+#### Plot Local Vol Surface ##################################################
+
+def test_PlotLocalVolSurface():
+        run = [1,2]
+
+        if 1 in run:
+            for model in models.keys():
+                df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
+                lv = CalcLocalVolSurface(df)
+                lv.to_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv",index=False)
+
+        if 2 in run:
+            for model in models.keys():
+                df = pd.read_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv")
+                PlotLocalVolSurface(df,dataFolder+f"Local Vol Surface/LVS_{model}.png",model)
+
 #### Results Check #############################################################
 
 def test_CalibrateHestonModelToImpVol2005():
@@ -1446,6 +1462,8 @@ if __name__ == '__main__':
     # test_SpeedProfile()
     #### Plot IVS ####
     # test_PlotImpliedVolSurface()
+    #### Plot LVS ####
+    # test_PlotLocalVolSurface()
     #### Check ####
     # test_CalibrateHestonModelToImpVol2005()
     # test_ImpVolFromHestonIvCalibration2005()

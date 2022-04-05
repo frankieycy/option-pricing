@@ -9,7 +9,7 @@ from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize, dual_annealing, \
     shgo, differential_evolution, basinhopping
 from scipy.integrate import quad, quad_vec
-from scipy.interpolate import splrep, splev, pchip, interp1d, \
+from scipy.interpolate import splrep, splev, pchip, interp1d, interp2d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
 plt.switch_backend("Agg")
 
@@ -1134,6 +1134,8 @@ def PlotImpliedVolSurface(df, figname=None, model=None):
     # Columns: "Log-strike","Texp","IV"
     if not figname: figname = "IVS.png"
 
+    df = df.dropna()
+
     logStrike = df["Log-strike"]
     maturity  = df["Texp"]
     impVol    = df["IV"]*100
@@ -1150,7 +1152,7 @@ def PlotImpliedVolSurface(df, figname=None, model=None):
     plt.close()
 
 def CalcAtmVolAndSkew(df):
-    # Plot implied vols & skews based on df, with cubic interpolation
+    # Calculate implied vols & skews based on df, with cubic interpolation
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     Texp = df["Texp"].unique()
     atmVol = list()
@@ -1168,6 +1170,50 @@ def CalcAtmVolAndSkew(df):
     atmVol = np.array(atmVol)
     atmSkew = np.array(atmSkew)
     return {"Texp": Texp, "atmVol": atmVol, "atmSkew": atmSkew}
+
+def CalcLocalVolSurface(df):
+    # Calculate local vols by Dupire formula based on IVS df, with cubic interpolation
+    # Columns: "Log-strike","Texp","IV"
+    # Ref: Gatheral, The Volatility Surface, a Practitioner's Guide
+    # NOT stable, values blow up!
+    k = df["Log-strike"].to_numpy()
+    T = df["Texp"].to_numpy()
+    sigI = df["IV"].to_numpy()
+    w = sigI**2*T
+
+    k0 = np.unique(k)
+    T0 = np.unique(T)
+
+    fw = interp2d(k,T,w,kind='cubic')
+    dk1 = fw(k0,T0,dx=1).reshape(-1)
+    dk2 = fw(k0,T0,dx=2).reshape(-1)
+    dT1 = fw(k0,T0,dy=1).reshape(-1)
+
+    sigL = np.sqrt(dT1/((1-0.5*k/w*dk1)**2-0.25*(0.25+1/w)*dk1**2+0.5*dk2))
+    sigL = pd.DataFrame(np.array([k,T,sigL]).T,columns=["Log-strike","Texp","LV"])
+    return sigL
+
+def PlotLocalVolSurface(df, figname=None, model=None):
+    # Plot local vol surface based on df
+    # Columns: "Log-strike","Texp","LV"
+    if not figname: figname = "LVS.png"
+
+    df = df.dropna()
+
+    logStrike = df["Log-strike"]
+    maturity  = df["Texp"]
+    impVol    = df["LV"]*100
+
+    fig = plt.figure(figsize=(6,6))
+    ax = plt.axes(projection="3d")
+    surf = ax.plot_trisurf(logStrike,maturity,impVol,cmap='summer')
+    ax.set_xlabel("log-strike")
+    ax.set_ylabel("maturity")
+    ax.set_zlabel("local vol")
+    if model: ax.set_title(model)
+
+    plt.savefig(figname)
+    plt.close()
 
 #### Fwd Var Curve #############################################################
 
