@@ -1242,18 +1242,32 @@ def test_PlotImpliedVolSurface():
 #### Plot Local Vol Surface ##################################################
 
 def test_PlotLocalVolSurface():
-        run = [1,2]
+    run = [1,2]
 
-        if 1 in run:
-            for model in models.keys():
-                df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
-                lv = CalcLocalVolSurface(df)
-                lv.to_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv",index=False)
+    models = {
+        "Merton": {"CF": MertonJumpCharFunc,      "params": paramsMERkey},
+        "Heston": {"CF": HestonCharFunc,          "params": paramsBCCkey},
+        "VG":     {"CF": VarianceGammaCharFunc,   "params": paramsVGkey},
+        "CGMY":   {"CF": CGMYCharFunc,            "params": paramsCGMYkey},
+        "NIG":    {"CF": NIGCharFunc,             "params": paramsNIGkey},
+        "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
+        "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
+        "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
+        "VGSA":   {"CF": VGSACharFunc,            "params": paramsVGSAkey},
+        "CGMYSA": {"CF": CGMYSACharFunc,          "params": paramsCGMYSAkey},
+        "NIGSA":  {"CF": NIGSACharFunc,           "params": paramsNIGSAkey},
+    }
 
-        if 2 in run:
-            for model in models.keys():
-                df = pd.read_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv")
-                PlotLocalVolSurface(df,dataFolder+f"Local Vol Surface/LVS_{model}.png",model)
+    if 1 in run:
+        for model in models.keys():
+            df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
+            lv = CalcLocalVolSurface(df)
+            lv.to_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv",index=False)
+
+    if 2 in run:
+        for model in models.keys():
+            df = pd.read_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv")
+            PlotLocalVolSurface(df,dataFolder+f"Local Vol Surface/LVS_{model}.png",model)
 
 #### Results Check #############################################################
 
