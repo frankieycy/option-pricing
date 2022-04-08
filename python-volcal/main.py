@@ -1042,6 +1042,50 @@ def test_ImpVolFromRHPMMIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_RHPMMImpliedVolIv.png")
 
+def test_CalibrateRHPModelToImpVol():
+    # df = pd.read_csv("spxVols20050509.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1).dropna()
+    T = df["Texp"]
+
+    Texp = df["Texp"].unique()
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveFV = CalcFwdVarCurve(curveVS)
+    fvMid = curveFV["mid"]
+    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+
+    k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
+    mid = (df["CallMid"]/df["Fwd"]).to_numpy()
+    w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.2)
+    iv = df[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,rHestonPadeCharFunc,paramsRHPval,paramsRHPkey,bounds=paramsRHPbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",kwargsCF={"fvFunc":fvFunc},optMethod="Evolution")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsRHPkey)
+    x.to_csv(dataFolder+"test_RHPCalibrationIv.csv", index=False)
+
+def test_ImpVolFromRHPIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_RHPCalibrationIv.csv")
+    # df = pd.read_csv("spxVols20050509.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1).dropna()
+    Texp = df["Texp"].unique()
+
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveFV = CalcFwdVarCurve(curveVS)
+    fvMid = curveFV["mid"]
+    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+
+    dfnew = list()
+    params = cal[paramsRHPkey].iloc[0].to_dict()
+    impVolFunc = CharFuncImpliedVol(rHestonPadeCharFunc(**params,fvFunc=fvFunc),optionType="call",formulaType="COS")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_RHPImpliedVolIv.png")
+
 #### Speed Test ################################################################
 
 def test_CalibrationSpeed():
@@ -1424,7 +1468,7 @@ if __name__ == '__main__':
     # test_CalcSwapCurve()
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
-    test_CalcFwdVarCurve2005()
+    # test_CalcFwdVarCurve2005()
     #### Heston ####
     # test_HestonSmile()
     # test_HestonSmileSensitivity()
@@ -1489,6 +1533,8 @@ if __name__ == '__main__':
     # test_ImpVolFromRHPMIvCalibration()
     # test_CalibrateRHPMMModelToImpVol()
     # test_ImpVolFromRHPMMIvCalibration()
+    test_CalibrateRHPModelToImpVol()
+    test_ImpVolFromRHPIvCalibration()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
