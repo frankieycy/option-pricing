@@ -638,7 +638,7 @@ def dhPade33(hurstExp, correlation, volOfVol, curry=False):
             rp = -1j * rho * a + aa
 
             b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
-            b2 = (1-a*1j)*a**2*rho/(2* sp.special.gamma(1+2*al))
+            b2 = (1-a*1j)*a**2*rho/(2*sp.special.gamma(1+2*al))
             b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
 
             g0 = rm
@@ -689,6 +689,126 @@ def dhPade33(hurstExp, correlation, volOfVol, curry=False):
             return .5*(h.T-rm).T*(h.T-rp).T
             # h = (p1*y + p2*y**2 + p3*y**3)/(1 + q1*y + q2*y**2 + q3*y**3)
             # return .5*(h-rm)*(h-rp)
+    return kernel
+
+def dhPade44(hurstExp, correlation, volOfVol, curry=False):
+    # D**alpha(h) where h = solution to fractional Riccati equation
+    # Return kernel matrix of dimension (a,x), a = cfArg, x = maturity
+    # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
+    H = hurstExp
+    al = hurstExp + .5
+    rho = correlation
+    nu = volOfVol
+    if curry:
+        def kernel(a):
+            aa = np.sqrt(a * (a + 1j) - rho**2 * a**2)
+            rm = -1j * rho * a - aa
+            rp = -1j * rho * a + aa
+
+            b1 = -a*(a+1j)/(2 * sp.special.gamma(1+al))
+            b2 = (1-a*1j) * a**2 * rho/(2* sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al) * (a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2) + (1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al))) * sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
+
+            g0 = rm
+            g1 = -rm/(aa*sp.special.gamma(1-al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g3 = (rm*(-1 - (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2) -
+                       (rm*sp.special.gamma(1 - 3*al)*(1 + (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2)))/(aa*sp.special.gamma(1 - 2*al)*sp.special.gamma(1 - al))))/(aa**3*sp.special.gamma(1 - 3*al))
+
+            den = (g0**4 + 3*b1*g0**2*g1 + b1**2*g1**2 - 2*b2*g0*g1**2 + b3*g1**3 +
+                    2*b1**2*g0*g2 + 2*b2*g0**2*g2 - 2*b1*b2*g1*g2 - 2*b3*g0*g1*g2 +
+                    b2**2*g2**2 - b1*b3*g2**2 + b1**3*g3 + 2*b1*b2*g0*g3 + b3*g0**2*g3 -
+                    b2**2*g1*g3 + b1*b3*g1*g3)
+
+            p1 = b1
+            p2 = (b1**2*g0**3 + b2*g0**4 + 2*b1**3*g0*g1 + 2*b1*b2*g0**2*g1 -
+                   b1**2*b2*g1**2 - 2*b2**2*g0*g1**2 + b1*b3*g0*g1**2 + b2*b3*g1**3 -
+                   b1*b4*g1**3 + b1**4*g2 + 2*b1**2*b2*g0*g2 + 2*b2**2*g0**2*g2 -
+                   b1*b3*g0**2*g2 - b1*b2**2*g1*g2 + b1**2*b3*g1*g2 - 2*b2*b3*g0*g1*g2 +
+                   2*b1*b4*g0*g1*g2 + b2**3*g2**2 - 2*b1*b2*b3*g2**2 + b1**2*b4*g2**2 +
+                   b1*b2**2*g0*g3 - b1**2*b3*g0*g3 + b2*b3*g0**2*g3 - b1*b4*g0**2*g3 -
+                   b2**3*g1*g3 + 2*b1*b2*b3*g1*g3 - b1**2*b4*g1*g3)/den
+            p3 = (b1**3*g0**2 + 2*b1*b2*g0**3 + b3*g0**4 + b1**4*g1 + 2*b1**2*b2*g0*g1 - b2**2*g0**2*g1 + 2*b1*b3*g0**2*g1 -
+                   2*b1*b2**2*g1**2 + 2*b1**2*b3*g1**2 - b2*b3*g0*g1**2 + b1*b4*g0*g1**2 + b3**2*g1**3 - b2*b4*g1**3 +
+                   b1*b2**2*g0*g2 - b1**2*b3*g0*g2 + b2*b3*g0**2*g2 - b1*b4*g0**2*g2 + b2**3*g1*g2 - 2*b1*b2*b3*g1*g2 +
+                   b1**2*b4*g1*g2 - 2*b3**2*g0*g1*g2 + 2*b2*b4*g0*g1*g2 - b2**3*g0*g3 + 2*b1*b2*b3*g0*g3 - b1**2*b4*g0*g3 +
+                   b3**2*g0**2*g3 - b2*b4*g0**2*g3)/den
+
+            q1 = (b1*g0**3 + 2*b1**2*g0*g1 - b2*g0**2*g1 - 2*b1*b2*g1**2 + b3*g0*g1**2 - b4*g1**3 + b1**3*g2 -
+                   b3*g0**2*g2 + b2**2*g1*g2 + b1*b3*g1*g2 + 2*b4*g0*g1*g2 - b2*b3*g2**2 + b1*b4*g2**2 - b1**2*b2*g3 - b2**2*g0*g3 -
+                   b1*b3*g0*g3 - b4*g0**2*g3 + b2*b3*g1*g3 - b1*b4*g1*g3)/den
+            q2 = (b1**2*g0**2 + b2*g0**3 + b1**3*g1 - b3*g0**2*g1 + b1*b3*g1**2 + b4*g0*g1**2 - b1**2*b2*g2 + b2**2*g0*g2 -
+                   3*b1*b3*g0*g2 - b4*g0**2*g2 - b2*b3*g1*g2 + b1*b4*g1*g2 + b3**2*g2**2 - b2*b4*g2**2 + b1*b2**2*g3 - b1**2*b3*g3 +
+                   b2*b3*g0*g3 - b1*b4*g0*g3 - b3**2*g1*g3 + b2*b4*g1*g3)/den
+            q3 = (b1**3*g0 + 2*b1*b2*g0**2 + b3*g0**3 - b1**2*b2*g1 - 2*b2**2*g0*g1 - b4*g0**2*g1 + b2*b3*g1**2 - b1*b4*g1**2 +
+                   b1*b2**2*g2 - b1**2*b3*g2 + b2*b3*g0*g2 - b1*b4*g0*g2 - b3**2*g1*g2 + b2*b4*g1*g2 - b2**3*g3 + 2*b1*b2*b3*g3 -
+                   b1**2*b4*g3 + b3**2*g0*g3 - b2*b4*g0*g3)/den
+            q4 = (b1**4 + 3*b1**2*b2*g0 + b2**2*g0**2 + 2*b1*b3*g0**2 + b4*g0**3 - 2*b1*b2**2*g1 + 2*b1**2*b3*g1 -
+                   2*b2*b3*g0*g1 + 2*b1*b4*g0*g1 + b3**2*g1**2 - b2*b4*g1**2 + b2**3*g2 - 2*b1*b2*b3*g2 + b1**2*b4*g2 - b3**2*g0*g2 +
+                   b2*b4*g0*g2)/den
+
+            p4 = g0*q4
+
+            def kernelFixedA(a, x):
+                y = x**al
+                h = (np.outer(p1,y) + np.outer(p2,y**2) + np.outer(p3,y**3) + np.outer(p4,y**4))/(1 + np.outer(q1,y) + np.outer(q2,y**2) + np.outer(q3,y**3) + np.outer(q4,y**4))
+                return .5*(h.T-rm).T*(h.T-rp).T
+            return kernelFixedA
+    else:
+        def kernel(a, x):
+            aa = sqrt(a * (a + 1j) - rho**2 * a**2)
+            rm = -1j * rho * a - aa
+            rp = -1j * rho * a + aa
+
+            b1 = -a*(a+1j)/(2 * sp.special.gamma(1+al))
+            b2 = (1-a*1j) * a**2 * rho/(2* sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al) * (a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2) + (1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al))) * sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
+
+            g0 = rm
+            g1 = -rm/(aa*sp.special.gamma(1-al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g3 = (rm*(-1 - (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2) -
+                       (rm*sp.special.gamma(1 - 3*al)*(1 + (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2)))/(aa*sp.special.gamma(1 - 2*al)*sp.special.gamma(1 - al))))/(aa**3*sp.special.gamma(1 - 3*al))
+
+            den = (g0**4 + 3*b1*g0**2*g1 + b1**2*g1**2 - 2*b2*g0*g1**2 + b3*g1**3 +
+                    2*b1**2*g0*g2 + 2*b2*g0**2*g2 - 2*b1*b2*g1*g2 - 2*b3*g0*g1*g2 +
+                    b2**2*g2**2 - b1*b3*g2**2 + b1**3*g3 + 2*b1*b2*g0*g3 + b3*g0**2*g3 -
+                    b2**2*g1*g3 + b1*b3*g1*g3)
+
+            p1 = b1
+            p2 = (b1**2*g0**3 + b2*g0**4 + 2*b1**3*g0*g1 + 2*b1*b2*g0**2*g1 -
+                   b1**2*b2*g1**2 - 2*b2**2*g0*g1**2 + b1*b3*g0*g1**2 + b2*b3*g1**3 -
+                   b1*b4*g1**3 + b1**4*g2 + 2*b1**2*b2*g0*g2 + 2*b2**2*g0**2*g2 -
+                   b1*b3*g0**2*g2 - b1*b2**2*g1*g2 + b1**2*b3*g1*g2 - 2*b2*b3*g0*g1*g2 +
+                   2*b1*b4*g0*g1*g2 + b2**3*g2**2 - 2*b1*b2*b3*g2**2 + b1**2*b4*g2**2 +
+                   b1*b2**2*g0*g3 - b1**2*b3*g0*g3 + b2*b3*g0**2*g3 - b1*b4*g0**2*g3 -
+                   b2**3*g1*g3 + 2*b1*b2*b3*g1*g3 - b1**2*b4*g1*g3)/den
+            p3 = (b1**3*g0**2 + 2*b1*b2*g0**3 + b3*g0**4 + b1**4*g1 + 2*b1**2*b2*g0*g1 - b2**2*g0**2*g1 + 2*b1*b3*g0**2*g1 -
+                   2*b1*b2**2*g1**2 + 2*b1**2*b3*g1**2 - b2*b3*g0*g1**2 + b1*b4*g0*g1**2 + b3**2*g1**3 - b2*b4*g1**3 +
+                   b1*b2**2*g0*g2 - b1**2*b3*g0*g2 + b2*b3*g0**2*g2 - b1*b4*g0**2*g2 + b2**3*g1*g2 - 2*b1*b2*b3*g1*g2 +
+                   b1**2*b4*g1*g2 - 2*b3**2*g0*g1*g2 + 2*b2*b4*g0*g1*g2 - b2**3*g0*g3 + 2*b1*b2*b3*g0*g3 - b1**2*b4*g0*g3 +
+                   b3**2*g0**2*g3 - b2*b4*g0**2*g3)/den
+
+            q1 = (b1*g0**3 + 2*b1**2*g0*g1 - b2*g0**2*g1 - 2*b1*b2*g1**2 + b3*g0*g1**2 - b4*g1**3 + b1**3*g2 -
+                   b3*g0**2*g2 + b2**2*g1*g2 + b1*b3*g1*g2 + 2*b4*g0*g1*g2 - b2*b3*g2**2 + b1*b4*g2**2 - b1**2*b2*g3 - b2**2*g0*g3 -
+                   b1*b3*g0*g3 - b4*g0**2*g3 + b2*b3*g1*g3 - b1*b4*g1*g3)/den
+            q2 = (b1**2*g0**2 + b2*g0**3 + b1**3*g1 - b3*g0**2*g1 + b1*b3*g1**2 + b4*g0*g1**2 - b1**2*b2*g2 + b2**2*g0*g2 -
+                   3*b1*b3*g0*g2 - b4*g0**2*g2 - b2*b3*g1*g2 + b1*b4*g1*g2 + b3**2*g2**2 - b2*b4*g2**2 + b1*b2**2*g3 - b1**2*b3*g3 +
+                   b2*b3*g0*g3 - b1*b4*g0*g3 - b3**2*g1*g3 + b2*b4*g1*g3)/den
+            q3 = (b1**3*g0 + 2*b1*b2*g0**2 + b3*g0**3 - b1**2*b2*g1 - 2*b2**2*g0*g1 - b4*g0**2*g1 + b2*b3*g1**2 - b1*b4*g1**2 +
+                   b1*b2**2*g2 - b1**2*b3*g2 + b2*b3*g0*g2 - b1*b4*g0*g2 - b3**2*g1*g2 + b2*b4*g1*g2 - b2**3*g3 + 2*b1*b2*b3*g3 -
+                   b1**2*b4*g3 + b3**2*g0*g3 - b2*b4*g0*g3)/den
+            q4 = (b1**4 + 3*b1**2*b2*g0 + b2**2*g0**2 + 2*b1*b3*g0**2 + b4*g0**3 - 2*b1*b2**2*g1 + 2*b1**2*b3*g1 -
+                   2*b2*b3*g0*g1 + 2*b1*b4*g0*g1 + b3**2*g1**2 - b2*b4*g1**2 + b2**3*g2 - 2*b1*b2*b3*g2 + b1**2*b4*g2 - b3**2*g0*g2 +
+                   b2*b4*g0*g2)/den
+
+            p4 = g0*q4
+
+            y = x**al
+            h = (np.outer(p1,y) + np.outer(p2,y**2) + np.outer(p3,y**3) + np.outer(p4,y**4))/(1 + np.outer(q1,y) + np.outer(q2,y**2) + np.outer(q3,y**3) + np.outer(q4,y**4))
+            return .5*(h.T-rm).T*(h.T-rp).T
     return kernel
 
 def rHestonPadeCharFunc(hurstExp, correlation, volOfVol, fvFunc, dhPade=dhPade33, n=100, riskFreeRate=0, curry=False):
@@ -1428,7 +1548,7 @@ def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
     Nexp = len(Texp)
     curveFunc = None
     if fitType == "const":
-        curveFunc = lambda t: fwdVar[min(sum(Texp<t),Nexp-1)]
+        curveFunc = interp1d(maturity,fwdVar,kind="next",fill_value="extrapolate")
     elif fitType == "spline":
         curveFunc = InterpolatedUnivariateSpline(maturity,fwdVar,ext=3)
     elif fitType == "FW": # non-parametric

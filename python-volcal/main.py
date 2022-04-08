@@ -1052,13 +1052,15 @@ def test_CalibrateRHPModelToImpVol():
     curveVS = CalcSwapCurve(df,VarianceSwapFormula)
     curveFV = CalcFwdVarCurve(curveVS)
     fvMid = curveFV["mid"]
-    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+    fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
+    # fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
 
     k = np.log(df["Strike"]/df["Fwd"]).to_numpy()
     mid = (df["CallMid"]/df["Fwd"]).to_numpy()
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.2)
     iv = df[["Bid","Ask"]]
     x = CalibrateModelToImpliedVolFast(k,T,iv,rHestonPadeCharFunc,paramsRHPval,paramsRHPkey,bounds=paramsRHPbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",kwargsCF={"fvFunc":fvFunc},optMethod="Evolution")
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,rHestonPadeCharFunc,paramsRHPval,paramsRHPkey,bounds=paramsRHPbnd,w=w,optionType="call",inversionMethod="Newton",useGlobal=True,curryCharFunc=True,formulaType="COS",kwargsCF={"fvFunc":fvFunc,"dhPade":dhPade44},optMethod="Evolution")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsRHPkey)
     x.to_csv(dataFolder+"test_RHPCalibrationIv.csv", index=False)
 
@@ -1072,11 +1074,13 @@ def test_ImpVolFromRHPIvCalibration():
     curveVS = CalcSwapCurve(df,VarianceSwapFormula)
     curveFV = CalcFwdVarCurve(curveVS)
     fvMid = curveFV["mid"]
-    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+    fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
+    # fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
 
     dfnew = list()
     params = cal[paramsRHPkey].iloc[0].to_dict()
     impVolFunc = CharFuncImpliedVol(rHestonPadeCharFunc(**params,fvFunc=fvFunc),optionType="call",formulaType="COS")
+    # impVolFunc = CharFuncImpliedVol(rHestonPadeCharFunc(**params,fvFunc=fvFunc,dhPade=dhPade44),optionType="call",formulaType="COS")
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
