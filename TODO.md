@@ -37,17 +37,21 @@
     - ok, check Lewis/CarrMadan w/wo FFT results converge
     - ok, calibration to price vs. imp vol
 * BS inversion: Scipy fsolve
-* BS inversion: Glau Chebychev IV interpolation
-* calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)
+* BS inversion: Jackel, Glau Chebychev IV interpolation
+* ok, calibrate stochastic vol models (Merton/VGamma/Heston/rHeston)
     - ok, Heston
     - ok, Merton
     - ok, VGamma
     - ok, SVJ
-    - SVJJ
-    - CGMY
+    - ok, SVJJ
+    - ok, CGMY
     - ok, rHeston: poor man's approx
     - rHeston: Pade approx
-    - rHeston: Riccati solver
-* fast Monte-Carlo for exotics pricing
-* back out local vol from IVS
+    - x, rHeston: Riccati solver
+* back out local vol from model/market IVS
+    - ok, model IVS
+    - market IVS
 * SVI parametrization with no-arb constraints
+* pricing under execution costs
+* joint calibration with VIX derivs
+* fast Monte-Carlo for exotics pricing

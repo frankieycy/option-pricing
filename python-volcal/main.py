@@ -162,7 +162,7 @@ def test_CalcFwdVarCurve2005():
     curveVS = CalcSwapCurve(df,VarianceSwapFormula)
     curveFV = CalcFwdVarCurve(curveVS)
     fvMid = curveFV["mid"]
-    fvFunc = FwdVarCurveFunc(Texp,fvMid)
+    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
     T = np.linspace(0,2,500)
     print(curveFV)
     fig = plt.figure(figsize=(6,4))
