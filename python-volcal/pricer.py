@@ -1189,7 +1189,7 @@ def CalcLocalVolSurface(df):
     dk2 = fw(k0,T0,dx=2).reshape(-1)
     dT1 = fw(k0,T0,dy=1).reshape(-1)
 
-    sigL = np.sqrt(dT1/((1-0.5*k/w*dk1)**2-0.25*(0.25+1/w)*dk1**2+0.5*dk2))
+    sigL = np.sqrt(dT1/((1-0.5*k/w*dk1)**2-0.25*(0.25+1/w)*dk1**2+0.5*dk2)) # Dupire PDE
     sigL = pd.DataFrame(np.array([k,T,sigL]).T,columns=["Log-strike","Texp","LV"])
     return sigL
 
@@ -1307,9 +1307,14 @@ def CalcFwdVarCurve(curveVS):
 
 def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
     # Smooth out forward variance curve
+    # Ref: Filipovic, Willems, Exact Smooth Term-Structure Estimation
     Texp = maturity
     Nexp = len(Texp)
     curveFunc = None
     if fitType == "const":
         curveFunc = lambda t: fwdVar[min(sum(Texp<t),Nexp-1)]
+    elif fitType == "spline":
+        curveFunc = InterpolatedUnivariateSpline(maturity,fwdVar,ext=3)
+    elif fitType == "FW": # non-parametric
+        pass
     return curveFunc
