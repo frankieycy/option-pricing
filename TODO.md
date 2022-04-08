@@ -46,7 +46,7 @@
     - ok, SVJJ
     - ok, CGMY
     - ok, rHeston: poor man's approx
-    - rHeston: Pade approx
+    - ok, rHeston: Pade approx
     - x, rHeston: Riccati solver
 * back out local vol from model/market IVS
     - ok, model IVS

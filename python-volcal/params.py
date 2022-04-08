@@ -117,7 +117,7 @@ paramsRHPMMbnd = ((0,0.3), (0.01,10), (-0.99,0.99), (0.01,2), (0.01,1), (0.01,1)
 #### rHeston: Pade Approx ######################################################
 # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
 paramsRHP = {"hurstExp": 0.1, "correlation": -0.6, "volOfVol": 0.3}
-# paramsRHP = {"hurstExp": 0, "correlation": -0.626, "volOfVol": 0.192} # converged
+# paramsRHP = {"hurstExp": 0, "correlation": -0.500, "volOfVol": 0.336} # converged
 paramsRHPkey = list(paramsRHP.keys())
 paramsRHPval = list(paramsRHP.values())
 paramsRHPbnd = ((0,0.3), (-0.99,0.99), (0.01,1))
