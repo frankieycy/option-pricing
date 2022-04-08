@@ -57,6 +57,9 @@ cosFmla_adptParams = {
     99:     {'a': -5, 'b': 5, 'N': 4000},
 }
 
+rhPadeCF_w = None
+rhPadeCF_dict = dict()
+
 #### Black-Scholes #############################################################
 
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
@@ -622,6 +625,7 @@ def rHestonPoorMansModCharFunc(hurstExp, meanRevRate, correlation, volOfVol, mea
 
 def dhPade33(hurstExp, correlation, volOfVol, curry=False):
     # D^alpha(h) where h = solution to fractional Riccati equation
+    # Return kernel matrix of dimension (a,x), a = cfArg, x = maturity
     # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
     H = hurstExp
     al = hurstExp + .5
@@ -690,30 +694,52 @@ def dhPade33(hurstExp, correlation, volOfVol, curry=False):
 def rHestonPadeCharFunc(hurstExp, correlation, volOfVol, fvFunc, dhPade=dhPade33, n=100, riskFreeRate=0, curry=False):
     # Characteristic function for rHeston model (poor man's crude approx)
     # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
-    # TO-DO: Simpson rule for integral
+    global rhPadeCF_w, rhPadeCF_dict
     H = hurstExp
     al = hurstExp + .5
     rho = correlation
     nu = volOfVol
+    if rhPadeCF_w is None:
+        w = np.arange(n+1)
+        w = 3+(-1)**(w+1)
+        w[0] = 1; w[n] = 1
+        rhPadeCF_w = w
+    else:
+        w = rhPadeCF_w
     if curry:
         def charFunc(u):
             kernel = dhPade(H,rho,nu,curry)(u)
             def charFuncFixedU(u, maturity): # u is dummy
-                dt = maturity/n
-                t = np.linspace(0,maturity,n+1)
+                if maturity in rhPadeCF_dict:
+                    dt  = rhPadeCF_dict[maturity]["dt"]
+                    t   = rhPadeCF_dict[maturity]["t"]
+                    # xi  = rhPadeCF_dict[maturity]["xi"]
+                    xiw = rhPadeCF_dict[maturity]["xiw"]
+                else:
+                    dt  = maturity/n
+                    t   = np.linspace(0,maturity,n+1)
+                    xi  = fvFunc(t)
+                    xiw = xi[::-1]*w
+                    rhPadeCF_dict[maturity] = {
+                        "dt":  dt,
+                        "t":   t,
+                        "xi":  xi,
+                        "xiw": xiw
+                    }
                 x = nu**(1/al)*t
-                xi = fvFunc(t)
                 dah = np.nan_to_num(kernel(u,x))
-                return np.exp(dah.dot(xi[::-1])*dt)
+                return np.exp(dah.dot(xiw)*dt/3)
+                # return np.exp(dah.dot(xi[::-1])*dt)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            dt = maturity/n
-            t = np.linspace(0,maturity,n+1)
-            x = nu**(1/al)*t
-            xi = fvFunc(t)
+            dt  = maturity/n
+            t   = np.linspace(0,maturity,n+1)
+            x   = nu**(1/al)*t
+            xi  = fvFunc(t)
             dah = np.nan_to_num(dhPade(H,rho,nu)(u,x))
-            return np.exp(dah.dot(xi[::-1])*dt)
+            return np.exp(dah.dot(xi[::-1]*w)*dt/3)
+            # return np.exp(dah.dot(xi[::-1])*dt)
     return charFunc
 
 #### Pricing Formula ###########################################################
