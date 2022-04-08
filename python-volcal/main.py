@@ -155,6 +155,26 @@ def test_CalcFwdVarCurve():
     plt.savefig(dataFolder+"test_FwdVarCurve.png")
     plt.close()
 
+def test_CalcFwdVarCurve2005():
+    df = pd.read_csv("spxVols20050509.csv")
+    df = df.drop(df.columns[0], axis=1).dropna()
+    Texp = df["Texp"].unique()
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveFV = CalcFwdVarCurve(curveVS)
+    fvMid = curveFV["mid"]
+    fvFunc = FwdVarCurveFunc(Texp,fvMid)
+    T = np.linspace(0,2,500)
+    print(curveFV)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(Texp, fvMid, c='k', s=5)
+    plt.plot(T, [fvFunc(t) for t in T], 'k--', lw=0.5)
+    plt.title("Forward Variance Curve (SPX 20050509)")
+    plt.xlabel("maturity")
+    plt.ylabel("forward variance")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_FwdVarCurve2005.png")
+    plt.close()
+
 #### Heston ####################################################################
 
 def test_HestonSmile():
@@ -1267,6 +1287,7 @@ def test_PlotLocalVolSurface():
     if 2 in run:
         for model in models.keys():
             df = pd.read_csv(dataFolder+f"Local Vol Surface/LVS_{model}.csv")
+            df = df[(df['Texp']>=0.5)&(df['Texp']<=1.5)]
             PlotLocalVolSurface(df,dataFolder+f"Local Vol Surface/LVS_{model}.png",model)
 
 #### Results Check #############################################################
@@ -1403,6 +1424,7 @@ if __name__ == '__main__':
     # test_CalcSwapCurve()
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
+    test_CalcFwdVarCurve2005()
     #### Heston ####
     # test_HestonSmile()
     # test_HestonSmileSensitivity()
@@ -1481,4 +1503,4 @@ if __name__ == '__main__':
     #### Check ####
     # test_CalibrateHestonModelToImpVol2005()
     # test_ImpVolFromHestonIvCalibration2005()
-    test_CalibrateModels2005()
+    # test_CalibrateModels2005()
