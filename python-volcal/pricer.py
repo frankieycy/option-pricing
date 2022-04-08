@@ -620,11 +620,101 @@ def rHestonPoorMansModCharFunc(hurstExp, meanRevRate, correlation, volOfVol, mea
             return np.exp(1j*u*riskFreeRate*maturity+C*meanVar+D*currentVar)
     return charFunc
 
-def rHestonPadeCharFunc(hurstExp, correlation, meanVar, currentVar, riskFreeRate=0, curry=False):
+def dhPade33(hurstExp, correlation, volOfVol, curry=False):
+    # D^alpha(h) where h = solution to fractional Riccati equation
+    # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
+    H = hurstExp
+    al = hurstExp + .5
+    rho = correlation
+    nu = volOfVol
+    if curry:
+        def kernel(a):
+            aa = np.sqrt(a * (a + 1j) - rho**2 * a**2)
+            rm = -1j * rho * a - aa
+            rp = -1j * rho * a + aa
+
+            b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
+            b2 = (1-a*1j)*a**2*rho/(2* sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+
+            g0 = rm
+            g1 = -rm/(aa*sp.special.gamma(1-al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+
+            den = g0**3+2*b1*g0*g1-b2*g1**2+b1**2*g2+b2*g0*g2
+
+            p1 = b1
+            p2 = (b1**2*g0**2 + b2*g0**3 + b1**3*g1 + b1*b2*g0*g1 - b2**2*g1**2 + b1*b3*g1**2 + b2**2*g0*g2 - b1*b3*g0*g2)/den
+            q1 = (b1*g0**2 + b1**2*g1 - b2*g0*g1 + b3*g1**2 - b1*b2*g2 - b3*g0*g2)/den
+            q2 = (b1**2*g0 + b2*g0**2 - b1*b2*g1 - b3*g0*g1 + b2**2*g2 - b1*b3*g2)/den
+            q3 = (b1**3 + 2*b1*b2*g0 + b3*g0**2 - b2**2*g1 + b1*b3*g1)/den
+            p3 = g0*q3
+
+            def kernelFixedA(a, x):
+                y = x**al
+                h = (np.outer(p1,y) + np.outer(p2,y**2) + np.outer(p3,y**3))/(1 + np.outer(q1,y) + np.outer(q2,y**2) + np.outer(q3,y**3))
+                return .5*(h.T-rm).T*(h.T-rp).T
+                # h = (p1*y + p2*y**2 + p3*y**3)/(1 + q1*y + q2*y**2 + q3*y**3)
+                # return .5*(h-rm)*(h-rp)
+            return kernelFixedA
+    else:
+        def kernel(a, x):
+            aa = np.sqrt(a * (a + 1j) - rho**2 * a**2)
+            rm = -1j * rho * a - aa
+            rp = -1j * rho * a + aa
+
+            b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
+            b2 = (1-a*1j)*a**2*rho/(2* sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+
+            g0 = rm
+            g1 = -rm/(aa*sp.special.gamma(1-al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+
+            den = g0**3+2*b1*g0*g1-b2*g1**2+b1**2*g2+b2*g0*g2
+
+            p1 = b1
+            p2 = (b1**2*g0**2 + b2*g0**3 + b1**3*g1 + b1*b2*g0*g1 - b2**2*g1**2 + b1*b3*g1**2 + b2**2*g0*g2 - b1*b3*g0*g2)/den
+            q1 = (b1*g0**2 + b1**2*g1 - b2*g0*g1 + b3*g1**2 - b1*b2*g2 - b3*g0*g2)/den
+            q2 = (b1**2*g0 + b2*g0**2 - b1*b2*g1 - b3*g0*g1 + b2**2*g2 - b1*b3*g2)/den
+            q3 = (b1**3 + 2*b1*b2*g0 + b3*g0**2 - b2**2*g1 + b1*b3*g1)/den
+            p3 = g0*q3
+
+            y = x**al
+            h = (np.outer(p1,y) + np.outer(p2,y**2) + np.outer(p3,y**3))/(1 + np.outer(q1,y) + np.outer(q2,y**2) + np.outer(q3,y**3))
+            return .5*(h.T-rm).T*(h.T-rp).T
+            # h = (p1*y + p2*y**2 + p3*y**3)/(1 + q1*y + q2*y**2 + q3*y**3)
+            # return .5*(h-rm)*(h-rp)
+    return kernel
+
+def rHestonPadeCharFunc(hurstExp, correlation, volOfVol, fvFunc, dhPade=dhPade33, n=100, riskFreeRate=0, curry=False):
     # Characteristic function for rHeston model (poor man's crude approx)
     # Ref: Gatheral, Rational Approximation of the Rough Heston Solution
-    # TO-DO
-    pass
+    # TO-DO: Simpson rule for integral
+    H = hurstExp
+    al = hurstExp + .5
+    rho = correlation
+    nu = volOfVol
+    if curry:
+        def charFunc(u):
+            kernel = dhPade(H,rho,nu,curry)(u)
+            def charFuncFixedU(u, maturity): # u is dummy
+                dt = maturity/n
+                t = np.linspace(0,maturity,n+1)
+                x = nu**(1/al)*t
+                xi = fvFunc(t)
+                dah = np.nan_to_num(kernel(u,x))
+                return np.exp(dah.dot(xi[::-1])*dt)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            dt = maturity/n
+            t = np.linspace(0,maturity,n+1)
+            x = nu**(1/al)*t
+            xi = fvFunc(t)
+            dah = np.nan_to_num(dhPade(H,rho,nu)(u,x))
+            return np.exp(dah.dot(xi[::-1])*dt)
+    return charFunc
 
 #### Pricing Formula ###########################################################
 # Return prices at S0=1 given logStrike k=log(K/F) (scalar/vector) and maturity T (scalar)
@@ -1023,7 +1113,7 @@ def CalibrateModelToImpliedVol(logStrike, maturity, optionImpVol, model, params0
     return opt.x
 
 def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, params0, paramsLabel,
-    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, optMethod="Gradient", **kwargs):
+    bounds=None, w=None, optionType="call", formulaType="CarrMadan", curryCharFunc=False, optMethod="Gradient", kwargsCF={}, **kwargs):
     # Calibrate model params to implied vols (pricing measure)
     # Include useGlobal=True for curryCharFunc=True
     if w is None: w = 1
@@ -1049,7 +1139,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
         params = {paramsLabel[i]: params[i] for i in range(len(params))}
         # charFunc = model(**params)
         # impVolFunc = CharFuncImpliedVol(charFunc, optionType=optionType, FFT=True, formulaType=formulaType, **kwargs)
-        charFunc = model(**params, curry=curryCharFunc)
+        charFunc = model(**params, **kwargsCF, curry=curryCharFunc)
         price = np.concatenate([formula(charFunc, logStrikeDict[T], T, optionType, curryCharFunc=curryCharFunc, **kwargs) for T in matUniq], axis=None) # most costly
         impVol = BlackScholesImpliedVol(1, strike, maturity, riskFreeRate, price, optionType, inversionMethod) # BS inversion for all T
         loss = np.sum(w*((impVol-bidVol)**2+(askVol-impVol)**2))
