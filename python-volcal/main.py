@@ -1141,6 +1141,7 @@ def test_PlotCalibratedAtmVolAndSkew():
         "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
         "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
         # "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
+        # "RHP":    {"CF": rHestonPadeCharFunc,     "params": paramsRHPkey},
     }
 
     df = pd.read_csv("spxVols20170424.csv")
@@ -1150,6 +1151,13 @@ def test_PlotCalibratedAtmVolAndSkew():
     mktIv = ivDict['atmVol']
     mktSk = ivDict['atmSkew']
     T = np.linspace(Texp.min(), Texp.max(), 100)
+
+    if "RHP" in models:
+        Texp = df["Texp"].unique()
+        curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+        curveFV = CalcFwdVarCurve(curveVS)
+        fvMid = curveFV["mid"]
+        fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
 
     fig = plt.figure(figsize=(6,4))
     plt.scatter(Texp, 100*mktIv, c='k', s=10, zorder=1)
@@ -1162,7 +1170,10 @@ def test_PlotCalibratedAtmVolAndSkew():
     for model in models.keys():
         cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
         params = cal[models[model]["params"]].iloc[0].to_dict()
-        atmVolFunc = CharFuncImpliedVolAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
+        if model == "RHP":
+            atmVolFunc = CharFuncImpliedVolAtm(models[model]["CF"](**params,fvFunc=fvFunc),optionType="call",formulaType="COS",useGlobal=True)
+        else:
+            atmVolFunc = CharFuncImpliedVolAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
         vol = lambda t: np.array([atmVolFunc(t) for t in tqdm(T)]).reshape(-1)
         plt.plot(T, 100*vol(T), label=model, zorder=0)
 
@@ -1182,7 +1193,10 @@ def test_PlotCalibratedAtmVolAndSkew():
     for model in models.keys():
         cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
         params = cal[models[model]["params"]].iloc[0].to_dict()
-        atmSkewFunc = LewisCharFuncImpliedSkewAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
+        if model == "RHP":
+            atmSkewFunc = LewisCharFuncImpliedSkewAtm(models[model]["CF"](**params,fvFunc=fvFunc),optionType="call",formulaType="COS",useGlobal=True)
+        else:
+            atmSkewFunc = LewisCharFuncImpliedSkewAtm(models[model]["CF"](**params),optionType="call",formulaType="COS",useGlobal=True)
         skew = lambda t: np.array([atmSkewFunc(t) for t in tqdm(T)]).reshape(-1)
         plt.plot(T, np.abs(skew(T)), label=model, zorder=0)
 

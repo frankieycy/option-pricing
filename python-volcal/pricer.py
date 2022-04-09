@@ -643,7 +643,7 @@ def dhPade33(hurstExp, correlation, volOfVol, curry=False):
 
             g0 = rm
             g1 = -rm/(aa*sp.special.gamma(1-al))
-            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g2 = rm/aa**2/sp.special.gamma(1-2*al)*(1+rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
 
             den = g0**3+2*b1*g0*g1-b2*g1**2+b1**2*g2+b2*g0*g2
 
@@ -668,12 +668,12 @@ def dhPade33(hurstExp, correlation, volOfVol, curry=False):
             rp = -1j * rho * a + aa
 
             b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
-            b2 = (1-a*1j)*a**2*rho/(2* sp.special.gamma(1+2*al))
+            b2 = (1-a*1j)*a**2*rho/(2*sp.special.gamma(1+2*al))
             b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
 
             g0 = rm
             g1 = -rm/(aa*sp.special.gamma(1-al))
-            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g2 = rm/aa**2/sp.special.gamma(1-2*al)*(1+rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
 
             den = g0**3+2*b1*g0*g1-b2*g1**2+b1**2*g2+b2*g0*g2
 
@@ -705,16 +705,15 @@ def dhPade44(hurstExp, correlation, volOfVol, curry=False):
             rm = -1j * rho * a - aa
             rp = -1j * rho * a + aa
 
-            b1 = -a*(a+1j)/(2 * sp.special.gamma(1+al))
-            b2 = (1-a*1j) * a**2 * rho/(2* sp.special.gamma(1+2*al))
-            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al) * (a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
-            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2) + (1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al))) * sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
+            b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
+            b2 = (1-a*1j)*a**2* ho/(2*sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2)+(1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al)))*sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
 
             g0 = rm
             g1 = -rm/(aa*sp.special.gamma(1-al))
-            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
-            g3 = (rm*(-1 - (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2) -
-                       (rm*sp.special.gamma(1 - 3*al)*(1 + (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2)))/(aa*sp.special.gamma(1 - 2*al)*sp.special.gamma(1 - al))))/(aa**3*sp.special.gamma(1 - 3*al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al)*(1+rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g3 = (rm*(-1-(rm*sp.special.gamma(1-2*al))/(2.*aa*sp.special.gamma(1-al)**2)-(rm*sp.special.gamma(1-3*al)*(1+(rm*sp.special.gamma(1-2*al))/(2.*aa*sp.special.gamma(1-al)**2)))/(aa*sp.special.gamma(1-2*al)*sp.special.gamma(1- al))))/(aa**3*sp.special.gamma(1-3*al))
 
             den = (g0**4 + 3*b1*g0**2*g1 + b1**2*g1**2 - 2*b2*g0*g1**2 + b3*g1**3 +
                     2*b1**2*g0*g2 + 2*b2*g0**2*g2 - 2*b1*b2*g1*g2 - 2*b3*g0*g1*g2 +
@@ -761,16 +760,15 @@ def dhPade44(hurstExp, correlation, volOfVol, curry=False):
             rm = -1j * rho * a - aa
             rp = -1j * rho * a + aa
 
-            b1 = -a*(a+1j)/(2 * sp.special.gamma(1+al))
-            b2 = (1-a*1j) * a**2 * rho/(2* sp.special.gamma(1+2*al))
-            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al) * (a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
-            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2) + (1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al))) * sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
+            b1 = -a*(a+1j)/(2*sp.special.gamma(1+al))
+            b2 = (1-a*1j)*a**2* ho/(2*sp.special.gamma(1+2*al))
+            b3 = sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)*(a**2*(1j+a)**2/(8*sp.special.gamma(1+al)**2)+(a+1j)*a**3*rho**2/(2*sp.special.gamma(1+2*al)))
+            b4 = ((a**2*(1j+a)**2)/(8*sp.special.gamma(1+al)**2)+(1j*rho**2*(1-1j*a)*a**3)/(2*sp.special.gamma(1+2*al)))*sp.special.gamma(1+2*al)/sp.special.gamma(1+3*al)
 
             g0 = rm
             g1 = -rm/(aa*sp.special.gamma(1-al))
-            g2 = rm/aa**2/sp.special.gamma(1-2*al) * (1 + rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
-            g3 = (rm*(-1 - (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2) -
-                       (rm*sp.special.gamma(1 - 3*al)*(1 + (rm*sp.special.gamma(1 - 2*al))/(2.*aa*sp.special.gamma(1 - al)**2)))/(aa*sp.special.gamma(1 - 2*al)*sp.special.gamma(1 - al))))/(aa**3*sp.special.gamma(1 - 3*al))
+            g2 = rm/aa**2/sp.special.gamma(1-2*al)*(1+rm/(2*aa)*sp.special.gamma(1-2*al)/sp.special.gamma(1-al)**2)
+            g3 = (rm*(-1-(rm*sp.special.gamma(1-2*al))/(2.*aa*sp.special.gamma(1-al)**2)-(rm*sp.special.gamma(1-3*al)*(1+(rm*sp.special.gamma(1-2*al))/(2.*aa*sp.special.gamma(1-al)**2)))/(aa*sp.special.gamma(1-2*al)*sp.special.gamma(1- al))))/(aa**3*sp.special.gamma(1-3*al))
 
             den = (g0**4 + 3*b1*g0**2*g1 + b1**2*g1**2 - 2*b2*g0*g1**2 + b3*g1**3 +
                     2*b1**2*g0*g2 + 2*b2*g0**2*g2 - 2*b1*b2*g1*g2 - 2*b3*g0*g1*g2 +
