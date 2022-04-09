@@ -1296,11 +1296,21 @@ def test_PlotImpliedVolSurface():
         "NIG":    {"CF": NIGCharFunc,             "params": paramsNIGkey},
         "SVJ":    {"CF": SVJCharFunc,             "params": paramsSVJkey},
         "SVJJ":   {"CF": SVJJCharFunc,            "params": paramsSVJJkey},
-        "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
+        # "RHP":    {"CF": rHestonPadeCharFunc,     "params": paramsRHPkey},
+        # "RHPM":   {"CF": rHestonPoorMansCharFunc, "params": paramsRHPMkey},
         # "VGSA":   {"CF": VGSACharFunc,            "params": paramsVGSAkey},
         # "CGMYSA": {"CF": CGMYSACharFunc,          "params": paramsCGMYSAkey},
         # "NIGSA":  {"CF": NIGSACharFunc,           "params": paramsNIGSAkey},
     }
+
+    if "RHP" in models:
+        df = pd.read_csv("spxVols20170424.csv")
+        df = df.drop(df.columns[0], axis=1)
+        Texp = df["Texp"].unique()
+        curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+        curveFV = CalcFwdVarCurve(curveVS)
+        fvMid = curveFV["mid"]
+        fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
 
     k = np.arange(-0.3,0.3,0.01)
     T = np.arange(0.1,2.1,0.1)
@@ -1310,7 +1320,10 @@ def test_PlotImpliedVolSurface():
         for model in models.keys():
             cal = pd.read_csv(dataFolder+f"Calibration/test_{model}CalibrationIv.csv")
             params = cal[models[model]["params"]].iloc[0].to_dict()
-            impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params),optionType="call",formulaType="COS",N=6000)
+            if model == "RHP":
+                impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params,fvFunc=fvFunc),optionType="call",formulaType="COS",N=6000)
+            else:
+                impVolFunc = CharFuncImpliedVol(models[model]["CF"](**params),optionType="call",formulaType="COS",N=6000)
             Z = np.array([impVolFunc(k,t) for t in T])
             Z[Z<1e-8] = np.nan
             df = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
