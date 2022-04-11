@@ -1411,6 +1411,12 @@ def test_CalibrateModels2005():
             "paramsKey": paramsBCCkey,
             "paramsBnd": paramsBCCbnd,
         },
+        # "RHP": {
+        #     "CF": rHestonPadeCharFunc,
+        #     "paramsVal": paramsRHPval,
+        #     "paramsKey": paramsRHPkey,
+        #     "paramsBnd": paramsRHPbnd,
+        # },
         "RHPM": {
             "CF": rHestonPoorMansCharFunc,
             "paramsVal": paramsRHPMval,
@@ -1475,9 +1481,20 @@ def test_CalibrateModels2005():
     w = 1/(df["Ask"]-df["Bid"]).to_numpy()*norm.pdf(k,scale=0.2)
     iv = df[["Bid","Ask"]]
 
+    if "RHP" in models:
+        Texp = df["Texp"].unique()
+        curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+        curveFV = CalcFwdVarCurve(curveVS)
+        fvMid = curveFV["mid"]
+        fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
+
     for model in models.keys():
-        x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
-        impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x),optionType="call",formulaType="COS")
+        if model == "RHP":
+            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution",kwargsCF={"fvFunc":fvFunc})
+            impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x,fvFunc=fvFunc),optionType="call",formulaType="COS")
+        else:
+            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
+            impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x),optionType="call",formulaType="COS")
         x = pd.DataFrame(x.reshape(1,-1), columns=models[model]["paramsKey"])
         x.to_csv(dataFolder+f"Calibration-2005/test_{model}CalibrationIv.csv", index=False)
 
