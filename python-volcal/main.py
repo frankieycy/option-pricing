@@ -166,18 +166,54 @@ def test_CalcFwdVarCurve2005():
     Texp = df["Texp"].unique()
     curveVS = CalcSwapCurve(df,VarianceSwapFormula)
     curveFV = CalcFwdVarCurve(curveVS)
+    # curveFV = CalcFwdVarCurve(curveVS,eps=0.003)
     fvMid = curveFV["mid"]
-    fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+    fvFunc = FwdVarCurveFunc(Texp,fvMid)
+    # fvFunc = FwdVarCurveFunc(Texp,fvMid,"spline")
+    # fvFuncSmth0 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"])
+    # fvFuncSmth1 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"],eps=0.003)
     T = np.linspace(0,2,1000)
     print(curveFV)
     fig = plt.figure(figsize=(6,4))
     plt.scatter(Texp, fvMid, c='k', s=5)
     plt.plot(T, fvFunc(T), 'k', lw=1)
+    # plt.plot(T, fvFuncSmth0(T), 'r--', lw=1)
+    # plt.plot(T, fvFuncSmth1(T), 'r', lw=1)
     plt.title("Forward Variance Curve (SPX 20050509)")
     plt.xlabel("maturity")
     plt.ylabel("forward variance")
     fig.tight_layout()
     plt.savefig(dataFolder+"test_FwdVarCurve2005.png")
+    plt.close()
+
+def test_VswpPriceCompare():
+    from scipy.integrate import quad_vec
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    # curveFV = CalcFwdVarCurve(curveVS)
+    curveFV = CalcFwdVarCurve(curveVS,eps=0.003)
+    fvMid = curveFV["mid"]
+    fvFunc = FwdVarCurveFunc(Texp,fvMid)
+    fvFuncSmth0 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"])
+    fvFuncSmth1 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"],eps=0.003)
+
+    vswp = [quad_vec(fvFunc,0,tau)[0]/tau for tau in Texp]
+    vswpSmth0 = [quad_vec(fvFuncSmth0,0,tau)[0]/tau for tau in Texp]
+    vswpSmth1 = [quad_vec(fvFuncSmth1,0,tau)[0]/tau for tau in Texp]
+
+    # print(curveFV)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(Texp, curveVS["mid"], c='k', s=5)
+    plt.plot(Texp, vswp, 'k', lw=1)
+    plt.plot(Texp, vswpSmth0, 'r--', lw=1)
+    plt.plot(Texp, vswpSmth1, 'r', lw=1)
+    plt.title("Variance Swap Curve (SPX 20170424)")
+    plt.xlabel("maturity")
+    plt.ylabel("swap price")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_VswpPriceCompare.png")
     plt.close()
 
 #### Heston ####################################################################
@@ -1490,8 +1526,11 @@ def test_CalibrateModels2005():
         Texp = df["Texp"].unique()
         curveVS = CalcSwapCurve(df,VarianceSwapFormula)
         curveFV = CalcFwdVarCurve(curveVS)
+        # curveFV = CalcFwdVarCurve(curveVS,eps=0.003)
         fvMid = curveFV["mid"]
         fvFunc = FwdVarCurveFunc(Texp,fvMid,"const")
+        # fvFunc = SmoothFwdVarCurveFunc(Texp,curveVS["mid"])
+        # fvFunc = SmoothFwdVarCurveFunc(Texp,curveVS["mid"],eps=0.003)
 
     for model in models.keys():
         if model == "RHP":
@@ -1520,8 +1559,9 @@ if __name__ == '__main__':
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
     # test_LevSwapCurve()
-    test_CalcFwdVarCurve()
+    # test_CalcFwdVarCurve()
     # test_CalcFwdVarCurve2005()
+    test_VswpPriceCompare()
     #### Heston ####
     # test_HestonSmile()
     # test_HestonSmileSensitivity()
