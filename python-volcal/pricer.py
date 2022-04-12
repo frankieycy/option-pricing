@@ -1530,6 +1530,7 @@ def CalcSwapCurve(df, swapFormula):
 def CalcFwdVarCurve(curveVS, eps=0):
     # Calculate forward variance curve based on VS curve
     # price = integrated fwd var (vswap price w/o time avg)
+    # eps = spread adjustment for smoothing
     Texp = curveVS["Texp"]
     diffTexp = curveVS["Texp"].diff()
     price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
@@ -1566,6 +1567,7 @@ def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
 
 def SmoothFwdVarCurveFunc(maturity, vsPrice, eps=0):
     # Smoothed forward variance curve function
+    # eps = spread adjustment for smoothing
     # Ref: Filipovic, Willems, Exact Smooth Term-Structure Estimation
     Texp = maturity
     Nexp = len(Texp)
