@@ -1541,9 +1541,9 @@ def CalcFwdVarCurve(curveVS, eps=0):
                 curveDiff = np.diff(curve)/np.diff(Texp)
                 return sum((adjPrice-price)**2)+sum(curveDiff**2)
             return loss
-        n = len(Texp)
+        Nexp = len(Texp)
         for vs in ["bid","mid","ask"]:
-            opt = minimize(objective(Texp,price[vs]), x0=np.repeat(0,n), bounds=[(-eps,eps)]*n)
+            opt = minimize(objective(Texp,price[vs]), x0=np.repeat(0,Nexp), bounds=[(-eps,eps)]*Nexp)
             price[vs] += 2*np.sqrt(price[vs]*Texp)*opt.x
             # print(opt.x)
     curve = price.diff()
@@ -1554,15 +1554,39 @@ def CalcFwdVarCurve(curveVS, eps=0):
     return curve
 
 def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
-    # Smooth out forward variance curve
-    # Ref: Filipovic, Willems, Exact Smooth Term-Structure Estimation
+    # Forward variance curve function
     Texp = maturity
     Nexp = len(Texp)
     curveFunc = None
     if fitType == "const":
-        curveFunc = interp1d(maturity,fwdVar,kind="next",fill_value="extrapolate")
+        curveFunc = interp1d(Texp,fwdVar,kind="next",fill_value="extrapolate")
     elif fitType == "spline":
-        curveFunc = InterpolatedUnivariateSpline(maturity,fwdVar,ext=3)
-    elif fitType == "FW": # non-parametric
-        pass
+        curveFunc = InterpolatedUnivariateSpline(Texp,fwdVar,ext=3)
     return curveFunc
+
+def SmoothFwdVarCurveFunc(maturity, vsPrice, eps=0):
+    # Smoothed forward variance curve function
+    # Ref: Filipovic, Willems, Exact Smooth Term-Structure Estimation
+    Texp = maturity
+    Nexp = len(Texp)
+    price = vsPrice*Texp
+    def phi(tau, x):
+        m = np.minimum(x,tau)
+        return 1-m**3/6+x*tau*(2+m)/2
+    def phiDeriv(tau, x):
+        m = np.minimum(x,tau)
+        return tau-m**2/2+tau*m
+    A = np.vstack([phi(tau,Texp) for tau in Texp])
+    Ainv = np.linalg.inv(A)
+    def objective(Texp, price):
+        def loss(err):
+            adjPrice = price+2*np.sqrt(price*Texp)*err
+            return sum(adjPrice.T.dot(Ainv)*adjPrice)
+        return loss
+    opt = minimize(objective(Texp,price), x0=np.repeat(0,Nexp), bounds=[(-eps,eps)]*Nexp)
+    price += 2*np.sqrt(price*Texp)*opt.x
+    Z = Ainv.dot(price)
+    # print(opt.x)
+    def curveFunc(x):
+        return sum(Z*phiDeriv(Texp,x))
+    return np.vectorize(curveFunc)
