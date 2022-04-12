@@ -1527,11 +1527,25 @@ def CalcSwapCurve(df, swapFormula):
     curve = curve[["Texp","bid","mid","ask"]]
     return curve
 
-def CalcFwdVarCurve(curveVS):
+def CalcFwdVarCurve(curveVS, eps=0):
     # Calculate forward variance curve based on VS curve
+    # price = integrated fwd var (vswap price w/o time avg)
     Texp = curveVS["Texp"]
     diffTexp = curveVS["Texp"].diff()
     price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
+    if eps > 0: # smooth VS prices
+        def objective(Texp, price):
+            def loss(err):
+                adjPrice = price+2*np.sqrt(price*Texp)*err
+                curve = np.concatenate([[adjPrice[0]/Texp[0]],np.diff(adjPrice)/np.diff(Texp)])
+                curveDiff = np.diff(curve)/np.diff(Texp)
+                return sum((adjPrice-price)**2)+sum(curveDiff**2)
+            return loss
+        n = len(Texp)
+        for vs in ["bid","mid","ask"]:
+            opt = minimize(objective(Texp,price[vs]), x0=np.repeat(0,n), bounds=[(-eps,eps)]*n)
+            price[vs] += 2*np.sqrt(price[vs]*Texp)*opt.x
+            # print(opt.x)
     curve = price.diff()
     curve = curve.div(diffTexp,axis=0)
     curve.iloc[0] = price.iloc[0]/Texp.iloc[0]
