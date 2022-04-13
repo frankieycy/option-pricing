@@ -80,6 +80,10 @@ def test_PlotImpliedVol():
     df = df.drop(df.columns[0], axis=1)
     PlotImpliedVol(df, dataFolder+"test_impliedvol.png")
 
+def test_PlotImpliedVol2019():
+    PlotImpliedVol(pd.read_csv("spxVols20191220.csv"), dataFolder+"test_SPXimpliedvol2019.png")
+    PlotImpliedVol(pd.read_csv("vixVols20191220.csv"), dataFolder+"test_VIXimpliedvol2019.png")
+
 #### Fwd Var Curve #############################################################
 
 def test_VarianceSwapFormula():
@@ -215,6 +219,64 @@ def test_VswpPriceCompare():
     fig.tight_layout()
     plt.savefig(dataFolder+"test_VswpPriceCompare.png")
     plt.close()
+
+def test_FwdVswp2019():
+    run = 3
+    df = pd.read_csv("spxVols20191220.csv")
+    df = df.dropna()
+    Texp = df["Texp"].unique()
+    curveVS = CalcSwapCurve(df,VarianceSwapFormula)
+    curveFV = CalcFwdVarCurve(curveVS,eps=0.003)
+    fvMid = curveFV["mid"]
+    fvFunc = FwdVarCurveFunc(Texp,fvMid)
+    fvFuncSmth0 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"])
+    fvFuncSmth1 = SmoothFwdVarCurveFunc(Texp,curveVS["mid"],eps=0.003)
+    T = np.linspace(0,2,1000)
+
+    if run == 1: # Swap curve
+        vsMid = curveVS["mid"]
+        print(curveVS)
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(Texp, vsMid, c='r', label="variance swap")
+        plt.title("Swap Curve (SPX 20191220)")
+        plt.xlabel("maturity")
+        plt.ylabel("swap price")
+        plt.legend()
+        fig.tight_layout()
+        plt.savefig(dataFolder+"test_SwapCurve2019.png")
+        plt.close()
+
+    elif run == 2: # Fwd var curve
+        print(curveFV)
+        fig = plt.figure(figsize=(6,4))
+        plt.scatter(Texp, fvMid, c='k', s=5)
+        plt.plot(T, fvFunc(T), 'k', lw=1)
+        plt.plot(T, fvFuncSmth0(T), 'r--', lw=1)
+        plt.plot(T, fvFuncSmth1(T), 'r', lw=1)
+        plt.title("Forward Variance Curve (SPX 20191220)")
+        plt.xlabel("maturity")
+        plt.ylabel("forward variance")
+        fig.tight_layout()
+        plt.savefig(dataFolder+"test_FwdVarCurve2019.png")
+        plt.close()
+
+    elif run == 3: # SPX Fwd 1m-vswp curve
+        print(curveFV)
+        fig = plt.figure(figsize=(6,4))
+        # plt.plot(T, FwdVarSwapFunc(fvFunc)(T), 'k', lw=1)
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth0)(T), 'r--', lw=1)
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'r', lw=1)
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'k', lw=1)
+        plt.plot(T, 100*np.sqrt(FwdVarSwapFunc(fvFuncSmth1)(T)), 'k', lw=1)
+        plt.title("Forward 1-month Variance Swap Curve (SPX 20191220)")
+        plt.xlabel("maturity")
+        plt.ylabel("swap price (% vol)")
+        fig.tight_layout()
+        plt.savefig(dataFolder+"test_FwdVswpCurve2019.png")
+        plt.close()
+
+    elif run == 4: # VIX Fwd 1m-vswp curve
+        pass
 
 #### Heston ####################################################################
 
@@ -1556,12 +1618,15 @@ if __name__ == '__main__':
     # test_BlackScholesImpVolInterp()
     # test_BlackScholesImpVolRational()
     # test_PlotImpliedVol()
+    # test_PlotImpliedVol2019()
+    #### Var Curve ####
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
     # test_CalcFwdVarCurve2005()
-    test_VswpPriceCompare()
+    # test_VswpPriceCompare()
+    test_FwdVswp2019()
     #### Heston ####
     # test_HestonSmile()
     # test_HestonSmileSensitivity()

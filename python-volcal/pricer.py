@@ -1508,32 +1508,44 @@ def LeverageSwapFormula(logStrike, maturity, impliedVol):
     # Fukasawa robust leverage swap formula
     return GammaSwapFormula(logStrike, maturity, impliedVol) - VarianceSwapFormula(logStrike, maturity, impliedVol)
 
-def CalcSwapCurve(df, swapFormula):
+def CalcSwapCurve(df, swapFormula, midOnly=True):
     # Calculate swap curves based on implied volatilities in df
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
-    curve = {c: list() for c in ["bid","mid","ask"]}
+    if midOnly:
+        curve = {"mid": list()}
+    else:
+        curve = {c: list() for c in ["bid","mid","ask"]}
     for T in Texp:
         dfT = df[df["Texp"]==T]
         k = np.log(dfT["Strike"]/dfT["Fwd"])
         bid = dfT["Bid"]
         ask = dfT["Ask"]
         mid = (bid+ask)/2
-        curve["bid"].append(swapFormula(k,T,bid)/T)
-        curve["mid"].append(swapFormula(k,T,mid)/T)
-        curve["ask"].append(swapFormula(k,T,ask)/T)
+        if midOnly:
+            curve["mid"].append(swapFormula(k,T,mid)/T)
+        else:
+            curve["bid"].append(swapFormula(k,T,bid)/T)
+            curve["mid"].append(swapFormula(k,T,mid)/T)
+            curve["ask"].append(swapFormula(k,T,ask)/T)
     curve = pd.DataFrame(curve)
     curve["Texp"] = Texp
-    curve = curve[["Texp","bid","mid","ask"]]
+    if midOnly:
+        curve = curve[["Texp","mid"]]
+    else:
+        curve = curve[["Texp","bid","mid","ask"]]
     return curve
 
-def CalcFwdVarCurve(curveVS, eps=0):
+def CalcFwdVarCurve(curveVS, eps=0, midOnly=True):
     # Calculate forward variance curve based on VS curve
     # price = integrated fwd var (vswap price w/o time avg)
     # eps = spread adjustment for smoothing
     Texp = curveVS["Texp"]
     diffTexp = curveVS["Texp"].diff()
-    price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
+    if midOnly:
+        price = curveVS[["mid"]].multiply(Texp,axis=0)
+    else:
+        price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
     if eps > 0: # smooth VS prices
         def objective(Texp, price):
             def loss(err):
@@ -1543,7 +1555,9 @@ def CalcFwdVarCurve(curveVS, eps=0):
                 return sum((adjPrice-price)**2)+sum(curveDiff**2)
             return loss
         Nexp = len(Texp)
-        for vs in ["bid","mid","ask"]:
+        if midOnly: vsList = ["mid"]
+        else: vsList = ["bid","mid","ask"]
+        for vs in vsList:
             opt = minimize(objective(Texp,price[vs]), x0=np.repeat(0,Nexp), bounds=[(-eps,eps)]*Nexp)
             price[vs] += 2*np.sqrt(price[vs]*Texp)*opt.x
             # print(opt.x)
@@ -1551,7 +1565,10 @@ def CalcFwdVarCurve(curveVS, eps=0):
     curve = curve.div(diffTexp,axis=0)
     curve.iloc[0] = price.iloc[0]/Texp.iloc[0]
     curve["Texp"] = Texp
-    curve = curve[["Texp","bid","mid","ask"]]
+    if midOnly:
+        curve = curve[["Texp","mid"]]
+    else:
+        curve = curve[["Texp","bid","mid","ask"]]
     return curve
 
 def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):
@@ -1589,6 +1606,12 @@ def SmoothFwdVarCurveFunc(maturity, vsPrice, eps=0):
     price += 2*np.sqrt(price*Texp)*opt.x
     Z = Ainv.dot(price)
     # print(opt.x)
-    def curveFunc(x):
-        return sum(Z*phiDeriv(Texp,x))
+    def curveFunc(T):
+        return sum(Z*phiDeriv(Texp,T))
     return np.vectorize(curveFunc)
+
+def FwdVarSwapFunc(fvFunc, dT=None):
+    if not dT: dT = 30/365.25
+    def fvsFunc(T):
+        return quad(fvFunc,T,T+dT)[0]/dT
+    return np.vectorize(fvsFunc)
