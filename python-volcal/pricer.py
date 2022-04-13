@@ -1512,28 +1512,55 @@ def CalcSwapCurve(df, swapFormula, midOnly=True):
     # Calculate swap curves based on implied volatilities in df
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
-    if midOnly:
-        curve = {"mid": list()}
-    else:
-        curve = {c: list() for c in ["bid","mid","ask"]}
+    if midOnly: vsList = ["mid"]
+    else: vsList = ["bid","mid","ask"]
+    curve = {c: list() for c in vsList}
     for T in Texp:
         dfT = df[df["Texp"]==T]
         k = np.log(dfT["Strike"]/dfT["Fwd"])
         bid = dfT["Bid"]
         ask = dfT["Ask"]
         mid = (bid+ask)/2
-        if midOnly:
-            curve["mid"].append(swapFormula(k,T,mid)/T)
-        else:
-            curve["bid"].append(swapFormula(k,T,bid)/T)
-            curve["mid"].append(swapFormula(k,T,mid)/T)
-            curve["ask"].append(swapFormula(k,T,ask)/T)
+        for x in vsList:
+            if x == "bid": iv = bid
+            elif x == "mid": iv = mid
+            elif x == "ask": iv = ask
+            curve[x].append(swapFormula(k,T,iv)/T)
     curve = pd.DataFrame(curve)
     curve["Texp"] = Texp
-    if midOnly:
-        curve = curve[["Texp","mid"]]
-    else:
-        curve = curve[["Texp","bid","mid","ask"]]
+    curve = curve[["Texp"]+vsList]
+    return curve
+
+def CalcVIXSwapCurve(df, midOnly=True):
+    # Calculate swap curves based on VIX implied volatilities in df
+    # Swap price = E(1/dT*int(v,T,T+dT)) = E(VIX^2)
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+    if midOnly: vsList = ["mid"]
+    else: vsList = ["bid","mid","ask"]
+    curve = {c: list() for c in vsList}
+    for T in Texp:
+        dfT = df[df["Texp"]==T]
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        F = dfT["Fwd"].iloc[0]/100
+        bid = dfT["Bid"]
+        ask = dfT["Ask"]
+        mid = (bid+ask)/2
+        for x in vsList:
+            if x == "bid": iv = bid
+            elif x == "mid": iv = mid
+            elif x == "ask": iv = ask
+            vixIvFunc = InterpolatedUnivariateSpline(k,iv,ext=3)
+            call = lambda y: np.exp(y)*BlackScholesFormula(1,np.exp(y),T,0,vixIvFunc(y),"call")
+            put = lambda y: np.exp(y)*BlackScholesFormula(1,np.exp(y),T,0,vixIvFunc(y),"put")
+            callInt = quad(call,0,10)[0]
+            putInt = quad(put,-10,0)[0]
+            vix2 = F**2*(1+2*(callInt+putInt))
+            curve[x].append(vix2)
+    # print(curve)
+    curve = pd.DataFrame(curve)
+    curve["Texp"] = Texp
+    curve = curve[["Texp"]+vsList]
     return curve
 
 def CalcFwdVarCurve(curveVS, eps=0, midOnly=True):
@@ -1542,10 +1569,9 @@ def CalcFwdVarCurve(curveVS, eps=0, midOnly=True):
     # eps = spread adjustment for smoothing
     Texp = curveVS["Texp"]
     diffTexp = curveVS["Texp"].diff()
-    if midOnly:
-        price = curveVS[["mid"]].multiply(Texp,axis=0)
-    else:
-        price = curveVS[["bid","mid","ask"]].multiply(Texp,axis=0)
+    if midOnly: vsList = ["mid"]
+    else: vsList = ["bid","mid","ask"]
+    price = curveVS[vsList].multiply(Texp,axis=0)
     if eps > 0: # smooth VS prices
         def objective(Texp, price):
             def loss(err):
@@ -1555,8 +1581,6 @@ def CalcFwdVarCurve(curveVS, eps=0, midOnly=True):
                 return sum((adjPrice-price)**2)+sum(curveDiff**2)
             return loss
         Nexp = len(Texp)
-        if midOnly: vsList = ["mid"]
-        else: vsList = ["bid","mid","ask"]
         for vs in vsList:
             opt = minimize(objective(Texp,price[vs]), x0=np.repeat(0,Nexp), bounds=[(-eps,eps)]*Nexp)
             price[vs] += 2*np.sqrt(price[vs]*Texp)*opt.x
@@ -1565,10 +1589,7 @@ def CalcFwdVarCurve(curveVS, eps=0, midOnly=True):
     curve = curve.div(diffTexp,axis=0)
     curve.iloc[0] = price.iloc[0]/Texp.iloc[0]
     curve["Texp"] = Texp
-    if midOnly:
-        curve = curve[["Texp","mid"]]
-    else:
-        curve = curve[["Texp","bid","mid","ask"]]
+    curve = curve[["Texp"]+vsList]
     return curve
 
 def FwdVarCurveFunc(maturity, fwdVar, fitType="const"):

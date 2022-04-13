@@ -81,8 +81,8 @@ def test_PlotImpliedVol():
     PlotImpliedVol(df, dataFolder+"test_impliedvol.png")
 
 def test_PlotImpliedVol2019():
-    PlotImpliedVol(pd.read_csv("spxVols20191220.csv"), dataFolder+"test_SPXimpliedvol2019.png")
-    PlotImpliedVol(pd.read_csv("vixVols20191220.csv"), dataFolder+"test_VIXimpliedvol2019.png")
+    PlotImpliedVol(pd.read_csv("spxVols20191220.csv").dropna(), dataFolder+"test_SPXimpliedvol2019.png")
+    PlotImpliedVol(pd.read_csv("vixVols20191220.csv").dropna(), dataFolder+"test_VIXimpliedvol2019.png")
 
 #### Fwd Var Curve #############################################################
 
@@ -221,9 +221,8 @@ def test_VswpPriceCompare():
     plt.close()
 
 def test_FwdVswp2019():
-    run = 3
-    df = pd.read_csv("spxVols20191220.csv")
-    df = df.dropna()
+    run = 4
+    df = pd.read_csv("spxVols20191220.csv").dropna()
     Texp = df["Texp"].unique()
     curveVS = CalcSwapCurve(df,VarianceSwapFormula)
     curveFV = CalcFwdVarCurve(curveVS,eps=0.003)
@@ -250,12 +249,13 @@ def test_FwdVswp2019():
         print(curveFV)
         fig = plt.figure(figsize=(6,4))
         plt.scatter(Texp, fvMid, c='k', s=5)
-        plt.plot(T, fvFunc(T), 'k', lw=1)
-        plt.plot(T, fvFuncSmth0(T), 'r--', lw=1)
-        plt.plot(T, fvFuncSmth1(T), 'r', lw=1)
+        plt.plot(T, fvFunc(T), 'k', lw=1, label='sprd-smoothed vswp')
+        plt.plot(T, fvFuncSmth0(T), 'r--', lw=1, label='FW-smoothed vswp')
+        plt.plot(T, fvFuncSmth1(T), 'r', lw=1, label='FW/sprd-smoothed vswp')
         plt.title("Forward Variance Curve (SPX 20191220)")
         plt.xlabel("maturity")
         plt.ylabel("forward variance")
+        plt.legend()
         fig.tight_layout()
         plt.savefig(dataFolder+"test_FwdVarCurve2019.png")
         plt.close()
@@ -263,20 +263,37 @@ def test_FwdVswp2019():
     elif run == 3: # SPX Fwd 1m-vswp curve
         print(curveFV)
         fig = plt.figure(figsize=(6,4))
-        # plt.plot(T, FwdVarSwapFunc(fvFunc)(T), 'k', lw=1)
-        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth0)(T), 'r--', lw=1)
-        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'r', lw=1)
-        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'k', lw=1)
-        plt.plot(T, 100*np.sqrt(FwdVarSwapFunc(fvFuncSmth1)(T)), 'k', lw=1)
+        # plt.plot(T, FwdVarSwapFunc(fvFunc)(T), 'k', lw=1, label='sprd-smoothed vswp')
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth0)(T), 'r--', lw=1, label='FW-smoothed vswp')
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'r', lw=1, label='FW/sprd-smoothed vswp')
+        # plt.plot(T, FwdVarSwapFunc(fvFuncSmth1)(T), 'k', lw=1, label='FW/sprd-smoothed vswp')
+        plt.plot(T, 100*np.sqrt(FwdVarSwapFunc(fvFuncSmth1)(T)), 'k', lw=1, label='FW/sprd-smoothed vswp')
         plt.title("Forward 1-month Variance Swap Curve (SPX 20191220)")
         plt.xlabel("maturity")
         plt.ylabel("swap price (% vol)")
+        plt.legend()
         fig.tight_layout()
         plt.savefig(dataFolder+"test_FwdVswpCurve2019.png")
         plt.close()
 
     elif run == 4: # VIX Fwd 1m-vswp curve
-        pass
+        dfvix = pd.read_csv("vixVols20191220.csv").dropna()
+        Texpvix = dfvix["Texp"].unique()
+        curveVSvix = CalcVIXSwapCurve(dfvix)
+        print(curveVSvix)
+
+        fig = plt.figure(figsize=(6,4))
+        plt.scatter(Texpvix, 100*np.sqrt(FwdVarSwapFunc(fvFuncSmth1)(Texpvix)), c='b', s=20, label='SPX')
+        plt.scatter(Texpvix, 100*np.sqrt(curveVSvix["mid"]), c='r', s=20, label='VIX')
+        plt.plot(Texpvix, 100*np.sqrt(curveVSvix["mid"])-0.5, 'r--', lw=1)
+        plt.plot(Texpvix, 100*np.sqrt(curveVSvix["mid"])+0.5, 'r--', lw=1)
+        plt.title("Forward 1-month Variance Swap Curve")
+        plt.xlabel("maturity")
+        plt.ylabel("swap price (% vol)")
+        plt.legend()
+        fig.tight_layout()
+        plt.savefig(dataFolder+"test_VixFwdVswpCurve2019.png")
+        plt.close()
 
 #### Heston ####################################################################
 
