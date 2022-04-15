@@ -22,7 +22,8 @@ def test_StandardizeOptionsChainDataset():
 def test_GenerateImpVolDatasetFromStdDf():
     df = pd.read_csv('data-SPY/option_chain_US.SPY_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
-    GenerateImpVolDatasetFromStdDf(df)
+    ivdf = GenerateImpVolDatasetFromStdDf(df)
+    ivdf.to_csv('data-SPY/spyVols20220414.csv',index=False)
 
 #### Black-Scholes #############################################################
 
@@ -98,6 +99,9 @@ def test_PlotImpliedVol():
 def test_PlotImpliedVol2019():
     PlotImpliedVol(pd.read_csv("spxVols20191220.csv").dropna(), dataFolder+"test_SPXimpliedvol2019.png")
     PlotImpliedVol(pd.read_csv("vixVols20191220.csv").dropna(), dataFolder+"test_VIXimpliedvol2019.png")
+
+def test_PlotImpliedVolSPY2022():
+    PlotImpliedVol(pd.read_csv("spyVols20220414.csv").dropna(), dataFolder+"test_SPYimpliedvol2022.png")
 
 #### Fwd Var Curve #############################################################
 
@@ -1667,6 +1671,7 @@ if __name__ == '__main__':
     # test_BlackScholesImpVolRational()
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
+    # test_PlotImpliedVolSPY2022()
     #### Var Curve ####
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
