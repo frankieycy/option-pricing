@@ -26,6 +26,40 @@ def test_GenerateImpVolDatasetFromStdDf():
     ivdf = GenerateImpVolDatasetFromStdDf(df)
     ivdf.to_csv(f'{code.lower()}Vols20220414.csv',index=False)
 
+def test_TermStructure():
+    code = "SPY"
+    snap = {
+        "SPY": 437.790,
+        "QQQ": 338.430,
+    }
+    df = pd.read_csv(f'{code.lower()}Vols20220414.csv')
+    df = df[df['Texp']>0.25]
+    S = snap[code]
+    T = df['Texp']
+    F = df['Fwd']
+    PV = df['PV']
+    r = -np.log(PV)/T
+    y = np.log(F/S)/T
+    d = r-y
+    for x in ["r","y","d"]:
+        if x == "r":
+            ts = r
+            title = "Risk-Free Rate"
+        elif x == "y":
+            ts = y
+            title = "Yield"
+        elif x == "d":
+            ts = d
+            title = "Dividend Rate"
+        fig = plt.figure(figsize=(6,4))
+        plt.scatter(T,ts,c='k',s=20)
+        plt.xlabel('maturity')
+        plt.ylabel(f'${x}$')
+        plt.title(f'{code} {title}')
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_TermStruct_{code}{x}.png")
+        plt.close()
+
 #### Black-Scholes #############################################################
 
 def test_BlackScholesImpVol():
@@ -1668,7 +1702,8 @@ if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
     # test_StandardizeOptionsChainDataset()
-    test_GenerateImpVolDatasetFromStdDf()
+    # test_GenerateImpVolDatasetFromStdDf()
+    test_TermStructure()
     #### Black-Scholes ####
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
