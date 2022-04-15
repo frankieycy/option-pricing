@@ -8,10 +8,13 @@ LOG = True
 quote_ctx = OpenQuoteContext(host="127.0.0.1", port=11111)
 
 onDate = getRecentBDay()
-codeList = ["US.IBM","US.JPM","US.DIS"]
-expirationDateEnd = "2021-12-31"
+# codeList = ["US.IBM","US.JPM","US.DIS"]
+# expirationDateEnd = "2021-12-31"
+codeList = ["US.SPY"]
+expirationDateEnd = "2024-12-31"
 
 dataFolder = "../bkts_data/"
+# dataFolder = "./"
 
 optionChainData = {} # master data dict
 optionChainDataFrames = {}
@@ -40,6 +43,12 @@ optionChainDataCols = {
     "theta":                "Theta",
     "rho":                  "Rho"
 }
+optionChainBidAskCols = {
+    "bid":                  "Bid",
+    "ask":                  "Ask",
+    "bid_volume":           "Bid Volume",
+    "ask_volume":           "Ask Volume"
+}
 optionChainDataCsvCols = [
     "Contract Name",
     "Type",
@@ -50,6 +59,10 @@ optionChainDataCsvCols = [
     "Maturity (Year)",
     "Contract Size",
     "Strike",
+    "Bid",
+    "Bid Volume",
+    "Ask",
+    "Ask Volume",
     "Last Price",
     "Open Price",
     "High Price",
@@ -118,6 +131,7 @@ def initOptionChain():
         ret1, data1 = quote_ctx.get_option_expiration_date(code=code)
         if ret1 == RET_OK:
             expiration_date_list = data1["strike_time"].values.tolist()
+            # print(expiration_date_list)
             for date in expiration_date_list:
                 if expirationDateEnd:
                     if bDaysBetween(date, expirationDateEnd) == 0: continue
@@ -152,7 +166,7 @@ def fillOptionChain():
             remain_quota = quote_ctx.query_subscription()[1]["remain"]
             if remain_quota < len(optionCodeList):
                 endTime = time.time()
-                if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+                if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1])) # min subscription time of 1 min
                 ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
                 if ret_unsub == RET_OK:
                     print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
@@ -184,13 +198,66 @@ def fillOptionChain():
     else:
         print("unsubscription failed", err_message_unsub)
 
+def fillOptionChainBidAsk():
+    logMessage("filling option chain bids/asks")
+    startTimeLog = []
+    for code in optionChainData:
+        for date in optionChainData[code]:
+            optionCodeList = optionChainData[code][date]["codes"]
+            print("current subscription status:", quote_ctx.query_subscription())
+            remain_quota = quote_ctx.query_subscription()[1]["remain"]
+            if remain_quota < len(optionCodeList):
+                endTime = time.time()
+                if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1])) # min subscription time of 1 min
+                ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+                if ret_unsub == RET_OK:
+                    print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+                    startTimeLog = []
+                else:
+                    print("unsubscription failed", err_message_unsub)
+            ret_sub, err_message = quote_ctx.subscribe(optionCodeList, [SubType.ORDER_BOOK], subscribe_push=False)
+            if ret_sub == RET_OK:
+                print("subscription success. current subscription status:", quote_ctx.query_subscription())
+                logMessage(["filling option chain bids/asks: ",code,", ",date])
+                optionBidAsk = {x: list() for x in ["code","bid","bid_volume","ask","ask_volume"]}
+                startTime = time.time()
+                for optionCode in optionChainData[code][date]["data"]['code']: # must query one by one
+                    ret, data = quote_ctx.get_order_book(optionCode)
+                    if ret == RET_OK:
+                        bid, bid_volume, _, _ = data['Bid'][0] if data['Bid'] else [np.nan]*4
+                        ask, ask_volume, _, _ = data['Ask'][0] if data['Ask'] else [np.nan]*4
+                    else:
+                        print("error:", data)
+                        bid = bid_volume = ask = ask_volume = np.nan
+                    optionBidAsk['code'].append(optionCode)
+                    optionBidAsk['bid'].append(bid)
+                    optionBidAsk['ask'].append(ask)
+                    optionBidAsk['bid_volume'].append(bid_volume)
+                    optionBidAsk['ask_volume'].append(ask_volume)
+                for x in ["bid","bid_volume","ask","ask_volume"]:
+                    optionChainData[code][date]["data"][x] = optionBidAsk[x]
+                startTimeLog.append(startTime)
+                # endTime = time.time()
+                # if endTime-startTime < 60:
+                #     time.sleep(60-(endTime-startTime))
+            else:
+                print("subscription failed", err_message)
+    endTime = time.time()
+    if startTimeLog and endTime-startTimeLog[-1] < 60: time.sleep(60-(endTime-startTimeLog[-1]))
+    ret_unsub, err_message_unsub = quote_ctx.unsubscribe_all()
+    if ret_unsub == RET_OK:
+        print("unsubscription success. current subscription status:", quote_ctx.query_subscription())
+        startTimeLog = []
+    else:
+        print("unsubscription failed", err_message_unsub)
+
 def getOptionChainAsDataFrame():
     logMessage("getting option chain as dataframe")
     for code in optionChainData:
         optionChainDataFrames[code] = pd.DataFrame()
         for date in optionChainData[code]:
             optionChainDataFrames[code] = optionChainDataFrames[code].append(optionChainData[code][date]["data"])
-        optionChainDataFrames[code].columns = [optionChainDataCols[col] for col in optionChainDataFrames[code].columns]
+        optionChainDataFrames[code].columns = [optionChainDataCols[col] if col in optionChainDataCols else optionChainBidAskCols[col] for col in optionChainDataFrames[code].columns]
         optionChainDataFrames[code]["Maturity (BDay)"] = optionChainDataFrames[code]["Contract Name"].apply(getMatBDaysFromContractName)
         optionChainDataFrames[code]["Maturity (Year)"] = optionChainDataFrames[code]["Maturity (BDay)"]/252
         optionChainDataFrames[code]["Put/Call"] = optionChainDataFrames[code]["Contract Name"].apply(getPutCallFromContractName)
@@ -284,6 +351,7 @@ def optionChainSnapshot(name=""):
     makeDirectory(dataFolder)
     initOptionChain()
     fillOptionChain()
+    fillOptionChainBidAsk()
     getOptionChainAsDataFrame()
     saveOptionChainToCsvFile(name)
     closeConnection()

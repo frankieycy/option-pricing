@@ -3,13 +3,19 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from scipy.stats import norm
+from option import *
 from pricer import *
 from params import *
 plt.switch_backend("Agg")
 
 dataFolder = "test/"
 
-#### Imp Vol ###################################################################
+#### Options Chain #############################################################
+
+def test_GenerateYfinOptionsChainDataset():
+    GenerateYfinOptionsChainDataset(dataFolder+"spxOptions20220414.csv")
+
+#### Black-Scholes #############################################################
 
 def test_BlackScholesImpVol():
     vol = np.array([0.23,0.20,0.18])
@@ -198,7 +204,7 @@ def test_CalcFwdVarCurve2005():
 
 def test_VswpPriceCompare():
     from scipy.integrate import quad_vec
-    df = pd.read_csv("spxVols20050509.csv").dropna()
+    df = pd.read_csv("spxVols20170424.csv").dropna()
     # df = df.drop(df.columns[0], axis=1)
     # df = pd.read_csv("spxVols20050509.csv").dropna()
     Texp = df["Texp"].unique()
@@ -222,7 +228,7 @@ def test_VswpPriceCompare():
     # plt.plot(Texp, vswpSmth1, 'r', lw=1)
     plt.scatter(Texp, 100*np.sqrt(curveVS["mid"]), c='grey', s=20, label='SPX-implied')
     plt.plot(Texp, 100*np.sqrt(vswp), c='k', lw=1, label='step')
-    plt.plot(Texp, 100*np.sqrt(vswpSmth1), c='r', lw=1, label='quadratic')
+    plt.plot(Texp, 100*np.sqrt(vswpSmth1), c='r', lw=1, label='smoothed')
     plt.title("Variance Swap Curve (SPX 20170424)")
     plt.xlabel("maturity")
     plt.ylabel("swap price (% vol)")
@@ -1642,6 +1648,9 @@ def test_CalibrateModels2005():
         PlotImpliedVol(dfnew, dataFolder+f"Calibration-2005/test_{model}ImpliedVolIv.png")
 
 if __name__ == '__main__':
+    #### Options Chain ####
+    test_GenerateYfinOptionsChainDataset()
+    #### Black-Scholes ####
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
     # test_BlackScholesImpVolRational()
@@ -1653,7 +1662,7 @@ if __name__ == '__main__':
     # test_LevSwapCurve()
     # test_CalcFwdVarCurve()
     # test_CalcFwdVarCurve2005()
-    test_VswpPriceCompare()
+    # test_VswpPriceCompare()
     # test_FwdVswp2019()
     #### Heston ####
     # test_HestonSmile()
