@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from time import time
+from pricer import *
 
 #### Options Chain #############################################################
 
@@ -25,3 +26,12 @@ def GenerateYfinOptionsChainDataset(fileName, underlying="^SPX"):
     optionChains = pd.concat(optionChains)
     optionChains.to_csv(fileName, index=False)
     return optionChains
+
+#### Implied Vol Dataset #######################################################
+
+def GenerateImpVolDatasetFromFutuCsv(df):
+    # Generate implied vol dataset from Futu options chain csv
+    # Fi,PVi are implied from put-call parity, for each maturity i
+    # Columns: "Contract Name","Type","Put/Call","Status","Maturity (Day)","Maturity (BDay)","Maturity (Year)","Contract Size","Strike","Bid","Bid Volume","Ask","Ask Volume","Last Price","Open Price","High Price","Low Price","Close Price","Open Interest","Volume","Turnover","Implied Vol","Premium","Delta","Gamma","Vega","Theta","Rho"
+    # Extract: "Contract Name","Put/Call","Maturity (Day)","Strike","Bid","Ask"
+    pass
