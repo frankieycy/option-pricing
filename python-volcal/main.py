@@ -15,6 +15,15 @@ dataFolder = "test/"
 def test_GenerateYfinOptionsChainDataset():
     GenerateYfinOptionsChainDataset(dataFolder+"spxOptions20220414.csv")
 
+def test_StandardizeOptionsChainDataset():
+    df = pd.read_csv('data-SPY/option_chain_US.SPY_2022-04-14.csv')
+    print(StandardizeOptionsChainDataset(df,'2022-04-14').head())
+
+def test_GenerateImpVolDatasetFromStdDf():
+    df = pd.read_csv('data-SPY/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    GenerateImpVolDatasetFromStdDf(df)
+
 #### Black-Scholes #############################################################
 
 def test_BlackScholesImpVol():
@@ -1649,7 +1658,9 @@ def test_CalibrateModels2005():
 
 if __name__ == '__main__':
     #### Options Chain ####
-    test_GenerateYfinOptionsChainDataset()
+    # test_GenerateYfinOptionsChainDataset()
+    # test_StandardizeOptionsChainDataset()
+    test_GenerateImpVolDatasetFromStdDf()
     #### Black-Scholes ####
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
