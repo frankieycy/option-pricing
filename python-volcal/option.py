@@ -1,5 +1,8 @@
+import re
+import datetime
 import numpy as np
 import pandas as pd
+from dateutil import parser
 from tqdm import tqdm
 from time import time
 from pricer import *
@@ -27,11 +30,33 @@ def GenerateYfinOptionsChainDataset(fileName, underlying="^SPX"):
     optionChains.to_csv(fileName, index=False)
     return optionChains
 
+def StandardizeOptionsChainDataset(df, onDate):
+    # Standardize options chain dataset
+    onDate = parser.parse(onDate)
+    cols = ["Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"]
+    getDateFromContractName = lambda n: re.match(r'([a-z.]+)(\d+)([a-z])(\d+)',n,re.I).groups()[1]
+    df["Expiry"] = pd.to_datetime(df["Contract Name"].apply(getDateFromContractName),format='%y%m%d')
+    df["Texp"] = (df["Expiry"]-onDate).dt.days/365.25
+    df = df[df['Texp']>0][cols].reset_index(drop=True)
+    return df
+
 #### Implied Vol Dataset #######################################################
 
-def GenerateImpVolDatasetFromFutuCsv(df):
-    # Generate implied vol dataset from Futu options chain csv
+def GenerateImpVolDatasetFromStdDf(df):
+    # Generate implied vol dataset from standardized options chain df
     # Fi,PVi are implied from put-call parity, for each maturity i
-    # Columns: "Contract Name","Type","Put/Call","Status","Maturity (Day)","Maturity (BDay)","Maturity (Year)","Contract Size","Strike","Bid","Bid Volume","Ask","Ask Volume","Last Price","Open Price","High Price","Low Price","Close Price","Open Interest","Volume","Turnover","Implied Vol","Premium","Delta","Gamma","Vega","Theta","Rho"
-    # Extract: "Contract Name","Put/Call","Maturity (Day)","Strike","Bid","Ask"
-    pass
+    # Columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
+    Texp = df['Texp'].unique()
+    for T in Texp:
+        dfT = df[df['Texp']==T]
+        dfTc = dfT[dfT['Put/Call']=='Call']
+        dfTp = dfT[dfT['Put/Call']=='Put']
+        Kc = dfTc['Strike']
+        Kp = dfTp['Strike']
+        K = Kc[Kc.isin(Kp)]
+        dfTc = dfTc[Kc.isin(K)]
+        dfTp = dfTp[Kp.isin(K)]
+        dfTc['Mid'] = (dfTc['Bid']+dfTc['Ask'])/2
+        dfTp['Mid'] = (dfTp['Bid']+dfTp['Ask'])/2
+        if len(K) >= 6:
+            pass
