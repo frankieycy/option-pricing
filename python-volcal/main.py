@@ -16,14 +16,15 @@ def test_GenerateYfinOptionsChainDataset():
     GenerateYfinOptionsChainDataset(dataFolder+"spxOptions20220414.csv")
 
 def test_StandardizeOptionsChainDataset():
-    df = pd.read_csv('data-SPY/option_chain_US.SPY_2022-04-14.csv')
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
     print(StandardizeOptionsChainDataset(df,'2022-04-14').head())
 
 def test_GenerateImpVolDatasetFromStdDf():
-    df = pd.read_csv('data-SPY/option_chain_US.SPY_2022-04-14.csv')
+    code = "QQQ"
+    df = pd.read_csv(f'data-futu/option_chain_US.{code}_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
     ivdf = GenerateImpVolDatasetFromStdDf(df)
-    ivdf.to_csv('data-SPY/spyVols20220414.csv',index=False)
+    ivdf.to_csv(f'{code.lower()}Vols20220414.csv',index=False)
 
 #### Black-Scholes #############################################################
 
@@ -102,6 +103,9 @@ def test_PlotImpliedVol2019():
 
 def test_PlotImpliedVolSPY2022():
     PlotImpliedVol(pd.read_csv("spyVols20220414.csv").dropna(), dataFolder+"test_SPYimpliedvol2022.png")
+
+def test_PlotImpliedVolQQQ2022():
+    PlotImpliedVol(pd.read_csv("qqqVols20220414.csv").dropna(), dataFolder+"test_QQQimpliedvol2022.png")
 
 #### Fwd Var Curve #############################################################
 
@@ -1672,6 +1676,7 @@ if __name__ == '__main__':
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
     # test_PlotImpliedVolSPY2022()
+    # test_PlotImpliedVolQQQ2022()
     #### Var Curve ####
     # test_VarianceSwapFormula()
     # test_CalcSwapCurve()
