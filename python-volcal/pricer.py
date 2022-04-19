@@ -86,6 +86,13 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     #     discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
     # return price
 
+def BlackScholesDelta(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes delta for call/put (first deriv wrt spot)
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    d1 = logMoneyness/totalImpVol+totalImpVol/2
+    return np.where(optionType == "call", norm.cdf(d1), -norm.cdf(-d1))
+
 def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes vega for call/put (first deriv wrt sigma)
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity

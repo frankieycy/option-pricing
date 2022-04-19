@@ -20,11 +20,13 @@ def test_StandardizeOptionsChainDataset():
     print(StandardizeOptionsChainDataset(df,'2022-04-14').head())
 
 def test_GenerateImpVolDatasetFromStdDf():
-    code = "QQQ"
+    code = "SPY"
     df = pd.read_csv(f'data-futu/option_chain_US.{code}_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
-    ivdf = GenerateImpVolDatasetFromStdDf(df)
-    ivdf.to_csv(f'{code.lower()}Vols20220414.csv',index=False)
+    # ivdf = GenerateImpVolDatasetFromStdDf(df)
+    # ivdf.to_csv(f'{code.lower()}Vols20220414.csv',index=False)
+    ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
+    ivdf.to_csv(f'{code.lower()}Vols20220414_corr.csv',index=False)
 
 def test_TermStructure():
     code = "SPY"
@@ -136,10 +138,12 @@ def test_PlotImpliedVol2019():
     PlotImpliedVol(pd.read_csv("vixVols20191220.csv").dropna(), dataFolder+"test_VIXimpliedvol2019.png")
 
 def test_PlotImpliedVolSPY2022():
-    PlotImpliedVol(pd.read_csv("spyVols20220414.csv").dropna(), dataFolder+"test_SPYimpliedvol2022.png")
+    # PlotImpliedVol(pd.read_csv("spyVols20220414.csv").dropna(), dataFolder+"test_SPYimpliedvol2022.png")
+    PlotImpliedVol(pd.read_csv("spyVols20220414_corr.csv").dropna(), dataFolder+"test_SPYimpliedvol2022_corr.png")
 
 def test_PlotImpliedVolQQQ2022():
-    PlotImpliedVol(pd.read_csv("qqqVols20220414.csv").dropna(), dataFolder+"test_QQQimpliedvol2022.png")
+    # PlotImpliedVol(pd.read_csv("qqqVols20220414.csv").dropna(), dataFolder+"test_QQQimpliedvol2022.png")
+    PlotImpliedVol(pd.read_csv("qqqVols20220414_corr.csv").dropna(), dataFolder+"test_QQQimpliedvol2022_corr.png")
 
 #### Fwd Var Curve #############################################################
 
