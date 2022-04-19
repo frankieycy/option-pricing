@@ -42,7 +42,7 @@ def StandardizeOptionsChainDataset(df, onDate):
 
 #### Implied Vol Dataset #######################################################
 
-def GenerateImpVolDatasetFromStdDf(df, Nntm=6):
+def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
     # Generate implied vol dataset from standardized options chain df
     # Fi,PVi are implied from put-call parity, for each maturity i
     # Columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
@@ -82,8 +82,16 @@ def GenerateImpVolDatasetFromStdDf(df, Nntm=6):
             ivca = BlackScholesImpliedVol(F,K,T,0,askc/PV,"call")
             ivpb = BlackScholesImpliedVol(F,K,T,0,bidp/PV,"put")
             ivpa = BlackScholesImpliedVol(F,K,T,0,askp/PV,"put")
-            ivb = ivpb*(K<=F)+ivcb*(K>F) # otm imp vols
-            iva = ivpa*(K<=F)+ivca*(K>F)
+            if volCorrection == "delta": # wrong-spot correction
+                dcb = BlackScholesDelta(F,K,T,0,ivcb,"call")
+                dca = BlackScholesDelta(F,K,T,0,ivca,"call")
+                dpb = BlackScholesDelta(F,K,T,0,ivpb,"put")
+                dpa = BlackScholesDelta(F,K,T,0,ivpa,"put")
+                ivb = (dcb*ivpb-dpb*ivcb)/(dcb-dpb)
+                iva = (dca*ivpa-dpa*ivca)/(dca-dpa)
+            else: # otm imp vols
+                ivb = ivpb*(K<=F)+ivcb*(K>F)
+                iva = ivpa*(K<=F)+ivca*(K>F)
             ivb[ivb<1e-8] = np.nan
             iva[iva<1e-8] = np.nan
             callb = BlackScholesFormula(F,K,T,0,ivb,"call")
