@@ -6,6 +6,7 @@ from scipy.stats import norm
 from option import *
 from pricer import *
 from params import *
+from svi import *
 plt.switch_backend("Agg")
 
 dataFolder = "test/"
@@ -1526,7 +1527,7 @@ def test_PlotImpliedVolSurface():
             df = pd.read_csv(dataFolder+f"Implied Vol Surface/IVS_{model}.csv")
             PlotImpliedVolSurface(df,dataFolder+f"Implied Vol Surface/IVS_{model}.png",model)
 
-#### Plot Local Vol Surface ##################################################
+#### Plot Local Vol Surface ####################################################
 
 def test_PlotLocalVolSurface():
     run = [1,2]
@@ -1702,12 +1703,64 @@ def test_CalibrateModels2005():
         dfnew = pd.concat(dfnew)
         PlotImpliedVol(dfnew, dataFolder+f"Calibration-2005/test_{model}ImpliedVolIv.png")
 
+#### SVI #######################################################################
+
+def test_svi():
+    sviParams1 = {'a': 0.04, 'b': 0.4, 'sig': 0.1, 'rho': -0.4, 'm': 0.1}
+    sviParams2 = {'a': 0.04, 'b': 0.8, 'sig': 0.1, 'rho': -0.4, 'm': 0.1}
+    k = np.arange(-0.5,0.5,0.01)
+    w1 = svi(**sviParams1)(k)
+    w2 = svi(**sviParams2)(k)
+    d1 = sviDensity(**sviParams1)(k)
+    d2 = sviDensity(**sviParams2)(k)
+
+    fig = plt.figure(figsize=(6,4))
+    plt.plot(k, w1, 'k')
+    plt.plot(k, w2, 'k--')
+    plt.title("SVI Parametrization")
+    plt.xlabel("log-strike")
+    plt.ylabel("total implied var")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_svi.png")
+    plt.close()
+
+    fig = plt.figure(figsize=(6,4))
+    plt.plot(k, d1, 'k')
+    plt.plot(k, d2, 'k--')
+    plt.title("SVI Density")
+    plt.xlabel("log-strike")
+    plt.ylabel("density")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_sviDensity.png")
+    plt.close()
+
+def test_sviCross():
+    sviParams1 = {'a': 1.8, 'b': 0.8, 'sig': 0, 'rho': -0.5, 'm': 0}
+    sviParams2 = {'a': 1.0, 'b': 1.0, 'sig': 1.0, 'rho': -0.5, 'm': 0}
+    k = np.arange(-2,2,0.01)
+    w1 = svi(**sviParams1)(k)
+    w2 = svi(**sviParams2)(k)
+
+    sviCrx = sviCrossing(sviParams1, sviParams2)
+    roots = sviCrx['roots']
+    cross = sviCrx['cross']
+
+    fig = plt.figure(figsize=(6,4))
+    plt.plot(k, w1, 'k')
+    plt.plot(k, w2, 'k--')
+    plt.title(f"SVI Crossing: roots={np.round(roots,2)} crossedness={np.round(cross,2)}")
+    plt.xlabel("log-strike")
+    plt.ylabel("total implied var")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_sviCross.png")
+    plt.close()
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
     # test_StandardizeOptionsChainDataset()
     # test_GenerateImpVolDatasetFromStdDf()
-    test_TermStructure()
+    # test_TermStructure()
     #### Black-Scholes ####
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
@@ -1805,3 +1858,6 @@ if __name__ == '__main__':
     # test_CalibrateHestonModelToImpVol2005()
     # test_ImpVolFromHestonIvCalibration2005()
     # test_CalibrateModels2005()
+    #### SVI ####
+    # test_svi()
+    test_sviCross()
