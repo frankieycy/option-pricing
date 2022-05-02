@@ -8,16 +8,19 @@ plt.switch_backend("Agg")
 #### Parametrization ###########################################################
 
 def svi(a, b, sig, rho, m):
+    # Raw-SVI parametrization
     def sviFunc(k):
         return a+b*(rho*(k-m)+np.sqrt((k-m)**2+sig**2))
     return sviFunc
 
 def sviSkew(a, b, sig, rho, m):
+    # SVI skew
     def sviSkewFunc(k):
         return b*((k-m)/sqrt((k-m)**2+sig**2)+rho)
     return sviFunc
 
 def sviDensity(a, b, sig, rho, m):
+    # SVI density
     def sviDensityFunc(k):
         D = np.sqrt((k-m)**2+sig**2)
         w0 = a+b*(rho*(k-m)+D)
@@ -29,6 +32,7 @@ def sviDensity(a, b, sig, rho, m):
     return sviDensityFunc
 
 def sviDensityFactor(a, b, sig, rho, m):
+    # SVI density factor g(k)
     def sviDensityFactorFunc(k):
         D = np.sqrt((k-m)**2+sig**2)
         w0 = a+b*(rho*(k-m)+D)
@@ -38,6 +42,7 @@ def sviDensityFactor(a, b, sig, rho, m):
     return sviDensityFactorFunc
 
 def sviCrossing(params1, params2):
+    # Intersections & crossedness of two SVI slices
     a1, b1, s1, r1, m1 = params1.values() # Short-term
     a2, b2, s2, r2, m2 = params2.values() # Long-term
 
@@ -201,4 +206,39 @@ def ButterflyArbLoss(params):
     loss = -min(opt.fun, 0)
     return loss
 
+#### Other Parametrizations ####################################################
+
+def sviToJw():
+    # Cast SVI to JW parametrization
+    pass
+
+def jwToSvi():
+    # Cast JW to SVI parametrization
+    pass
+
 #### Surface Fitting ###########################################################
+
+def FitSimpleSVI(df):
+    # Fit Simple SVI to each slice independently
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
+
+def FitArbFreeSimpleSVI(df):
+    # Fit Simple SVI to each slice guaranteeing no static arbitrage
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
+
+def FitSqrtSVI(df):
+    # Fit Sqrt-Surface SVI to all slices
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
+
+def FitSurfaceSVI(df):
+    # Fit Surface SVI to all slices
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
+
+def FitExtendedSurfaceSVI(df):
+    # Fit Extended Surface SVI to all slices
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
