@@ -1755,6 +1755,26 @@ def test_sviCross():
     plt.savefig(dataFolder+"test_sviCross.png")
     plt.close()
 
+def test_sviArb():
+    sviParams1 = {'a': 1.8, 'b': 0.8, 'sig': 0, 'rho': -0.5, 'm': 0}
+    sviParams2 = {'a': 1.0, 'b': 1.0, 'sig': 1.0, 'rho': -0.5, 'm': 0}
+    print('calendar loss:', CalendarArbLoss(sviParams1, sviParams2))
+
+    sviParamsVogt = {'a': -0.0410, 'b': 0.1331, 'sig': 0.4153, 'rho': 0.3060, 'm': 0.3586}
+    print('butterfly loss:', ButterflyArbLoss(sviParamsVogt))
+
+    k = np.arange(-1.5,1.5,0.01)
+    d = sviDensityFactor(**sviParamsVogt)(k)
+    fig = plt.figure(figsize=(6,4))
+    plt.plot(k, d, 'k')
+    plt.title("SVI Density Factor")
+    plt.xlabel("log-strike")
+    plt.ylabel("density factor $g(k)$")
+    plt.grid()
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_sviDensityVogt.png")
+    plt.close()
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -1860,4 +1880,5 @@ if __name__ == '__main__':
     # test_CalibrateModels2005()
     #### SVI ####
     # test_svi()
-    test_sviCross()
+    # test_sviCross()
+    test_sviArb()

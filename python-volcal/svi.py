@@ -2,7 +2,10 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize_scalar
 plt.switch_backend("Agg")
+
+#### Parametrization ###########################################################
 
 def svi(a, b, sig, rho, m):
     def sviFunc(k):
@@ -15,10 +18,9 @@ def sviSkew(a, b, sig, rho, m):
     return sviFunc
 
 def sviDensity(a, b, sig, rho, m):
-    sviFunc = svi(a, b, sig, rho, m)
     def sviDensityFunc(k):
         D = np.sqrt((k-m)**2+sig**2)
-        w0 = sviFunc(k)
+        w0 = a+b*(rho*(k-m)+D)
         w1 = b*(rho+(k-m)/D)
         w2 = b*sig**2/D**3
         tmp1 = np.exp(-(k-w0/2)**2/(2*w0))/(2*np.sqrt(2*np.pi*w0))
@@ -26,10 +28,20 @@ def sviDensity(a, b, sig, rho, m):
         return 2*tmp1*tmp2
     return sviDensityFunc
 
-def sviCrossing(params1, params2):
-    a1, b1, s1, r1, m1 = params1.values()
-    a2, b2, s2, r2, m2 = params2.values()
+def sviDensityFactor(a, b, sig, rho, m):
+    def sviDensityFactorFunc(k):
+        D = np.sqrt((k-m)**2+sig**2)
+        w0 = a+b*(rho*(k-m)+D)
+        w1 = b*(rho+(k-m)/D)
+        w2 = b*sig**2/D**3
+        return (1-k/(2*w0)*w1)**2-0.25*(0.25+1/w0)*w1**2+0.5*w2
+    return sviDensityFactorFunc
 
+def sviCrossing(params1, params2):
+    a1, b1, s1, r1, m1 = params1.values() # Short-term
+    a2, b2, s2, r2, m2 = params2.values() # Long-term
+
+    # Quartic equation: q4 x^4 + q3 x^3 + q2 x^2 + q1 x + q0 = 0
     q2 = 1000000 * -2 * (-3 * b1 ** 4 * m1 ** 2 + b1 ** 2 * b2 ** 2 * m1 ** 2 + 4 * b1 ** 2 * b2 ** 2 * m1 * m2 +
               b1 ** 2 * b2 ** 2 * m2 ** 2 - 3 * b2 ** 4 * m2 ** 2 + 6 * b1 ** 4 * m1 ** 2 * r1 ** 2 +
               b1 ** 2 * b2 ** 2 * m1 ** 2 * r1 ** 2 + 4 * b1 ** 2 * b2 ** 2 * m1 * m2 * r1 ** 2 +
@@ -138,6 +150,7 @@ def sviCrossing(params1, params2):
 
     temp7 = -q3 / (4 * q4)
 
+    # Candidate roots
     roots = np.array([
         -q3 / (4 * q4) + rr / 2 + np.sqrt(dd) / 2,
         -q3 / (4 * q4) + rr / 2 - np.sqrt(dd) / 2,
@@ -145,6 +158,7 @@ def sviCrossing(params1, params2):
         -q3 / (4 * q4) - rr / 2 - np.sqrt(ee) / 2
     ])
 
+    # Real roots
     kr = roots * (np.abs(np.imag(roots)) < 1e-10)
     test = lambda k: (a1 + b1 * (r1 * (k - m1) + np.sqrt((k - m1) ** 2 + s1 ** 2))) - (a2 + b2 * (r2 * (k - m2) + np.sqrt((k - m2) ** 2 + s2 ** 2)))
 
@@ -153,6 +167,7 @@ def sviCrossing(params1, params2):
     roots = np.sort(np.real(kr[idx]))
     nroots = len(roots)
 
+    # Crossedness
     cross = 0
 
     if nroots > 1:
@@ -170,3 +185,20 @@ def sviCrossing(params1, params2):
         'roots': roots,
         'cross': cross,
     }
+
+#### Arbitrage Check ###########################################################
+
+def CalendarArbLoss(params1, params2):
+    # Calendar spread arbitrage across two slices
+    sviCrx = sviCrossing(params1, params2)
+    loss = sviCrx['cross']
+    return loss
+
+def ButterflyArbLoss(params):
+    # Butterfly spread arbitrage of a slice
+    g = sviDensityFactor(**params)
+    opt = minimize_scalar(g, bounds=(-2,2))
+    loss = -min(opt.fun, 0)
+    return loss
+
+#### Surface Fitting ###########################################################
