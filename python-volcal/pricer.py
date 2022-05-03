@@ -1340,12 +1340,12 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
     nrow = int(np.ceil(Nexp/ncol))
-    ncol = min(len(Texp),6)
+    ncol = min(len(Texp),ncol)
     fig, ax = plt.subplots(nrow,ncol,figsize=(2.5*ncol,2*nrow))
 
     for i in range(nrow*ncol):
         ix,iy = i//ncol,i%ncol
-        idx = (ix,iy) if nrow*ncol>6 else iy
+        idx = (ix,iy) if nrow>1 else iy
         ax_idx = ax[idx] if ncol>1 else ax
         if i < Nexp:
             T = Texp[i]
@@ -1366,6 +1366,40 @@ def PlotImpliedVol(df, figname=None, ncol=6):
         else:
             ax_idx.axis("off")
 
+    fig.tight_layout()
+    plt.savefig(figname)
+    plt.close()
+
+def PlotTotalVar(df, figname=None, xlim=None, ylim=None):
+    # Plot mid total implied variances based on df
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    if not figname:
+        figname = "impliedvol.png"
+    if not xlim:
+        xlim = [-1,1]
+    if not ylim:
+        ylim = [0,0.1]
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+
+    col = plt.cm.gray(np.linspace(0,0.8,len(Texp)))
+    fig = plt.figure(figsize=(6,4))
+    for i,T in enumerate(Texp):
+        dfT = df[df["Texp"]==T]
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        if "Fit" in dfT:
+            mid = dfT["Fit"]
+        else:
+            bid = dfT["Bid"]
+            ask = dfT["Ask"]
+            mid = (bid+ask)/2
+        w = mid**2*T
+        plt.plot(k,w,c=col[i])
+    plt.title(f"{len(Texp)} maturities: T={np.round(min(Texp),3)} to {np.round(max(Texp),3)}")
+    plt.xlabel("log-strike")
+    plt.ylabel("total implied var")
+    plt.xlim(xlim)
+    plt.ylim(ylim)
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
