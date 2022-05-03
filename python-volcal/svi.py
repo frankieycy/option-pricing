@@ -2,7 +2,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize_scalar
+from scipy.optimize import minimize, minimize_scalar
 plt.switch_backend("Agg")
 
 #### Parametrization ###########################################################
@@ -221,7 +221,37 @@ def jwToSvi():
 def FitSimpleSVI(df):
     # Fit Simple SVI to each slice independently
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
-    pass
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+
+    fit = dict()
+
+    for T in Texp:
+        dfT = df[df["Texp"]==T]
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        bid = dfT["Bid"]
+        ask = dfT["Ask"]
+        midVar = (bid**2+ask**2)/2
+        sprdVar = (ask**2-bid**2)
+
+        def loss(params):
+            sviVar = svi(*params)(k)
+            # return sum((sviVar-midVar)**2)
+            return sum(((sviVar-midVar)/sprdVar)**2)
+
+        # params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+        params0 = (0, 0.1, 0.1, -0.7, 0)
+        opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
+        fit[T] = opt.x * np.array([T,T,1,1,1])
+
+        print(f'T={T}')
+        print(opt.x)
+
+    fit = pd.DataFrame(fit).T
+    fit.columns = ['a','b','sig','rho','m']
+
+    return fit
 
 def FitArbFreeSimpleSVI(df):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage
