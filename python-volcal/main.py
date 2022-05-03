@@ -1794,17 +1794,21 @@ def test_FitSimpleSVI():
         dfT["Fit"] = np.sqrt(w/T)
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, dataFolder+"test_FitSimpleSVI.png")
+
+    PlotImpliedVol(dfnew, dataFolder+"test_FitSimpleSVI.png", ncol=7)
+    # PlotTotalVar(dfnew, dataFolder+"test_FitSimpleSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004]) # Arbitrage everywhere!
 
 def test_FitArbFreeSimpleSVI():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
 
-    fit = FitArbFreeSimpleSVI(df)
-    fit.to_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv")
-    print(fit)
+    guess = pd.read_csv(dataFolder+"fit_SimpleSVI.csv", index_col=0)
 
-    # fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+    # fit = FitArbFreeSimpleSVI(df,guess)
+    # fit.to_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv")
+    # print(fit)
+
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
 
     Texp = df["Texp"].unique()
     dfnew = list()
@@ -1815,7 +1819,9 @@ def test_FitArbFreeSimpleSVI():
         dfT["Fit"] = np.sqrt(w/T)
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png")
+
+    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7)
+    # PlotTotalVar(dfnew, dataFolder+"test_FitArbFreeSimpleSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
 
 if __name__ == '__main__':
     #### Options Chain ####

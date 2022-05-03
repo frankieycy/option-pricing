@@ -3,6 +3,7 @@ import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, minimize_scalar
+from pricer import *
 plt.switch_backend("Agg")
 
 #### Parametrization ###########################################################
@@ -27,7 +28,7 @@ def sviDensity(a, b, sig, rho, m):
         w1 = b*(rho+(k-m)/D)
         w2 = b*sig**2/D**3
         tmp1 = np.exp(-(k-w0/2)**2/(2*w0))/(2*np.sqrt(2*np.pi*w0))
-        tmp2 = (1-k/(2*w0)*w1)**2-0.25*(0.25+1/w0)*w1**2+0.5*w2
+        tmp2 = (1-k/(2*w0)*w1)**2-0.25*(0.25+1/w0)*w1**2+0.5*w2 # g(k)
         return 2*tmp1*tmp2
     return sviDensityFunc
 
@@ -139,6 +140,7 @@ def sviCrossing(params1, params2):
               b1 * b2 ** 2 * r1 * (2 * m1 * m2 * (-1 + 3 * r2 ** 2) + m2 ** 2 * (-1 + 3 * r2 ** 2) -
               s2 ** 2) + b2 ** 3 * r2 * (-3 * m2 ** 2 * (-1 + r2 ** 2) + s2 ** 2)))
 
+    # Quartic roots
     with np.errstate(divide='ignore', invalid='ignore'):
 
         term16 = (2 * q2 ** 3 + 27 * q3 ** 2 * q0 - 72 * q4 * q2 * q0 - 9 * q3 * q2 * q1 + 27 * q4 * q1 ** 2)
@@ -204,13 +206,13 @@ def sviCrossing(params1, params2):
 #### Arbitrage Check ###########################################################
 
 def CalendarArbLoss(params1, params2):
-    # Calendar spread arbitrage across two slices
+    # Penalty for calendar spread arbitrage (across two slices)
     sviCrx = sviCrossing(params1, params2)
     loss = sviCrx['cross']
     return loss
 
 def ButterflyArbLoss(params):
-    # Butterfly spread arbitrage of a slice
+    # Penalty for butterfly spread arbitrage (single slice)
     g = sviDensityFactor(**params)
     opt = minimize_scalar(g, bounds=(-2,2))
     loss = -min(opt.fun, 0)
@@ -228,7 +230,7 @@ def jwToSvi():
 
 #### Surface Fitting ###########################################################
 
-def FitSimpleSVI(df):
+def FitSimpleSVI(df, initParamsMode=0):
     # Fit Simple SVI to each slice independently
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     df = df.dropna()
@@ -243,22 +245,25 @@ def FitSimpleSVI(df):
         bid = dfT["Bid"]
         ask = dfT["Ask"]
         midVar = (bid**2+ask**2)/2
-        sprdVar = (ask**2-bid**2)
+        sprdVar = (ask**2-bid**2)/2
 
         def loss(params):
             sviVar = svi(*params)(k)
             # return sum((sviVar-midVar)**2)
             return sum(((sviVar-midVar)/sprdVar)**2)
 
-        # if i == 0: params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
-        # else: params0 = fit[Texp[i-1]]
-
-        params0 = (0, 0.1, 0.1, -0.7, 0)
+        if initParamsMode == 0: # Fixed a
+            params0 = (0, 0.1, 0.1, -0.7, 0)
+        elif initParamsMode == 1: # Dynamic a
+            params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+        elif initParamsMode == 2: # Based on prev slice
+            if i == 0: params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+            else: params0 = fit[Texp[i-1]]
 
         opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
         fit[T] = opt.x * np.array([T,T,1,1,1])
 
-        err = np.sqrt(np.sqrt(opt.fun/len(dfT))*np.mean(sprdVar))*100
+        err = np.sqrt(np.sqrt(opt.fun/len(dfT))*np.mean(sprdVar))*100 # Error in vol points
 
         print(f'i={i} T={np.round(T,4)} err={np.round(err,4)}% fit={opt.x}')
 
@@ -267,10 +272,61 @@ def FitSimpleSVI(df):
 
     return fit
 
-def FitArbFreeSimpleSVI(df):
+def FitArbFreeSimpleSVI(df, sviGuess, cArbPenalty=10000):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage
-    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
-    pass
+    # df Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    # sviGuess Columns: "a","b","sig","rho","m"
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+
+    fit = sviGuess.copy() # Parametrization for w=sig^2*T
+
+    for i,T in enumerate(Texp):
+        dfT = df[df["Texp"]==T]
+        F = dfT["Fwd"]
+        K = dfT["Strike"]
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        bid = dfT["Bid"]
+        ask = dfT["Ask"]
+        mid = (bid+ask)/2
+        callMid = dfT["CallMid"]
+
+        def l2Loss(params): # L2 loss
+            sviVar = svi(*params)(k)/T
+            callSvi = BlackScholesFormula(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
+            loss = sum((callSvi-callMid)**2)
+            return loss
+
+        def caLoss(params): # Calendar arb loss
+            loss = 0
+            if i == 0:
+                a,b,s,r,m = params
+                minVar = a+b*s*np.sqrt(1-r**2)
+                loss += min(100, np.exp(-1/minVar))
+            if i > 0:
+                loss += CalendarArbLoss(fit.iloc[i-1], params)
+            # if i < Nexp-1:
+            #     loss += CalendarArbLoss(params, fit.iloc[i+1])
+            return loss
+
+        l2loss0 = l2Loss(sviGuess.iloc[i]) # Normalizer
+
+        def loss(params):
+            loss1 = l2Loss(params)/l2loss0
+            loss2 = caLoss(params)*cArbPenalty
+            return loss1 + loss2
+
+        if i == 0 or T < 0.05: params0 = sviGuess.iloc[i]
+        else: params0 = fit.iloc[i-1]
+
+        opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
+        fit.iloc[i] = opt.x
+
+        print(f'i={i} T={np.round(T,4)} loss={np.round(opt.fun,4)} fit={opt.x}')
+
+    return fit
 
 def FitSqrtSVI(df):
     # Fit Sqrt-Surface SVI to all slices
