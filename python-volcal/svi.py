@@ -43,6 +43,14 @@ def sviDensityFactor(a, b, sig, rho, m):
 
 def sviCrossing(params1, params2):
     # Intersections & crossedness of two SVI slices
+    sviLabels = ['a','b','sig','rho','m']
+
+    # Cast to SVI dict
+    if not isinstance(params1, dict):
+        params1 = {sviLabels[i]: params1[i] for i in range(5)}
+    if not isinstance(params2, dict):
+        params2 = {sviLabels[i]: params2[i] for i in range(5)}
+
     a1, b1, s1, r1, m1 = params1.values() # Short-term
     a2, b2, s2, r2, m2 = params2.values() # Long-term
 
@@ -131,37 +139,39 @@ def sviCrossing(params1, params2):
               b1 * b2 ** 2 * r1 * (2 * m1 * m2 * (-1 + 3 * r2 ** 2) + m2 ** 2 * (-1 + 3 * r2 ** 2) -
               s2 ** 2) + b2 ** 3 * r2 * (-3 * m2 ** 2 * (-1 + r2 ** 2) + s2 ** 2)))
 
-    term16 = (2 * q2 ** 3 + 27 * q3 ** 2 * q0 - 72 * q4 * q2 * q0 - 9 * q3 * q2 * q1 + 27 * q4 * q1 ** 2)
-    term21 = (q2 ** 2 / 4 + 3 * q4 * q0 - 3 * q3 * q1 / 4)
-    term1sq = -256 * term21 ** 3 + term16 ** 2
-    term1 = np.sqrt(term1sq + 0*1j)
-    term23 = (term16 + term1) ** (1/3)
-    term22 = 3 * q4 * term23
+    with np.errstate(divide='ignore', invalid='ignore'):
 
-    temp1 = (4 * 2 ** (1 / 3) * term21)
-    temp2 = (3 * 2 ** (1 / 3) * q4)
-    temp3 = q3 ** 2 / (4 * q4 ** 2) - (2 * q2) / (3 * q4)
-    temp4 = temp1 / term22 + term23 / temp2
+        term16 = (2 * q2 ** 3 + 27 * q3 ** 2 * q0 - 72 * q4 * q2 * q0 - 9 * q3 * q2 * q1 + 27 * q4 * q1 ** 2)
+        term21 = (q2 ** 2 / 4 + 3 * q4 * q0 - 3 * q3 * q1 / 4)
+        term1sq = -256 * term21 ** 3 + term16 ** 2
+        term1 = np.sqrt(term1sq + 0*1j)
+        term23 = (term16 + term1) ** (1/3)
+        term22 = 3 * q4 * term23
 
-    rr = np.sqrt(temp3 + temp4)
+        temp1 = (4 * 2 ** (1 / 3) * term21)
+        temp2 = (3 * 2 ** (1 / 3) * q4)
+        temp3 = q3 ** 2 / (4 * q4 ** 2) - (2 * q2) / (3 * q4)
+        temp4 = temp1 / term22 + term23 / temp2
 
-    temp5 = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4)
-    temp6 = (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3)
+        rr = np.sqrt(temp3 + temp4)
 
-    ee = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) - \
-        (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
-    dd = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) + \
-        (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
+        temp5 = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4)
+        temp6 = (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3)
 
-    temp7 = -q3 / (4 * q4)
+        ee = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) - \
+            (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
+        dd = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) + \
+            (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
 
-    # Candidate roots
-    roots = np.array([
-        -q3 / (4 * q4) + rr / 2 + np.sqrt(dd) / 2,
-        -q3 / (4 * q4) + rr / 2 - np.sqrt(dd) / 2,
-        -q3 / (4 * q4) - rr / 2 + np.sqrt(ee) / 2,
-        -q3 / (4 * q4) - rr / 2 - np.sqrt(ee) / 2
-    ])
+        temp7 = -q3 / (4 * q4)
+
+        # Candidate roots
+        roots = np.array([
+            -q3 / (4 * q4) + rr / 2 + np.sqrt(dd) / 2,
+            -q3 / (4 * q4) + rr / 2 - np.sqrt(dd) / 2,
+            -q3 / (4 * q4) - rr / 2 + np.sqrt(ee) / 2,
+            -q3 / (4 * q4) - rr / 2 - np.sqrt(ee) / 2
+        ])
 
     # Real roots
     kr = roots * (np.abs(np.imag(roots)) < 1e-10)
@@ -227,7 +237,7 @@ def FitSimpleSVI(df):
 
     fit = dict()
 
-    for T in Texp:
+    for i,T in enumerate(Texp):
         dfT = df[df["Texp"]==T]
         k = np.log(dfT["Strike"]/dfT["Fwd"])
         bid = dfT["Bid"]
@@ -240,13 +250,17 @@ def FitSimpleSVI(df):
             # return sum((sviVar-midVar)**2)
             return sum(((sviVar-midVar)/sprdVar)**2)
 
-        # params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+        # if i == 0: params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+        # else: params0 = fit[Texp[i-1]]
+
         params0 = (0, 0.1, 0.1, -0.7, 0)
+
         opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
         fit[T] = opt.x * np.array([T,T,1,1,1])
 
-        print(f'T={T}')
-        print(opt.x)
+        err = np.sqrt(np.sqrt(opt.fun/len(dfT))*np.mean(sprdVar))*100
+
+        print(f'i={i} T={np.round(T,4)} err={np.round(err,4)}% fit={opt.x}')
 
     fit = pd.DataFrame(fit).T
     fit.columns = ['a','b','sig','rho','m']

@@ -1796,6 +1796,27 @@ def test_FitSimpleSVI():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_FitSimpleSVI.png")
 
+def test_FitArbFreeSimpleSVI():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+
+    fit = FitArbFreeSimpleSVI(df)
+    fit.to_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv")
+    print(fit)
+
+    # fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        w = svi(**fit.loc[T].to_dict())(k)
+        dfT["Fit"] = np.sqrt(w/T)
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png")
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -1903,4 +1924,5 @@ if __name__ == '__main__':
     # test_svi()
     # test_sviCross()
     # test_sviArb()
-    test_FitSimpleSVI()
+    # test_FitSimpleSVI()
+    test_FitArbFreeSimpleSVI()
