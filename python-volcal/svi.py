@@ -3,6 +3,7 @@ import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, minimize_scalar
+from scipy.interpolate import InterpolatedUnivariateSpline
 from pricer import *
 plt.switch_backend("Agg")
 
@@ -203,6 +204,12 @@ def sviCrossing(params1, params2):
         'cross': cross,
     }
 
+def sviSqrt(w0, rho, eta):
+    # Sqrt-SVI parametrization
+    def sviFunc(k):
+        return w0/2*(1+rho*eta/np.sqrt(w0)*k+np.sqrt((eta/np.sqrt(w0)*k+rho)**2+1-rho**2))
+    return sviFunc
+
 #### Arbitrage Check ###########################################################
 
 def CalendarArbLoss(params1, params2):
@@ -340,11 +347,68 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
 
     return fit
 
-def FitSqrtSVI(df):
+def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
     # Fit Sqrt-Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # Ref: Gatheral/Jacquier, Arbitrage-free SVI Volatility Surfaces
-    pass
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+
+    fit = dict()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
+    sprdVar = (ask**2-bid**2)/2
+
+    w0 = np.zeros(len(df))
+    T0 = df["Texp"].to_numpy()
+
+    for T in Texp:
+        i = (df["Texp"]==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[i] = spline(0).item()*T # ATM total variance
+
+    def loss(params): # L2 loss
+        sviVar = sviSqrt(w0,*params)(k)/T0
+        # return sum((sviVar-midVar)**2)
+        # return sum(((sviVar-midVar)/sprdVar)**2)
+        if Tcut:
+            return sum((((sviVar-midVar)/sprdVar)**2)[T0>=Tcut])
+        else:
+            return sum(((sviVar-midVar)/sprdVar)**2)
+
+    # Initial params
+    if sviGuess is None:
+        params0 = (-0.7, 1)
+    else:
+        params0 = sviGuess
+
+    opt = minimize(loss, x0=params0, bounds=((-0.99,0.99),(-10,10)))
+
+    print(f'loss={np.round(opt.fun,4)}% fit={opt.x}')
+
+    # Cast to raw-SVI
+    w0 = np.unique(w0)
+    rho, eta = opt.x
+    sk = eta/np.sqrt(w0)
+    a = w0/2*(1-rho**2)
+    b = w0/2*sk
+    s = np.sqrt(1-rho**2)/sk
+    r = rho
+    m = -rho/sk
+
+    fit = {'a':a, 'b':b, 'sig':s, 'rho':r, 'm':m}
+    fit = pd.DataFrame(fit)
+    fit.index = Texp
+
+    return fit
 
 def FitSurfaceSVI(df, skewKernel):
     # Fit Surface SVI to all slices
