@@ -230,7 +230,7 @@ def jwToSvi():
 
 #### Surface Fitting ###########################################################
 
-def FitSimpleSVI(df, initParamsMode=0):
+def FitSimpleSVI(df, sviGuess=None, initParamsMode=0):
     # Fit Simple SVI to each slice independently
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     df = df.dropna()
@@ -247,18 +247,22 @@ def FitSimpleSVI(df, initParamsMode=0):
         midVar = (bid**2+ask**2)/2
         sprdVar = (ask**2-bid**2)/2
 
-        def loss(params):
+        def loss(params): # L2 loss
             sviVar = svi(*params)(k)
             # return sum((sviVar-midVar)**2)
             return sum(((sviVar-midVar)/sprdVar)**2)
 
-        if initParamsMode == 0: # Fixed a
-            params0 = (0, 0.1, 0.1, -0.7, 0)
-        elif initParamsMode == 1: # Dynamic a
-            params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
-        elif initParamsMode == 2: # Based on prev slice
-            if i == 0: params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
-            else: params0 = fit[Texp[i-1]]
+        # Initial params
+        if sviGuess is None:
+            if initParamsMode == 0: # Fixed a
+                params0 = (0, 0.1, 0.1, -0.7, 0)
+            elif initParamsMode == 1: # Dynamic a
+                params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+            elif initParamsMode == 2: # Based on prev slice
+                if i == 0: params0 = (np.mean(midVar), 0.1, 0.1, -0.7, 0)
+                else: params0 = fit[Texp[i-1]]
+        else:
+            params0 = sviGuess.iloc[i]
 
         opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
         fit[T] = opt.x * np.array([T,T,1,1,1])
@@ -272,7 +276,7 @@ def FitSimpleSVI(df, initParamsMode=0):
 
     return fit
 
-def FitArbFreeSimpleSVI(df, sviGuess, cArbPenalty=10000):
+def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage
     # df Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # sviGuess Columns: "a","b","sig","rho","m"
@@ -318,8 +322,16 @@ def FitArbFreeSimpleSVI(df, sviGuess, cArbPenalty=10000):
             loss2 = caLoss(params)*cArbPenalty
             return loss1 + loss2
 
-        if i == 0 or T < 0.05: params0 = sviGuess.iloc[i]
-        else: params0 = fit.iloc[i-1]
+        # Initial params
+        if sviGuess is None:
+            if i == 0: params0 = (0, 0.1, 0.1, -0.7, 0)
+            else: params0 = fit.iloc[i-1]
+        else:
+            if initParamsMode == 0: # Use guess for small T
+                if i == 0 or T < 0.05: params0 = sviGuess.iloc[i]
+                else: params0 = fit.iloc[i-1]
+            elif initParamsMode == 1: # Use guess for all T
+                params0 = sviGuess.iloc[i]
 
         opt = minimize(loss, x0=params0, bounds=((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10)))
         fit.iloc[i] = opt.x
@@ -331,14 +343,17 @@ def FitArbFreeSimpleSVI(df, sviGuess, cArbPenalty=10000):
 def FitSqrtSVI(df):
     # Fit Sqrt-Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    # Ref: Gatheral/Jacquier, Arbitrage-free SVI Volatility Surfaces
     pass
 
-def FitSurfaceSVI(df):
+def FitSurfaceSVI(df, skewKernel):
     # Fit Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    # Ref: Gatheral/Jacquier, Arbitrage-free SVI Volatility Surfaces
     pass
 
-def FitExtendedSurfaceSVI(df):
+def FitExtendedSurfaceSVI(df, skewKernel, corrKernel):
     # Fit Extended Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    # Ref: Hendriks/Martini, The Extended SSVI Volatility Surface
     pass
