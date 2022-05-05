@@ -207,7 +207,22 @@ def sviCrossing(params1, params2):
 def sviSqrt(w0, rho, eta):
     # Sqrt-SVI parametrization
     def sviFunc(k):
-        return w0/2*(1+rho*eta/np.sqrt(w0)*k+np.sqrt((eta/np.sqrt(w0)*k+rho)**2+1-rho**2))
+        sk = eta/np.sqrt(w0) # Sqrt skew decay
+        return w0/2*(1+rho*sk*k+np.sqrt((sk*k+rho)**2+1-rho**2))
+    return sviFunc
+
+def sviPowerLaw(w0, rho, eta, gam):
+    # PowerLaw-SVI parametrization
+    def sviFunc(k):
+        sk = eta/(w0**gam*(1+w0)**(1-gam)) # PowerLaw skew decay
+        return w0/2*(1+rho*sk*k+np.sqrt((sk*k+rho)**2+1-rho**2))
+    return sviFunc
+
+def sviHeston(w0, rho, eta, lda):
+    # Heston-SVI parametrization
+    def sviFunc(k):
+        sk = eta*(1-(1-np.exp(-lda*w0))/(lda*w0))/(lda*w0) # Heston skew decay
+        return w0/2*(1+rho*sk*k+np.sqrt((sk*k+rho)**2+1-rho**2))
     return sviFunc
 
 #### Arbitrage Check ###########################################################
@@ -236,6 +251,7 @@ def jwToSvi():
     pass
 
 #### Surface Fitting ###########################################################
+# Return fit with raw-SVI parametrization, in total implied variance w=sig^2*T
 
 def FitSimpleSVI(df, sviGuess=None, initParamsMode=0):
     # Fit Simple SVI to each slice independently
@@ -368,7 +384,7 @@ def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
     T0 = df["Texp"].to_numpy()
 
     for T in Texp:
-        i = (df["Texp"]==T)
+        i = (T0==T)
         kT = k[i]
         vT = midVar[i]
         ntm = (kT>-0.05)&(kT<0.05)
@@ -379,9 +395,9 @@ def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
         sviVar = sviSqrt(w0,*params)(k)/T0
         # return sum((sviVar-midVar)**2)
         # return sum(((sviVar-midVar)/sprdVar)**2)
-        if Tcut:
+        if Tcut: # Fit to longer-term slices
             return sum((((sviVar-midVar)/sprdVar)**2)[T0>=Tcut])
-        else:
+        else: # Fit to all slices
             return sum(((sviVar-midVar)/sprdVar)**2)
 
     # Initial params
@@ -392,7 +408,7 @@ def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
 
     opt = minimize(loss, x0=params0, bounds=((-0.99,0.99),(-10,10)))
 
-    print(f'loss={np.round(opt.fun,4)}% fit={opt.x}')
+    print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
 
     # Cast to raw-SVI
     w0 = np.unique(w0)
@@ -410,11 +426,79 @@ def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
 
     return fit
 
-def FitSurfaceSVI(df, skewKernel):
+def FitSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', Tcut=0.2):
     # Fit Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # Ref: Gatheral/Jacquier, Arbitrage-free SVI Volatility Surfaces
-    pass
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+
+    fit = dict()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
+    sprdVar = (ask**2-bid**2)/2
+
+    w0 = np.zeros(len(df))
+    T0 = df["Texp"].to_numpy()
+
+    for T in Texp:
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[i] = spline(0).item()*T # ATM total variance
+
+    # SVI function & initial params
+    if skewKernel == 'Sqrt':
+        sviFunc = sviSqrt
+        skFunc = lambda w0,eta: eta/np.sqrt(w0)
+        params0 = (-0.7, 1) if sviGuess is None else sviGuess
+        bounds0 = ((-0.99, 0.99), (-10, 10))
+    elif skewKernel == 'PowerLaw':
+        sviFunc = sviPowerLaw
+        skFunc = lambda w0,eta,gam: eta/(w0**gam*(1+w0)**(1-gam))
+        params0 = (-0.7, 1, 0.3) if sviGuess is None else sviGuess
+        bounds0 = ((-0.99, 0.99), (-10, 10), (0.01, 0.5))
+    elif skewKernel == 'Heston':
+        sviFunc = sviHeston
+        skFunc = lambda w0,eta,lda: eta*(1-(1-np.exp(-lda*w0))/(lda*w0))/(lda*w0)
+        params0 = (-0.7, 50, 100) if sviGuess is None else sviGuess
+        bounds0 = ((-0.99, 0.99), (-1000, 1000), (0, 1000))
+
+    def loss(params): # L2 loss
+        sviVar = sviFunc(w0,*params)(k)/T0
+        # return sum((sviVar-midVar)**2)
+        # return sum(((sviVar-midVar)/sprdVar)**2)
+        if Tcut: # Fit to longer-term slices
+            return sum((((sviVar-midVar)/sprdVar)**2)[T0>=Tcut])
+        else: # Fit to all slices
+            return sum(((sviVar-midVar)/sprdVar)**2)
+
+    opt = minimize(loss, x0=params0, bounds=bounds0)
+
+    print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
+
+    # Cast to raw-SVI
+    w0 = np.unique(w0)
+    rho, *par = opt.x
+    sk = skFunc(w0,*par)
+    a = w0/2*(1-rho**2)
+    b = w0/2*sk
+    s = np.sqrt(1-rho**2)/sk
+    r = rho
+    m = -rho/sk
+
+    fit = {'a':a, 'b':b, 'sig':s, 'rho':r, 'm':m}
+    fit = pd.DataFrame(fit)
+    fit.index = Texp
+
+    return fit
 
 def FitExtendedSurfaceSVI(df, skewKernel, corrKernel):
     # Fit Extended Surface SVI to all slices
