@@ -50,8 +50,8 @@
     - x, rHeston: Riccati solver
 * back out local vol from model/market IVS
     - ok, model IVS
-    - market IVS
-* SVI parametrization with no-arb constraints
+    - market IVS under SVI fit
+* ok, SVI parametrization with no-arb constraints
 * pricing under execution costs
 * joint calibration with VIX derivs
 * fast Monte-Carlo for exotics pricing
