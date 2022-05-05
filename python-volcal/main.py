@@ -1799,6 +1799,7 @@ def test_FitSimpleSVI():
     # PlotTotalVar(dfnew, dataFolder+"test_FitSimpleSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004]) # Arbitrage everywhere!
 
 def test_FitArbFreeSimpleSVI():
+    # Best performance with high stability!
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
 
@@ -1869,6 +1870,41 @@ def test_FitSurfaceSVI():
 
     PlotImpliedVol(dfnew, dataFolder+"test_FitSurfaceSVI.png", ncol=7)
     # PlotTotalVar(dfnew, dataFolder+"test_FitSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
+
+def test_FitArbFreeSimpleSVIWithSqrtSeed():
+    # Using sqrt-SVI as seed gives unstable params! e.g. abrupt change in rho
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+
+    # fit = FitArbFreeSimpleSVIWithSqrtSeed(df,Tcut=1)
+    # fit.to_csv(dataFolder+"fit_ArbFreeSimpleSVI_SqrtSeed.csv")
+    # print(fit)
+
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI_SqrtSeed.csv", index_col=0)
+
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        w = svi(**fit.loc[T].to_dict())(k)
+        dfT["Fit"] = np.sqrt(w/T)
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+
+    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI_SqrtSeed.png", ncol=7)
+    # PlotTotalVar(dfnew, dataFolder+"test_FitArbFreeSimpleSVIw_SqrtSeed.png", xlim=[-0.2,0.2], ylim=[0,0.004])
+
+def test_SVIVolSurface():
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+    ivFunc = SVIVolSurface(fit)
+    k = np.arange(-0.5,0.55,0.05)
+    T = np.arange(0.1,2.1,0.1)
+    X,Y = np.meshgrid(k,T)
+    Z = ivFunc(k,T)
+    iv = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
+    iv.to_csv(dataFolder+'IVS_ArbFreeSimpleSVI.csv',index=False)
+    PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI.png")
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -1980,4 +2016,6 @@ if __name__ == '__main__':
     # test_FitSimpleSVI()
     # test_FitArbFreeSimpleSVI()
     # test_FitSqrtSVI()
-    test_FitSurfaceSVI()
+    # test_FitSurfaceSVI()
+    # test_FitArbFreeSimpleSVIWithSqrtSeed()
+    test_SVIVolSurface()

@@ -3,7 +3,7 @@ import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, minimize_scalar
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, PchipInterpolator
 from pricer import *
 plt.switch_backend("Agg")
 
@@ -509,7 +509,9 @@ def FitExtendedSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', corrKernel='
 def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcut=0.2):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage with Sqrt-SVI seed
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
-    pass
+    guess = FitSqrtSVI(df, Tcut=Tcut)
+    fit = FitArbFreeSimpleSVI(df, guess, initParamsMode, cArbPenalty)
+    return fit
 
 #### Surface Construction ######################################################
 
@@ -517,6 +519,10 @@ def SVIVolSurface(fit):
     # SVI vol surface inter/extrapolation
     # fit: term-structure of raw-SVI parametrization
     # ivSurface applies to vector k & T
+    Texp = fit.index.to_numpy()
     def ivSurface(k,T):
-        pass
+        grid = np.array([svi(*fit.loc[t])(k) for t in Texp])
+        surf = np.array([PchipInterpolator(Texp,grid[:,i])(T) for i in range(len(k))])
+        surf = np.sqrt(surf/T).T
+        return surf
     return ivSurface
