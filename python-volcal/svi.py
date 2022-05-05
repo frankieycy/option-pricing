@@ -500,8 +500,23 @@ def FitSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', Tcut=0.2):
 
     return fit
 
-def FitExtendedSurfaceSVI(df, skewKernel, corrKernel):
+def FitExtendedSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', corrKernel='', Tcut=0.2):
     # Fit Extended Surface SVI to all slices
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # Ref: Hendriks/Martini, The Extended SSVI Volatility Surface
     pass
+
+def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcut=0.2):
+    # Fit Simple SVI to each slice guaranteeing no static arbitrage with Sqrt-SVI seed
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    pass
+
+#### Surface Construction ######################################################
+
+def SVIVolSurface(fit):
+    # SVI vol surface inter/extrapolation
+    # fit: term-structure of raw-SVI parametrization
+    # ivSurface applies to vector k & T
+    def ivSurface(k,T):
+        pass
+    return ivSurface
