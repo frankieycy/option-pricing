@@ -1906,6 +1906,44 @@ def test_SVIVolSurface():
     iv.to_csv(dataFolder+'IVS_ArbFreeSimpleSVI.csv',index=False)
     PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI.png")
 
+def test_SVIVolSurface2005():
+    run = [1,2]
+
+    if 1 in run:
+        df = pd.read_csv("spxVols20050509.csv")
+        df = df.dropna()
+
+        guess = pd.read_csv(dataFolder+"fit_SimpleSVI2005.csv", index_col=0)
+
+        fit = FitArbFreeSimpleSVI(df,guess)
+        fit.to_csv(dataFolder+"fit_ArbFreeSimpleSVI2005.csv")
+        print(fit)
+
+        Texp = df["Texp"].unique()
+        dfnew = list()
+        for T in Texp:
+            dfT = df[df["Texp"]==T].copy()
+            k = np.log(dfT["Strike"]/dfT["Fwd"])
+            w = svi(**fit.loc[T].to_dict())(k)
+            dfT["Fit"] = np.sqrt(w/T)
+            dfnew.append(dfT)
+        dfnew = pd.concat(dfnew)
+
+        PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI2005.png", ncol=4)
+        PlotTotalVar(dfnew, dataFolder+"test_FitArbFreeSimpleSVIw2005.png", xlim=[-0.2,0.2], ylim=[0,0.004]) # No arbitrage!
+
+    if 2 in run:
+        fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI2005.csv", index_col=0)
+
+        ivFunc = SVIVolSurface(fit)
+        k = np.arange(-0.5,0.52,0.02)
+        T = np.arange(0.05,2.05,0.05)
+        X,Y = np.meshgrid(k,T)
+        Z = ivFunc(k,T)
+        iv = pd.DataFrame(np.array([X,Y,Z]).reshape(3,-1).T,columns=["Log-strike","Texp","IV"])
+        iv.to_csv(dataFolder+'IVS_ArbFreeSimpleSVI2005.csv',index=False)
+        PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI2005.png")
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2018,4 +2056,5 @@ if __name__ == '__main__':
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
-    test_SVIVolSurface()
+    # test_SVIVolSurface()
+    test_SVIVolSurface2005()

@@ -301,6 +301,7 @@ def FitSimpleSVI(df, sviGuess=None, initParamsMode=0):
 
 def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage
+    # Optimization w/o sviGuess is unstable under L2 loss in price!
     # df Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # sviGuess Columns: "a","b","sig","rho","m"
     df = df.dropna()
@@ -308,7 +309,10 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
     Texp = df["Texp"].unique()
     Nexp = len(Texp)
 
-    fit = sviGuess.copy() # Parametrization for w=sig^2*T
+    if sviGuess is None:
+        fit = pd.DataFrame(index=Texp, columns=['a','b','sig','rho','m'])
+    else:
+        fit = sviGuess.copy() # Parametrization for w=sig^2*T
 
     for i,T in enumerate(Texp):
         dfT = df[df["Texp"]==T]
@@ -338,7 +342,11 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
             #     loss += CalendarArbLoss(params, fit.iloc[i+1])
             return loss
 
-        l2loss0 = l2Loss(sviGuess.iloc[i]) # Normalizer
+        # Normalizer
+        if sviGuess is None:
+            l2loss0 = l2Loss((0, 0.1, 0.1, -0.7, 0))
+        else:
+            l2loss0 = l2Loss(sviGuess.iloc[i])
 
         def loss(params):
             loss1 = l2Loss(params)/l2loss0
