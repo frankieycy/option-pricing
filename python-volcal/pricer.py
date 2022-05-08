@@ -1404,7 +1404,7 @@ def PlotTotalVar(df, figname=None, xlim=None, ylim=None):
     plt.savefig(figname)
     plt.close()
 
-def PlotImpliedVolSurface(df, figname=None, model=None):
+def PlotImpliedVolSurface(df, figname=None, model=None, surfaceOnly=False):
     # Plot implied vol surface based on df
     # Columns: "Log-strike","Texp","IV"
     if not figname: figname = "IVS.png"
@@ -1417,7 +1417,15 @@ def PlotImpliedVolSurface(df, figname=None, model=None):
 
     fig = plt.figure(figsize=(6,6))
     ax = plt.axes(projection="3d")
-    surf = ax.plot_trisurf(logStrike,maturity,impVol,cmap='summer')
+
+    if surfaceOnly: # Demo w/o axes
+        surf = ax.plot_trisurf(logStrike,maturity,impVol,cmap='copper',alpha=0.8)
+        fig.subplots_adjust(left=0,right=1,bottom=0,top=1)
+        ax.set_box_aspect((2,2,1))
+        ax.axis('off')
+    else:
+        surf = ax.plot_trisurf(logStrike,maturity,impVol,cmap='summer')
+
     ax.set_xlabel("log-strike")
     ax.set_ylabel("maturity")
     ax.set_zlabel("implied vol")

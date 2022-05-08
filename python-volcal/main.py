@@ -1944,6 +1944,10 @@ def test_SVIVolSurface2005():
         iv.to_csv(dataFolder+'IVS_ArbFreeSimpleSVI2005.csv',index=False)
         PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI2005.png")
 
+    if 3 in run:
+        iv = pd.read_csv(dataFolder+'IVS_ArbFreeSimpleSVI2005.csv')
+        PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI2005.png",surfaceOnly=True)
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
