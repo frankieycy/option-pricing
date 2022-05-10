@@ -225,6 +225,14 @@ def sviHeston(w0, rho, eta, lda):
         return w0/2*(1+rho*sk*k+np.sqrt((sk*k+rho)**2+1-rho**2))
     return sviFunc
 
+def esviPowerLaw(w0, eta, gam, rho0, rho1, wmax, a):
+    # PowerLaw-eSVI parametrization
+    def sviFunc(k):
+        sk = eta/(w0**gam*(1+w0)**(1-gam)) # PowerLaw skew decay
+        rho = rho0-(rho0-rho1)*(w0/wmax)**a # PowerLaw corr decay
+        return w0/2*(1+rho*sk*k+np.sqrt((sk*k+rho)**2+1-rho**2))
+    return sviFunc
+
 #### Arbitrage Check ###########################################################
 
 def CalendarArbLoss(params1, params2):
@@ -508,11 +516,70 @@ def FitSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', Tcut=0.2):
 
     return fit
 
-def FitExtendedSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', corrKernel='', Tcut=0.2):
-    # Fit Extended Surface SVI to all slices
+def FitExtendedSurfaceSVI(df, sviGuess=None, Tcut=0.2):
+    # Fit Extended Surface SVI to all slices, with PowerLaw skew & corr decay
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     # Ref: Hendriks/Martini, The Extended SSVI Volatility Surface
-    pass
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+
+    fit = dict()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
+    sprdVar = (ask**2-bid**2)/2
+
+    w0 = np.zeros(len(df))
+    T0 = df["Texp"].to_numpy()
+
+    for T in Texp:
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[i] = spline(0).item()*T # ATM total variance
+
+    # SVI function & initial params
+    sviFunc = esviPowerLaw
+    skFunc = lambda w0,eta,gam: eta/(w0**gam*(1+w0)**(1-gam))
+    rhoFunc = lambda w0,rho0,rho1,wmax,a: rho0-(rho0-rho1)*(w0/wmax)**a
+    params0 = (1, 0.3, -0.7, -0.8, 2, 0.5) if sviGuess is None else sviGuess
+    bounds0 = ((-10, 10), (0.01, 0.5), (-0.99, 0.99), (-0.99, 0.99), (0.01, 10), (0, 10))
+
+    def loss(params): # L2 loss
+        sviVar = sviFunc(w0,*params)(k)/T0
+        # return sum((sviVar-midVar)**2)
+        # return sum(((sviVar-midVar)/sprdVar)**2)
+        if Tcut: # Fit to longer-term slices
+            return sum((((sviVar-midVar)/sprdVar)**2)[T0>=Tcut])
+        else: # Fit to all slices
+            return sum(((sviVar-midVar)/sprdVar)**2)
+
+    opt = minimize(loss, x0=params0, bounds=bounds0)
+
+    print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
+
+    # Cast to raw-SVI
+    w0 = np.unique(w0)
+    eta, gam, *par = opt.x
+    sk = skFunc(w0,eta,gam)
+    rho = rhoFunc(w0,*par)
+    a = w0/2*(1-rho**2)
+    b = w0/2*sk
+    s = np.sqrt(1-rho**2)/sk
+    r = rho
+    m = -rho/sk
+
+    fit = {'a':a, 'b':b, 'sig':s, 'rho':r, 'm':m}
+    fit = pd.DataFrame(fit)
+    fit.index = Texp
+
+    return fit
 
 def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcut=0.2):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage with Sqrt-SVI seed
