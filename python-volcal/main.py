@@ -1871,6 +1871,29 @@ def test_FitSurfaceSVI():
     PlotImpliedVol(dfnew, dataFolder+"test_FitSurfaceSVI.png", ncol=7)
     # PlotTotalVar(dfnew, dataFolder+"test_FitSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
 
+def test_FitExtendedSurfaceSVI():
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+
+    fit = FitExtendedSurfaceSVI(df)
+    fit.to_csv(dataFolder+"fit_ExtSurfaceSVI.csv")
+    print(fit)
+
+    # fit = pd.read_csv(dataFolder+"fit_ExtSurfaceSVI.csv", index_col=0)
+
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"])
+        w = svi(**fit.loc[T].to_dict())(k)
+        dfT["Fit"] = np.sqrt(w/T)
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+
+    PlotImpliedVol(dfnew, dataFolder+"test_FitExtSurfaceSVI.png", ncol=7)
+    PlotTotalVar(dfnew, dataFolder+"test_FitExtSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
+
 def test_FitArbFreeSimpleSVIWithSqrtSeed():
     # Using sqrt-SVI as seed gives unstable params! e.g. abrupt change in rho
     df = pd.read_csv("spxVols20170424.csv")
@@ -2059,6 +2082,7 @@ if __name__ == '__main__':
     # test_FitArbFreeSimpleSVI()
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
+    test_FitExtendedSurfaceSVI()
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
-    test_SVIVolSurface2005()
+    # test_SVIVolSurface2005()
