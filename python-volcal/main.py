@@ -1974,6 +1974,97 @@ def test_SVIVolSurface2005():
 
 #### Am Option #################################################################
 
+def test_PriceAmericanOption():
+    # test combinations: (put/call) (K/n) (with/no early-ex)
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+    run = [1,2,3,4,5,6,7,8]
+    if 1 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        n = 1000
+        print('Am call for various K, no early-ex')
+        print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',n))
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'call'))
+        print()
+    if 2 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        print('Am call for various n, no early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'call'))
+        print('-----------------------------------')
+        for n in np.arange(1000,6000,1000):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',n))
+        print()
+    if 3 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0
+        q = 0.05
+        D = np.exp(-r)
+        F = np.exp(r-q)
+        n = 1000
+        print('Am call for various K, with early-ex')
+        print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',n))
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'call'))
+        print()
+    if 4 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0
+        q = 0.05
+        D = np.exp(-r)
+        F = np.exp(r-q)
+        print('Am call for various n, with early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'call'))
+        print('-----------------------------------')
+        for n in np.arange(1000,6000,1000):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',n))
+        print()
+    if 5 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0
+        D = np.exp(-r)
+        F = 1
+        n = 1000
+        print('Am put for various K, no early-ex')
+        print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+        print()
+    if 6 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0
+        D = np.exp(-r)
+        F = 1
+        print('Am put for various n, no early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+        print('-----------------------------------')
+        for n in np.arange(1000,6000,1000):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
+        print()
+    if 7 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        n = 1000
+        print('Am put for various K, with early-ex')
+        print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+        print()
+    if 8 in run:
+        K = np.arange(0.1,2.1,0.1)
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        print('Am put for various n, with early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+        print('-----------------------------------')
+        for n in np.arange(1000,6000,1000):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
+        print()
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2085,8 +2176,9 @@ if __name__ == '__main__':
     # test_FitArbFreeSimpleSVI()
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
-    test_FitExtendedSurfaceSVI()
+    # test_FitExtendedSurfaceSVI()
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
     #### Am Option ####
+    test_PriceAmericanOption()
