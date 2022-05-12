@@ -2,7 +2,8 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import bisect, newton
+from scipy.optimize import bisect, newton, minimize
+from pricer import BlackScholesFormula
 
 amPrx_Stree = dict()
 amPrx_Otree = dict()
@@ -51,16 +52,35 @@ def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFree
     def objective(impVol):
         return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
     impVol = 0
-    if method == "Bisection":
-        impVol = bisect(objective, 0.01, 1)
-    elif method == "Newton":
-        impVol = newton(objective, 0.4)
+    try:
+        if method == "Bisection":
+            impVol = bisect(objective, 1e-8, 1)
+        elif method == "Newton":
+            impVol = newton(objective, 0.4)
+    except Exception: pass
     return impVol
 
-def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktPut, priceMktCall, timeSteps):
+def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktPut, priceMktCall, timeSteps=1000, method="Bisection", sigPenalty=10000):
     # Implied forward & riskfree rate from ATM put/call prices
     # Iterate on fwd price & rate until put/call implied vols converge ATM
-    pass
+    def loss(params):
+        F, r = params
+        D = np.exp(-r*maturity)
+        q = r-np.log(F/spotPrice)/maturity
+        sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method)
+        sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method)
+        Cbs = D*BlackScholesFormula(F, strike, maturity, 0, sigC, 'call')
+        Pbs = D*BlackScholesFormula(F, strike, maturity, 0, sigP, 'put')
+        Fi = (Cbs-Pbs)/D + strike
+        loss = (Fi-F)**2 + sigPenalty*(sigP-sigC)**2
+        print(f"params: {params} loss: {loss}")
+        print(f"  r={r} q={q} F={F} Fi={Fi} sigC={sigC} sigP={sigP}")
+        return loss
+
+    params = (spotPrice, 0)
+    bounds = ((0.8*spotPrice,1.2*spotPrice), (-0.05,0.05))
+    opt = minimize(loss, x0=params, bounds=bounds)
+    return opt.x
 
 def DeAmericanizedOptionsChainDataset(df, spotPrice, stepSize):
     # De-Americanization of listed option prices into European pseudo-prices
