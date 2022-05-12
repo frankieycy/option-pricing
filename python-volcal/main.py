@@ -2150,9 +2150,10 @@ def test_AmPrxForVariousImpVol():
 def test_AmericanOptionImpliedVol():
     # Convergence at n=2^10~1000 ATM!
     np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
-    run = [1,2]
+    run = [3,4]
     N = 2**np.arange(6,14)
-    print(N)
+    K = np.arange(0.1,2.05,0.05)
+    # print(N)
     if 1 in run:
         r = 0
         q = 0.05
@@ -2170,6 +2171,33 @@ def test_AmericanOptionImpliedVol():
         P0 = PriceAmericanOption(1,F,1,1,r,0.2,'put',8000)
         iv = AmericanOptionImpliedVol_vec(1,F,1,1,r,P0,'put',N)
         print(iv)
+    if 3 in run:
+        r = 0
+        q = 0.05
+        D = np.exp(-r)
+        F = np.exp(r-q)
+        P0 = PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',8000)
+        iv = AmericanOptionImpliedVol_vec(1,F,K,1,r,P0,'call',1000)
+        print('Am call vol for various K, with early-ex')
+        print(P0)
+        print(iv)
+    if 4 in run:
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        P0 = PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',8000)
+        iv = AmericanOptionImpliedVol_vec(1,F,K,1,r,P0,'put',1000)
+        print('Am put vol for various K, with early-ex')
+        print(P0)
+        print(iv)
+
+def test_AmericanOptionImpliedForwardAndRate():
+    S = 437.79
+    K = 435
+    T = 1.7341269841269842
+    Cm = (54.17+58.48)/2
+    Pm = (42.55+46.86)/2
+    AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm)
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2290,4 +2318,5 @@ if __name__ == '__main__':
     # test_PriceAmericanOption()
     # test_AmPrxConvergence()
     # test_AmPrxForVariousImpVol()
-    test_AmericanOptionImpliedVol()
+    # test_AmericanOptionImpliedVol()
+    test_AmericanOptionImpliedForwardAndRate()
