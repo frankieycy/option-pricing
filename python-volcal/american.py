@@ -7,7 +7,7 @@ from scipy.optimize import bisect, newton
 amPrx_Stree = dict()
 amPrx_Otree = dict()
 
-def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impliedVol, optionType, timeSteps):
+def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impliedVol, optionType, timeSteps=2000):
     # Price American option via Cox binomial tree (d = 1/u)
     # Assume continuous dividend, reflected in forward price
     # TO-DO: proportional/discrete dividend (difficult!)
@@ -46,15 +46,15 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
 
     return Otree[0,0]
 
-def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps, method="Bisection"):
+def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps=1000, method="Bisection"):
     # Implied flat volatility under Cox binomial tree
+    def objective(impVol):
+        return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
     impVol = 0
     if method == "Bisection":
-        pass
+        impVol = bisect(objective, 0.01, 1)
     elif method == "Newton":
-        def objective(impVol):
-            return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
-        pass
+        impVol = newton(objective, 0.4)
     return impVol
 
 def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktPut, priceMktCall, timeSteps):
@@ -69,3 +69,4 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, stepSize):
     pass
 
 PriceAmericanOption_vec = np.vectorize(PriceAmericanOption)
+AmericanOptionImpliedVol_vec = np.vectorize(AmericanOptionImpliedVol)
