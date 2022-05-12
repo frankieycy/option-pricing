@@ -7,6 +7,7 @@ from option import *
 from pricer import *
 from params import *
 from svi import *
+from american import *
 plt.switch_backend("Agg")
 
 dataFolder = "test/"
@@ -1971,6 +1972,8 @@ def test_SVIVolSurface2005():
         iv = pd.read_csv(dataFolder+'IVS_ArbFreeSimpleSVI2005.csv')
         PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI2005.png",surfaceOnly=True)
 
+#### Am Option #################################################################
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2086,3 +2089,4 @@ if __name__ == '__main__':
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
+    #### Am Option ####
