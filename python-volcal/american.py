@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.optimize import bisect, newton
 
 amPrx_Stree = dict()
 amPrx_Otree = dict()
@@ -23,7 +24,7 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
     R = (F/S)**(1/n)
     p = (R-d)/(u-d)
     q = 1-p
-    Stag = 'S=%.3f,F=%.3f,r=%.3f,n=%d' % (S,F,r,n)
+    Stag = 'S=%.4f,F=%.4f,T=%.4f,r=%.4f,sig=%.4f,n=%d' % (S,F,T,r,sig,n)
 
     # Tree caching
     if Stag in amPrx_Stree:
@@ -45,9 +46,16 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
 
     return Otree[0,0]
 
-def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps):
+def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps, method="Bisection"):
     # Implied flat volatility under Cox binomial tree
-    pass
+    impVol = 0
+    if method == "Bisection":
+        pass
+    elif method == "Newton":
+        def objective(impVol):
+            return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
+        pass
+    return impVol
 
 def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktPut, priceMktCall, timeSteps):
     # Implied forward & riskfree rate from ATM put/call prices
