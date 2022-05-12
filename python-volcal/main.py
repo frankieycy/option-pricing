@@ -1976,6 +1976,7 @@ def test_SVIVolSurface2005():
 
 def test_PriceAmericanOption():
     # test combinations: (put/call) (K/n) (with/no early-ex)
+    # typically converge with n=5000 for T=1 (check other T to obtain optimal dt!)
     np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
     run = [1,2,3,4,5,6,7,8]
     if 1 in run:
@@ -2064,6 +2065,64 @@ def test_PriceAmericanOption():
         for n in np.arange(1000,6000,1000):
             print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
         print()
+
+def test_ATMAmPrxConvergence():
+    # Consider OTM options where pricing error is magnified due to small premium
+    # Convergence at n=2^11~2000 for all T!
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+    run = [3,4]
+    K = np.arange(0.1,2.1,0.1)
+    N = 2**np.arange(6,14)
+    print(K)
+    if 1 in run:
+        r = 0
+        q = 0.05
+        D = np.exp(-r)
+        F = np.exp(r-q)
+        print('Am call for various n, with early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'call'))
+        print('-----------------------------------')
+        for i,n in enumerate(N):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'call',n))
+    if 2 in run:
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        print('Am put for various n, with early-ex')
+        print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+        print('-----------------------------------')
+        for i,n in enumerate(N):
+            print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
+    if 3 in run:
+        T = 2**np.arange(-6,3,dtype='float')
+        print('Am call convergence for various T, with early-ex')
+        for t in T:
+            r = 0
+            q = 0.05
+            D = np.exp(-r*t)
+            F = np.exp((r-q)*t)
+            print(f'T={t}')
+            print(D*BlackScholesFormula(F,K,t,0,0.2,'call'))
+            print('-----------------------------------')
+            for i,n in enumerate(N):
+                print(PriceAmericanOption_vec(1,F,K,t,r,0.2,'call',n))
+            print()
+    if 4 in run:
+        T = 2**np.arange(-6,3,dtype='float')
+        print('Am put convergence for various T, with early-ex')
+        for t in T:
+            r = 0.05
+            D = np.exp(-r*t)
+            F = np.exp(r*t)
+            print(f'T={t}')
+            print(D*BlackScholesFormula(F,K,t,0,0.2,'put'))
+            print('-----------------------------------')
+            for i,n in enumerate(N):
+                print(PriceAmericanOption_vec(1,F,K,t,r,0.2,'put',n))
+            print()
+
+def test_ATMAmPrxForVariousImpVol():
+    pass
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2181,4 +2240,5 @@ if __name__ == '__main__':
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
     #### Am Option ####
-    test_PriceAmericanOption()
+    # test_PriceAmericanOption()
+    test_ATMAmPrxConvergence()
