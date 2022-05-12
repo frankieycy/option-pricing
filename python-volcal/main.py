@@ -2192,12 +2192,58 @@ def test_AmericanOptionImpliedVol():
         print(iv)
 
 def test_AmericanOptionImpliedForwardAndRate():
+    run = 1
+    if run == 1:
+        S = 437.79
+        K = 435
+        T = 1.7341269841269842
+        Cm = (54.17+58.48)/2
+        Pm = (42.55+46.86)/2
+        AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm)
+    elif run == 2:
+        S = 437.79
+        K = 438
+        T = 0.011904762
+        Cm = (1.98+2.01)/2
+        Pm = (2.34+2.35)/2
+        AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm)
+    elif run == 3:
+        S = 437.79
+        K = 438
+        T = 0.099206349
+        Cm = (10.25+10.38)/2
+        Pm = (10.37+10.51)/2
+        AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm)
+
+def test_SPYAmOptionImpFwdAndRate():
     S = 437.79
-    K = 435
-    T = 1.7341269841269842
-    Cm = (54.17+58.48)/2
-    Pm = (42.55+46.86)/2
-    AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm)
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    amImplied = dict()
+    Texp = df["Texp"].unique()
+    print(f"Texp={Texp}")
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        dfTc = dfT[dfT['Put/Call']=='Call']
+        dfTp = dfT[dfT['Put/Call']=='Put']
+        Kc = dfTc['Strike']
+        Kp = dfTp['Strike']
+        K0 = Kc[Kc.isin(Kp)] # common strikes
+        dfTc = dfTc[Kc.isin(K0)]
+        dfTp = dfTp[Kp.isin(K0)]
+        if len(K0) > 0:
+            ntm = (K0-S).abs().argmin()
+            K = K0.iloc[ntm]
+            *_, Cb, Ca = dfTc.iloc[ntm]
+            *_, Pb, Pa = dfTp.iloc[ntm]
+            print('-----------------------------------------------------------')
+            print(f"T={T} S={S} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
+            bidImp = AmericanOptionImpliedForwardAndRate(S,K,T,Cb,Pb,iterLog=True)
+            askImp = AmericanOptionImpliedForwardAndRate(S,K,T,Ca,Pa,iterLog=True)
+            amImplied[T] = {'bid': bidImp, 'ask': askImp}
+            print(f"implied: {amImplied[T]}")
+            print('-----------------------------------------------------------')
+    print(amImplied)
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2319,4 +2365,5 @@ if __name__ == '__main__':
     # test_AmPrxConvergence()
     # test_AmPrxForVariousImpVol()
     # test_AmericanOptionImpliedVol()
-    test_AmericanOptionImpliedForwardAndRate()
+    # test_AmericanOptionImpliedForwardAndRate()
+    test_SPYAmOptionImpFwdAndRate()
