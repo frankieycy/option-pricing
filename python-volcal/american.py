@@ -26,7 +26,7 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
     p = (R-d)/(u-d)
     q = 1-p
 
-    if useGlobal: # Tree caching
+    if useGlobal: # Tree caching (accuracy is compromised!)
         global amPrx_Stree, amPrx_Otree
         Stag = 'S=%.4f,F=%.4f,T=%.4f,r=%.4f,sig=%.4f,n=%d' % (S,F,T,r,sig,n)
         if Stag in amPrx_Stree:
@@ -94,10 +94,10 @@ def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCal
     opt = minimize(loss, x0=params, bounds=bounds)
     return opt.x
 
-def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000):
+def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000, **kwargs):
     # De-Americanization of listed option prices into European pseudo-prices
     # Return standardized options chain dataset with columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
-    # Routine: (1) implied fwd prices (2) back out implied vols (3) cast to European prices (4) standardize dataset
+    # Routine: (1) implied fwd prices (2) back out implied vols (3) cast to European prices
     S = spotPrice
     deAmDf = list()
     Texp = df["Texp"].unique()
@@ -111,13 +111,15 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000):
         if len(K0) > 0: # implied fwd & rate
             ntm = (K0-S).abs().argmin()
             K = K0.iloc[ntm] # NTM strike
-            *_, Cb, Ca = dfTc[Kc==K].iloc[0] # NTM call bid/ask
-            *_, Pb, Pa = dfTp[Kp==K].iloc[0] # NTM put bid/ask
-            # print(f"T={T} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
-            # Fb,rb = AmericanOptionImpliedForwardAndRate(S,K,T,Cb,Pb,useGlobal=True)
-            # Fa,ra = AmericanOptionImpliedForwardAndRate(S,K,T,Ca,Pa,useGlobal=True)
-            # print(f"Fb={Fb} Fa={Fa} rb={rb} ra={ra}")
-            Fb,rb = Fa,ra = (S,0)
+            *_, Cb, Ca = dfTc[Kc==K].iloc[0] # call bid/ask
+            *_, Pb, Pa = dfTp[Kp==K].iloc[0] # put bid/ask
+            print(f"T={T} S={S} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
+            Fb,rb = AmericanOptionImpliedForwardAndRate(S, K, T, Cb, Pb, timeSteps, **kwargs)
+            Fa,ra = AmericanOptionImpliedForwardAndRate(S, K, T, Ca, Pa, timeSteps, **kwargs)
+            print(f"Fb={Fb} Fa={Fa} rb={rb} ra={ra}")
+        else: # TO-DO: extrapolate from prior fwd
+            pass
+        # Fb,rb = Fa,ra = (S,0) # naive
         idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
         idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
         dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
@@ -127,8 +129,8 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000):
         ask = dfT['Ask']
         Db = np.exp(-rb*T)
         Da = np.exp(-ra*T)
-        sigB = AmericanOptionImpliedVol_vec(S, Fb, K, T, rb, bid, pc, timeSteps, useGlobal=True)
-        sigA = AmericanOptionImpliedVol_vec(S, Fa, K, T, ra, ask, pc, timeSteps, useGlobal=True)
+        sigB = AmericanOptionImpliedVol_vec(S, Fb, K, T, rb, bid, pc, timeSteps, **kwargs)
+        sigA = AmericanOptionImpliedVol_vec(S, Fa, K, T, ra, ask, pc, timeSteps, **kwargs)
         bsB = Db*BlackScholesFormula(Fb, K, T, 0, sigB, pc)
         bsA = Da*BlackScholesFormula(Fa, K, T, 0, sigA, pc)
         dfT['Bid'] = bsB
