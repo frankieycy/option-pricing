@@ -54,10 +54,12 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
 
     return Otree[0,0]
 
-def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps=1000, method="Bisection"):
+PriceAmericanOption_vec = np.vectorize(PriceAmericanOption)
+
+def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps=1000, method="Bisection", **kwargs):
     # Implied flat volatility under Cox binomial tree
     def objective(impVol):
-        return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, True) - priceMkt
+        return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, **kwargs) - priceMkt
     impVol = 0
     try:
         if method == "Bisection":
@@ -67,15 +69,17 @@ def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFree
     except Exception: pass
     return impVol
 
-def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCall, priceMktPut, timeSteps=1000, method="Bisection", sigPenalty=10000, iterLog=False):
+AmericanOptionImpliedVol_vec = np.vectorize(AmericanOptionImpliedVol)
+
+def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCall, priceMktPut, timeSteps=1000, method="Bisection", sigPenalty=10000, iterLog=False, **kwargs):
     # Implied forward & riskfree rate from ATM put/call prices
     # Iterate on fwd & rate until put/call fwd & implied vols converge ATM
     def loss(params):
         F, r = params
         D = np.exp(-r*maturity)
         q = r-np.log(F/spotPrice)/maturity
-        sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method)
-        sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method)
+        sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method, **kwargs)
+        sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method, **kwargs)
         Cbs = D*BlackScholesFormula(F, strike, maturity, 0, sigC, 'call')
         Pbs = D*BlackScholesFormula(F, strike, maturity, 0, sigP, 'put')
         Fi = (Cbs-Pbs)/D + strike
@@ -90,11 +94,46 @@ def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCal
     opt = minimize(loss, x0=params, bounds=bounds)
     return opt.x
 
-def DeAmericanizedOptionsChainDataset(df, spotPrice, stepSize):
+def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000):
     # De-Americanization of listed option prices into European pseudo-prices
     # Return standardized options chain dataset with columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
     # Routine: (1) implied fwd prices (2) back out implied vols (3) cast to European prices (4) standardize dataset
-    pass
-
-PriceAmericanOption_vec = np.vectorize(PriceAmericanOption)
-AmericanOptionImpliedVol_vec = np.vectorize(AmericanOptionImpliedVol)
+    S = spotPrice
+    deAmDf = list()
+    Texp = df["Texp"].unique()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        dfTc = dfT[dfT['Put/Call']=='Call']
+        dfTp = dfT[dfT['Put/Call']=='Put']
+        Kc = dfTc['Strike']
+        Kp = dfTp['Strike']
+        K0 = Kc[Kc.isin(Kp)] # common strikes
+        if len(K0) > 0: # implied fwd & rate
+            ntm = (K0-S).abs().argmin()
+            K = K0.iloc[ntm] # NTM strike
+            *_, Cb, Ca = dfTc[Kc==K].iloc[0] # NTM call bid/ask
+            *_, Pb, Pa = dfTp[Kp==K].iloc[0] # NTM put bid/ask
+            # print(f"T={T} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
+            # Fb,rb = AmericanOptionImpliedForwardAndRate(S,K,T,Cb,Pb,useGlobal=True)
+            # Fa,ra = AmericanOptionImpliedForwardAndRate(S,K,T,Ca,Pa,useGlobal=True)
+            # print(f"Fb={Fb} Fa={Fa} rb={rb} ra={ra}")
+            Fb,rb = Fa,ra = (S,0)
+        idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
+        idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
+        dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
+        pc = dfT['Put/Call'].str.lower()
+        K = dfT['Strike']
+        bid = dfT['Bid']
+        ask = dfT['Ask']
+        Db = np.exp(-rb*T)
+        Da = np.exp(-ra*T)
+        sigB = AmericanOptionImpliedVol_vec(S, Fb, K, T, rb, bid, pc, timeSteps, useGlobal=True)
+        sigA = AmericanOptionImpliedVol_vec(S, Fa, K, T, ra, ask, pc, timeSteps, useGlobal=True)
+        bsB = Db*BlackScholesFormula(Fb, K, T, 0, sigB, pc)
+        bsA = Da*BlackScholesFormula(Fa, K, T, 0, sigA, pc)
+        dfT['Bid'] = bsB
+        dfT['Ask'] = bsA
+        deAmDf.append(dfT)
+        print(dfT.head(10))
+    deAmDf = pd.concat(deAmDf)
+    return deAmDf

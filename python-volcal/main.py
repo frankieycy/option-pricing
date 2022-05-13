@@ -2245,6 +2245,15 @@ def test_SPYAmOptionImpFwdAndRate():
             print('-----------------------------------------------------------')
     print(amImplied)
 
+def test_DeAmericanizedOptionsChainDataset():
+    S = 437.79
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    df = DeAmericanizedOptionsChainDataset(df,S)
+    ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
+    ivdf.to_csv(f'spyVols20220414_deam.csv',index=False)
+    # PlotImpliedVol(pd.read_csv("spyVols20220414_deam.csv").dropna(), dataFolder+"test_SPYimpliedvol2022_deam.png")
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2366,4 +2375,5 @@ if __name__ == '__main__':
     # test_AmPrxForVariousImpVol()
     # test_AmericanOptionImpliedVol()
     # test_AmericanOptionImpliedForwardAndRate()
-    test_SPYAmOptionImpFwdAndRate()
+    # test_SPYAmOptionImpFwdAndRate()
+    test_DeAmericanizedOptionsChainDataset()
