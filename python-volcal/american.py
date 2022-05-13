@@ -113,13 +113,14 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000, **kwargs):
             K = K0.iloc[ntm] # NTM strike
             *_, Cb, Ca = dfTc[Kc==K].iloc[0] # call bid/ask
             *_, Pb, Pa = dfTp[Kp==K].iloc[0] # put bid/ask
-            print(f"T={T} S={S} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
-            Fb,rb = AmericanOptionImpliedForwardAndRate(S, K, T, Cb, Pb, timeSteps, **kwargs)
-            Fa,ra = AmericanOptionImpliedForwardAndRate(S, K, T, Ca, Pa, timeSteps, **kwargs)
-            print(f"Fb={Fb} Fa={Fa} rb={rb} ra={ra}")
+            Cm = (Cb+Ca)/2
+            Pm = (Pb+Pa)/2
+            print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
+            F,r = AmericanOptionImpliedForwardAndRate(S, K, T, Cm, Pm, timeSteps, **kwargs)
+            print(f"F={F} r={r}")
         else: # TO-DO: extrapolate from prior fwd
             pass
-        # Fb,rb = Fa,ra = (S,0) # naive
+        # F,r = (S,0) # naive
         idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
         idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
         dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
@@ -127,12 +128,11 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000, **kwargs):
         K = dfT['Strike']
         bid = dfT['Bid']
         ask = dfT['Ask']
-        Db = np.exp(-rb*T)
-        Da = np.exp(-ra*T)
-        sigB = AmericanOptionImpliedVol_vec(S, Fb, K, T, rb, bid, pc, timeSteps, **kwargs)
-        sigA = AmericanOptionImpliedVol_vec(S, Fa, K, T, ra, ask, pc, timeSteps, **kwargs)
-        bsB = Db*BlackScholesFormula(Fb, K, T, 0, sigB, pc)
-        bsA = Da*BlackScholesFormula(Fa, K, T, 0, sigA, pc)
+        D = np.exp(-r*T)
+        sigB = AmericanOptionImpliedVol_vec(S, F, K, T, r, bid, pc, timeSteps, **kwargs)
+        sigA = AmericanOptionImpliedVol_vec(S, F, K, T, r, ask, pc, timeSteps, **kwargs)
+        bsB = D*BlackScholesFormula(F, K, T, 0, sigB, pc)
+        bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
         dfT['Bid'] = bsB
         dfT['Ask'] = bsA
         deAmDf.append(dfT)
