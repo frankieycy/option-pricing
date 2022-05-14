@@ -71,26 +71,49 @@ def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFree
 
 AmericanOptionImpliedVol_vec = np.vectorize(AmericanOptionImpliedVol)
 
-def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCall, priceMktPut, timeSteps=1000, method="Bisection", sigPenalty=10000, iterLog=False, **kwargs):
+def AmericanOptionImpliedForwardAndRate(spotPrice, strike, maturity, priceMktCall, priceMktPut, timeSteps=1000, method="Bisection", lossType="Forward", sigPenalty=0, iterLog=False, **kwargs):
     # Implied forward & riskfree rate from ATM put/call prices
-    # Iterate on fwd & rate until put/call fwd & implied vols converge ATM
-    def loss(params):
-        F, r = params
-        D = np.exp(-r*maturity)
-        q = r-np.log(F/spotPrice)/maturity
-        sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method, **kwargs)
-        sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method, **kwargs)
-        Cbs = D*BlackScholesFormula(F, strike, maturity, 0, sigC, 'call')
-        Pbs = D*BlackScholesFormula(F, strike, maturity, 0, sigP, 'put')
-        Fi = (Cbs-Pbs)/D + strike
-        loss = (Fi-F)**2 + sigPenalty*(sigP-sigC)**2
-        if iterLog:
-            print(f"params: {params} loss: {loss}")
-            print(f"  r={r} q={q} F={F} Fi={Fi} sigC={sigC} sigP={sigP}")
-        return loss
+    if lossType == "Forward":
+        # Iterate on fwd & rate until put/call fwd & implied vols converge ATM
+        def loss(params):
+            F, r = params
+            D = np.exp(-r*maturity)
+            q = r-np.log(F/spotPrice)/maturity
+            sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method, **kwargs)
+            sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method, **kwargs)
+            Cbs = BlackScholesFormula(F, strike, maturity, 0, sigC, 'call')
+            Pbs = BlackScholesFormula(F, strike, maturity, 0, sigP, 'put')
+            Fi = (Cbs-Pbs) + strike
+            loss = (Fi-F)**2 + sigPenalty*(sigP-sigC)**2
+            if iterLog:
+                print(f"params: {params} loss: {loss}")
+                print(f"  r={r} q={q} F={F} Fi={Fi} sigC={sigC} sigP={sigP}")
+            return loss
 
-    params = (spotPrice, 0)
-    bounds = ((0.8*spotPrice,1.2*spotPrice), (-0.05,0.05))
+        params = (spotPrice, 0)
+        bounds = ((0.8*spotPrice,1.2*spotPrice), (-0.05,0.05))
+
+    elif lossType == "Dividend":
+        # Iterate on div & rate until put/call div & implied vols converge ATM
+        def loss(params):
+            q, r = params
+            D = np.exp(-r*maturity)
+            F = spotPrice*np.exp((r-q)*maturity)
+            sigC = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktCall, 'call', timeSteps, method, **kwargs)
+            sigP = AmericanOptionImpliedVol(spotPrice, F, strike, maturity, r, priceMktPut, 'put', timeSteps, method, **kwargs)
+            Cbs = BlackScholesFormula(F, strike, maturity, 0, sigC, 'call')
+            Pbs = BlackScholesFormula(F, strike, maturity, 0, sigP, 'put')
+            Fi = (Cbs-Pbs) + strike
+            qi = r-np.log(Fi/spotPrice)/maturity
+            loss = 10000*(q-qi)**2 + sigPenalty*(sigP-sigC)**2
+            if iterLog:
+                print(f"params: {params} loss: {loss}")
+                print(f"  r={r} q={q} qi={qi} F={F} Fi={Fi} sigC={sigC} sigP={sigP}")
+            return loss
+
+        params = (0, 0)
+        bounds = ((-0.20,0.20), (-0.05,0.05))
+
     opt = minimize(loss, x0=params, bounds=bounds)
     return opt.x
 
@@ -121,6 +144,7 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, timeSteps=1000, **kwargs):
         else: # TO-DO: extrapolate from prior fwd
             pass
         # F,r = (S,0) # naive
+        # Consider options with time value (s.t. sig is meaningful)
         idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
         idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
         dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
