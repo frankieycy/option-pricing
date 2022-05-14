@@ -2219,7 +2219,7 @@ def test_SPYAmOptionImpFwdAndRate():
     S = 437.79
     df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
-    amImplied = dict()
+    implied = dict()
     Texp = df["Texp"].unique()
     print(f"Texp={Texp}")
     for T in Texp:
@@ -2236,20 +2236,85 @@ def test_SPYAmOptionImpFwdAndRate():
             K = K0.iloc[ntm]
             *_, Cb, Ca = dfTc.iloc[ntm]
             *_, Pb, Pa = dfTp.iloc[ntm]
+            Cm = (Cb+Ca)/2
+            Pm = (Pb+Pa)/2
             print('-----------------------------------------------------------')
-            print(f"T={T} S={S} K={K} Cb={Cb} Ca={Ca} Pb={Pb} Pa={Pa}")
-            bidImp = AmericanOptionImpliedForwardAndRate(S,K,T,Cb,Pb,iterLog=True)
-            askImp = AmericanOptionImpliedForwardAndRate(S,K,T,Ca,Pa,iterLog=True)
-            amImplied[T] = {'bid': bidImp, 'ask': askImp}
-            print(f"implied: {amImplied[T]}")
+            print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
+            implied[T] = AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm,lossType="Dividend",iterLog=True,useGlobal=True)
+            print(f"implied: {implied[T]}")
             print('-----------------------------------------------------------')
-    print(amImplied)
+    print(implied)
+
+def test_SPYAmOptionPlotImpDivAndRate():
+    # Weird behavior: loss minimized around r=q, and decreases for larger q...
+    S = 437.79
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    Texp = df["Texp"].unique()
+    print(Texp)
+
+    T = Texp[5]
+    dfT = df[df["Texp"]==T].copy()
+    dfTc = dfT[dfT['Put/Call']=='Call']
+    dfTp = dfT[dfT['Put/Call']=='Put']
+    Kc = dfTc['Strike']
+    Kp = dfTp['Strike']
+    K0 = Kc[Kc.isin(Kp)] # common strikes
+    dfTc = dfTc[Kc.isin(K0)]
+    dfTp = dfTp[Kp.isin(K0)]
+    if len(K0) > 0:
+        ntm = (K0-S).abs().argmin()
+        K = K0.iloc[ntm]
+        *_, Cb, Ca = dfTc.iloc[ntm]
+        *_, Pb, Pa = dfTp.iloc[ntm]
+        Cm = (Cb+Ca)/2
+        Pm = (Pb+Pa)/2
+        print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
+
+        def loss(params):
+            q, r = params
+            D = np.exp(-r*T)
+            F = S*np.exp((r-q)*T)
+            sigC = AmericanOptionImpliedVol(S, F, K, T, r, Cm, 'call', 500)
+            sigP = AmericanOptionImpliedVol(S, F, K, T, r, Pm, 'put', 500)
+            Cbs = BlackScholesFormula(F, K, T, 0, sigC, 'call')
+            Pbs = BlackScholesFormula(F, K, T, 0, sigP, 'put')
+            Fi = (Cbs-Pbs) + K
+            qi = r-np.log(Fi/S)/T
+            # loss = 10000*(q-qi)**2
+            loss = 100*(q-qi)
+            print(f"params: {params} loss: {loss}")
+            print(f"  r={r} q={q} qi={qi} F={F} Fi={Fi} sigC={sigC} sigP={sigP}")
+            return loss
+
+        loss_vec = np.vectorize(loss)
+        fig = plt.figure(figsize=(6,4))
+        #### (1) grid (r,q) varying both
+        # for r in np.arange(0,0.11,0.01):
+        #     Q = np.arange(0,0.11,0.01)
+        #     L = [loss((q,r)) for q in Q]
+        #     plt.scatter(Q,L,s=20,label='$r=%.2f$'%r)
+        #### (2) r=q varying q
+        # Q = np.arange(0,0.41,0.01)
+        # L = [loss((q,q)) for q in Q]
+        #### (3) fixed r varying q
+        Q = np.arange(0.00,0.02,0.0002)
+        L = [loss((q,0.01)) for q in Q]
+        plt.scatter(Q,L,c='k',s=20)
+        plt.xlabel('div $q$')
+        plt.ylabel('loss')
+        plt.title(f'T={T}')
+        plt.ylim([-10,10])
+        # plt.legend()
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_lossForVariousDivAndRate.png")
+        plt.close()
 
 def test_DeAmericanizedOptionsChainDataset():
     S = 437.79
     df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
-    df = DeAmericanizedOptionsChainDataset(df,S,200,useGlobal=True)
+    df = DeAmericanizedOptionsChainDataset(df,S,400,useGlobal=True)
     ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
     df.to_csv(dataFolder+f'spyPrxs20220414_deam.csv',index=False)
     ivdf.to_csv(dataFolder+f'spyVols20220414_deam.csv',index=False)
@@ -2377,4 +2442,5 @@ if __name__ == '__main__':
     # test_AmericanOptionImpliedVol()
     # test_AmericanOptionImpliedForwardAndRate()
     # test_SPYAmOptionImpFwdAndRate()
-    test_DeAmericanizedOptionsChainDataset()
+    test_SPYAmOptionPlotImpDivAndRate()
+    # test_DeAmericanizedOptionsChainDataset()
