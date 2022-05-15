@@ -45,7 +45,7 @@ def StandardizeOptionsChainDataset(df, onDate):
 def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
     # Generate implied vol dataset from standardized options chain df
     # Fi,PVi are implied from put-call parity, for each maturity i
-    # Columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
+    # Columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask" ("Fwd","PV")
     # Output: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     Texp = df['Texp'].unique()
     ivdf = list()
@@ -67,16 +67,20 @@ def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
             bidp = dfTp['Bid'].to_numpy()
             askc = dfTc['Ask'].to_numpy()
             askp = dfTp['Ask'].to_numpy()
-            midc = dfTc['Mid'].to_numpy()
-            midp = dfTp['Mid'].to_numpy()
-            mids = midc-midp # put-call spread
-            Kntm = K[np.argsort(np.abs(midc-midp))[:Nntm]] # ntm strikes
-            i = np.isin(K,Kntm)
-            def objective(params):
-                F,PV = params
-                return sum((mids[i]-PV*(F-K[i]))**2)
-            opt = minimize(objective,x0=(np.mean(mids[i]+K[i]),1))
-            F,PV = opt.x
+            if "Fwd" in dfT and "PV" in dfT: # American-style (via de-Americanization)
+                F = dfT['Fwd'].iloc[0]
+                PV = dfT['PV'].iloc[0]
+            else: # European-style (via put-call parity)
+                midc = dfTc['Mid'].to_numpy()
+                midp = dfTp['Mid'].to_numpy()
+                mids = midc-midp # put-call spread
+                Kntm = K[np.argsort(np.abs(midc-midp))[:Nntm]] # ntm strikes
+                i = np.isin(K,Kntm)
+                def objective(params):
+                    F,PV = params
+                    return sum((mids[i]-PV*(F-K[i]))**2)
+                opt = minimize(objective,x0=(np.mean(mids[i]+K[i]),1))
+                F,PV = opt.x
             print(f"T={expiry.date()} F={F} PV={PV}")
             ivcb = BlackScholesImpliedVol(F,K,T,0,bidc/PV,"call")
             ivca = BlackScholesImpliedVol(F,K,T,0,askc/PV,"call")

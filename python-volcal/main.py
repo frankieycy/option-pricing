@@ -2344,14 +2344,15 @@ def test_SPYAmOptionPlotImpDivAndRate():
 
 def test_DeAmericanizedOptionsChainDataset():
     S = 437.79
-    R = np.arange(2.5,5.5,0.5)/100
+    R = np.arange(0,2.5,0.5)/100
+    # R = np.array([0.5,2])/100
     for r in R:
         r = np.round(r,3)
-        rf = lambda T: r
+        rf = lambda T: r # flat rate
         df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
         df = StandardizeOptionsChainDataset(df,'2022-04-14')
         df = DeAmericanizedOptionsChainDataset(df,S,rf,100,iterLog=True)
-        ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
+        ivdf = GenerateImpVolDatasetFromStdDf(df)
         df.to_csv(dataFolder+f'spyPrxs20220414_deam_r={r}.csv',index=False)
         ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
         PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r={r}.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r={r}.png", ncol=7)
