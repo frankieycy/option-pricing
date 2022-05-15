@@ -2343,19 +2343,31 @@ def test_SPYAmOptionPlotImpDivAndRate():
         plt.close()
 
 def test_DeAmericanizedOptionsChainDataset():
+    # Imp vols are insensitive to risk-free rate! e.g. r = 0 to 0.07
+    # Term-structure in r also has little effect
     S = 437.79
-    R = np.arange(0,2.5,0.5)/100
-    # R = np.array([0.5,2])/100
-    for r in R:
-        r = np.round(r,3)
-        rf = lambda T: r # flat rate
-        df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
-        df = StandardizeOptionsChainDataset(df,'2022-04-14')
-        df = DeAmericanizedOptionsChainDataset(df,S,rf,400,iterLog=True)
-        ivdf = GenerateImpVolDatasetFromStdDf(df)
-        df.to_csv(dataFolder+f'spyPrxs20220414_deam_r={r}.csv',index=False)
-        ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
-        PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r={r}.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r={r}.png", ncol=7)
+    #### (1) linear rate
+    rf = lambda T: (0.5+2*T)/100
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    df = DeAmericanizedOptionsChainDataset(df,S,rf,400,iterLog=True)
+    ivdf = GenerateImpVolDatasetFromStdDf(df)
+    df.to_csv(dataFolder+f'spyPrxs20220414_deam_r=linear.csv',index=False)
+    ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r=linear.csv',index=False)
+    PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r=linear.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r=linear.png", ncol=7)
+    #### (2) flat rate
+    # R = np.arange(0,2.5,0.5)/100
+    # # R = np.array([0.5,2])/100
+    # for r in R:
+    #     r = np.round(r,3)
+    #     rf = lambda T: r
+    #     df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    #     df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    #     df = DeAmericanizedOptionsChainDataset(df,S,rf,400,iterLog=True)
+    #     ivdf = GenerateImpVolDatasetFromStdDf(df)
+    #     df.to_csv(dataFolder+f'spyPrxs20220414_deam_r={r}.csv',index=False)
+    #     ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
+    #     PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r={r}.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r={r}.png", ncol=7)
 
 if __name__ == '__main__':
     #### Options Chain ####
