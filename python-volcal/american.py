@@ -200,6 +200,7 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=
                 dfT['Bid'] = bsB
                 dfT['Ask'] = bsA
                 dfT['Fwd'] = F
+                dfT['Div'] = q
                 dfT['PV'] = D
                 deAmDf.append(dfT)
                 print(dfT.head(10))
