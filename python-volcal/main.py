@@ -2240,13 +2240,45 @@ def test_SPYAmOptionImpFwdAndRate():
             Pm = (Pb+Pa)/2
             print('-----------------------------------------------------------')
             print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
-            implied[T] = AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm,lossType="Dividend",iterLog=True,useGlobal=True)
+            implied[T] = AmericanOptionImpliedForwardAndRate(S,K,T,Cm,Pm,iterLog=True,useGlobal=True)
+            print(f"implied: {implied[T]}")
+            print('-----------------------------------------------------------')
+    print(implied)
+
+def test_SPYAmOptionImpDivAndRate():
+    S = 437.79
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    implied = dict()
+    Texp = df["Texp"].unique()
+    print(f"Texp={Texp}")
+    for T in Texp[11:]:
+        dfT = df[df["Texp"]==T].copy()
+        dfTc = dfT[dfT['Put/Call']=='Call']
+        dfTp = dfT[dfT['Put/Call']=='Put']
+        Kc = dfTc['Strike']
+        Kp = dfTp['Strike']
+        K0 = Kc[Kc.isin(Kp)] # common strikes
+        dfTc = dfTc[Kc.isin(K0)]
+        dfTp = dfTp[Kp.isin(K0)]
+        if len(K0) > 0:
+            ntm = (K0-S).abs().argmin()
+            K = K0.iloc[ntm]
+            *_, Cb, Ca = dfTc.iloc[ntm]
+            *_, Pb, Pa = dfTp.iloc[ntm]
+            Cm = (Cb+Ca)/2
+            Pm = (Pb+Pa)/2
+            print('-----------------------------------------------------------')
+            print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
+            r = (0.5+2*T)/100 # linear rate
+            implied[T] = AmericanOptionImpliedDividendAndRate(S,K,T,Cm,Pm,r,iterLog=True)
             print(f"implied: {implied[T]}")
             print('-----------------------------------------------------------')
     print(implied)
 
 def test_SPYAmOptionPlotImpDivAndRate():
     # Weird behavior: loss minimized around r=q, and decreases for larger q...
+    # Fix r, then a unique q can be backed out (typically slightly smaller than r)
     S = 437.79
     df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
     df = StandardizeOptionsChainDataset(df,'2022-04-14')
@@ -2442,5 +2474,6 @@ if __name__ == '__main__':
     # test_AmericanOptionImpliedVol()
     # test_AmericanOptionImpliedForwardAndRate()
     # test_SPYAmOptionImpFwdAndRate()
-    test_SPYAmOptionPlotImpDivAndRate()
-    # test_DeAmericanizedOptionsChainDataset()
+    # test_SPYAmOptionImpDivAndRate()
+    # test_SPYAmOptionPlotImpDivAndRate()
+    test_DeAmericanizedOptionsChainDataset()

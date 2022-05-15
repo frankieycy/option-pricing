@@ -244,7 +244,7 @@ def CalendarArbLoss(params1, params2):
 def ButterflyArbLoss(params):
     # Penalty for butterfly spread arbitrage (single slice)
     g = sviDensityFactor(**params)
-    opt = minimize_scalar(g, bounds=(-2,2))
+    opt = minimize_scalar(g, bounds=(-2,2), method="Bounded")
     loss = -min(opt.fun, 0)
     return loss
 
