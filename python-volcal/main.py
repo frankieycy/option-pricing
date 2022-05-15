@@ -2351,7 +2351,7 @@ def test_DeAmericanizedOptionsChainDataset():
         rf = lambda T: r # flat rate
         df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
         df = StandardizeOptionsChainDataset(df,'2022-04-14')
-        df = DeAmericanizedOptionsChainDataset(df,S,rf,100,iterLog=True)
+        df = DeAmericanizedOptionsChainDataset(df,S,rf,400,iterLog=True)
         ivdf = GenerateImpVolDatasetFromStdDf(df)
         df.to_csv(dataFolder+f'spyPrxs20220414_deam_r={r}.csv',index=False)
         ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
