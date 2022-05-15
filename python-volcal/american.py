@@ -199,6 +199,8 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=
                 bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
                 dfT['Bid'] = bsB
                 dfT['Ask'] = bsA
+                dfT['Fwd'] = F
+                dfT['PV'] = D
                 deAmDf.append(dfT)
                 print(dfT.head(10))
                 print('-' * 100)
