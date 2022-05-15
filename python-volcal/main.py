@@ -2344,13 +2344,17 @@ def test_SPYAmOptionPlotImpDivAndRate():
 
 def test_DeAmericanizedOptionsChainDataset():
     S = 437.79
-    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
-    df = StandardizeOptionsChainDataset(df,'2022-04-14')
-    df = DeAmericanizedOptionsChainDataset(df,S,400,useGlobal=True)
-    ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
-    df.to_csv(dataFolder+f'spyPrxs20220414_deam.csv',index=False)
-    ivdf.to_csv(dataFolder+f'spyVols20220414_deam.csv',index=False)
-    # PlotImpliedVol(pd.read_csv(dataFolder+"spyVols20220414_deam.csv").dropna(), dataFolder+"test_SPYimpliedvol2022_deam.png", ncol=7)
+    R = np.arange(2.5,5.5,0.5)/100
+    for r in R:
+        r = np.round(r,3)
+        rf = lambda T: r
+        df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+        df = StandardizeOptionsChainDataset(df,'2022-04-14')
+        df = DeAmericanizedOptionsChainDataset(df,S,rf,100,iterLog=True)
+        ivdf = GenerateImpVolDatasetFromStdDf(df,volCorrection='delta')
+        df.to_csv(dataFolder+f'spyPrxs20220414_deam_r={r}.csv',index=False)
+        ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
+        PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r={r}.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r={r}.png", ncol=7)
 
 if __name__ == '__main__':
     #### Options Chain ####
