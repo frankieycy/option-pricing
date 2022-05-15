@@ -149,13 +149,14 @@ def AmericanOptionImpliedDividendAndRate(spotPrice, strike, maturity, priceMktCa
         opt = minimize_scalar(loss, bounds=bounds, method="Bounded")
         return opt.x
 
-def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=1000, **kwargs):
+def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=1000, iterLog=False, **kwargs):
     # De-Americanization of listed option prices into European pseudo-prices
     # Return standardized options chain dataset with columns: "Contract Name","Expiry","Texp","Put/Call","Strike","Bid","Ask"
     # Routine: (1) imply dividend/rate (2) back out implied vols (3) cast to European prices
     S = spotPrice
     deAmDf = list()
     Texp = df["Texp"].unique()
+
     for T in Texp:
         dfT = df[df["Texp"]==T].copy()
         dfTc = dfT[dfT['Put/Call']=='Call']
@@ -163,39 +164,44 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=
         Kc = dfTc['Strike']
         Kp = dfTp['Strike']
         K0 = Kc[Kc.isin(Kp)] # common strikes
-        if len(K0) > 0: # implied div & rate
+
+        if len(K0) > 0:
             ntm = (K0-S).abs().argmin()
             K = K0.iloc[ntm] # NTM strike
-            *_, Cb, Ca = dfTc[Kc==K].iloc[0] # call bid/ask
-            *_, Pb, Pa = dfTp[Kp==K].iloc[0] # put bid/ask
-            Cm = (Cb+Ca)/2
-            Pm = (Pb+Pa)/2
-            print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
+            if abs(K-S) < 10:
+                *_, Cb, Ca = dfTc[Kc==K].iloc[0] # call bid/ask
+                *_, Pb, Pa = dfTp[Kp==K].iloc[0] # put bid/ask
+                Cm = (Cb+Ca)/2
+                Pm = (Pb+Pa)/2
+                print(f"T={T} S={S} K={K} Cm={Cm} Pm={Pm}")
 
-            if rfRateFunc is None: # imply div & rate
-                q,r = AmericanOptionImpliedDividendAndRate(S, K, T, Cm, Pm, None, timeSteps, **kwargs)
-            else: # imply div only (more stable!)
-                r = rfRateFunc(T)
-                q = AmericanOptionImpliedDividendAndRate(S, K, T, Cm, Pm, r, timeSteps, **kwargs)
-            print(f"implied: q={q} r={r}")
-            F = S*np.exp((r-q)*T)
+                if rfRateFunc is None: # imply div & rate
+                    q,r = AmericanOptionImpliedDividendAndRate(S, K, T, Cm, Pm, None, timeSteps, iterLog=iterLog, **kwargs)
+                else: # imply div only (more stable!)
+                    r = rfRateFunc(T)
+                    q = AmericanOptionImpliedDividendAndRate(S, K, T, Cm, Pm, r, timeSteps, iterLog=iterLog, **kwargs)
+                # r = q = 0 # naive case!
+                print(f"implied: q={q} r={r}")
+                F = S*np.exp((r-q)*T)
 
-            # Consider options with time value (s.t. sig is meaningful)
-            idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
-            idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
-            dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
-            pc = dfT['Put/Call'].str.lower()
-            K = dfT['Strike']
-            bid = dfT['Bid']
-            ask = dfT['Ask']
-            D = np.exp(-r*T)
-            sigB = AmericanOptionImpliedVol_vec(S, F, K, T, r, bid, pc, timeSteps, **kwargs)
-            sigA = AmericanOptionImpliedVol_vec(S, F, K, T, r, ask, pc, timeSteps, **kwargs)
-            bsB = D*BlackScholesFormula(F, K, T, 0, sigB, pc)
-            bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
-            dfT['Bid'] = bsB
-            dfT['Ask'] = bsA
-            deAmDf.append(dfT)
-            print(dfT.head(10))
+                # Consider options with time value (s.t. sig is meaningful)
+                idxc = (dfTc['Bid']>=1.01*np.maximum(S-Kc,0))
+                idxp = (dfTp['Bid']>=1.01*np.maximum(Kp-S,0))
+                dfT = pd.concat([dfTc[idxc],dfTp[idxp]])
+                pc = dfT['Put/Call'].str.lower()
+                K = dfT['Strike']
+                bid = dfT['Bid']
+                ask = dfT['Ask']
+                D = np.exp(-r*T)
+                sigB = AmericanOptionImpliedVol_vec(S, F, K, T, r, bid, pc, timeSteps, **kwargs)
+                sigA = AmericanOptionImpliedVol_vec(S, F, K, T, r, ask, pc, timeSteps, **kwargs)
+                bsB = D*BlackScholesFormula(F, K, T, 0, sigB, pc)
+                bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
+                dfT['Bid'] = bsB
+                dfT['Ask'] = bsA
+                deAmDf.append(dfT)
+                print(dfT.head(10))
+                print('-' * 100)
+
     deAmDf = pd.concat(deAmDf)
     return deAmDf
