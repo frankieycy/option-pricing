@@ -133,7 +133,7 @@ def test_BlackScholesImpVolRational():
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
-    PlotImpliedVol(df, dataFolder+"test_impliedvol.png")
+    PlotImpliedVol(df, dataFolder+"test_impliedvol.png", ncol=7, strikeType="normalized-strike", atmBar=True, baBar=True)
 
 def test_PlotImpliedVol2019():
     PlotImpliedVol(pd.read_csv("spxVols20191220.csv").dropna(), dataFolder+"test_SPXimpliedvol2019.png")
@@ -2379,7 +2379,7 @@ if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
     # test_BlackScholesImpVolRational()
-    # test_PlotImpliedVol()
+    test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
     # test_PlotImpliedVolSPY2022()
     # test_PlotImpliedVolQQQ2022()
@@ -2493,4 +2493,4 @@ if __name__ == '__main__':
     # test_SPYAmOptionImpFwdAndRate()
     # test_SPYAmOptionImpDivAndRate()
     # test_SPYAmOptionPlotImpDivAndRate()
-    test_DeAmericanizedOptionsChainDataset()
+    # test_DeAmericanizedOptionsChainDataset()
