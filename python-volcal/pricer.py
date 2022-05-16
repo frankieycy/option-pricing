@@ -1332,7 +1332,18 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
 
 #### Plotting/Param Function ###################################################
 
-def PlotImpliedVol(df, figname=None, ncol=6):
+def FitError(k, fit, bid, ask, errType="chi"):
+    # Fit error based on bid/ask
+    err = None
+    if err == "chi":
+        pass
+    elif err == "ave":
+        pass
+    elif err == "ave5":
+        pass
+    return err
+
+def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", atmBar=False, baBar=False, fitErr=False, plotVolErr=False, xlim=None, ylim=None):
     # Plot bid-ask implied volatilities based on df
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     if not figname:
@@ -1341,30 +1352,81 @@ def PlotImpliedVol(df, figname=None, ncol=6):
     Nexp = len(Texp)
     nrow = int(np.ceil(Nexp/ncol))
     ncol = min(len(Texp),ncol)
-    fig, ax = plt.subplots(nrow,ncol,figsize=(2.5*ncol,2*nrow))
 
-    for i in range(nrow*ncol):
-        ix,iy = i//ncol,i%ncol
-        idx = (ix,iy) if nrow>1 else iy
-        ax_idx = ax[idx] if ncol>1 else ax
-        if i < Nexp:
-            T = Texp[i]
-            dfT = df[df["Texp"]==T]
-            k = np.log(dfT["Strike"]/dfT["Fwd"])
-            bid = dfT["Bid"]
-            ask = dfT["Ask"]
-            ax_idx.scatter(k,bid,c='r',s=2,marker="^")
-            ax_idx.scatter(k,ask,c='b',s=2,marker="v")
-            if "Fit" in dfT:
-                fit = dfT["Fit"]
-                i = (fit>1e-2)
-                # ax_idx.scatter(k[i],fit[i],c='k',s=2)
-                ax_idx.plot(k[i],fit[i],'k',linewidth=1)
-            ax_idx.set_title(rf"$T={np.round(T,3)}$")
-            ax_idx.set_xlabel("log-strike")
-            ax_idx.set_ylabel("implied vol")
-        else:
-            ax_idx.axis("off")
+    if Nexp > 1:
+        fig, ax = plt.subplots(nrow,ncol,figsize=(2.5*ncol,2*nrow))
+
+        for i in range(nrow*ncol):
+            ix,iy = i//ncol,i%ncol
+            idx = (ix,iy) if nrow>1 else iy
+            ax_idx = ax[idx] if ncol>1 else ax
+            if i < Nexp:
+                T = Texp[i]
+                dfT = df[df["Texp"]==T]
+                bid = dfT["Bid"]
+                ask = dfT["Ask"]
+                mid = (bid+ask)/2
+                sprd = (ask-bid)/2
+                ax_idx.set_title(rf"$T={np.round(T,3)}$")
+                ax_idx.set_xlabel(strikeType)
+                ax_idx.set_ylabel("implied vol")
+                if strikeType == "strike":
+                    k = dfT["Strike"]
+                elif strikeType == "log-strike":
+                    k = np.log(dfT["Strike"]/dfT["Fwd"])
+                elif strikeType == "normalized-strike":
+                    k = np.log(dfT["Strike"]/dfT["Fwd"])
+                    ntm = (k>-0.05)&(k<0.05)
+                    spline = InterpolatedUnivariateSpline(k[ntm], mid[ntm])
+                    w = spline(0).item()*np.sqrt(T) # ATM var
+                    k = np.log(dfT["Strike"]/dfT["Fwd"])/w
+                elif strikeType == "delta":
+                    k = np.log(dfT["Strike"]/dfT["Fwd"])
+                    ntm = (k>-0.05)&(k<0.05)
+                    spline = InterpolatedUnivariateSpline(k[ntm], mid[ntm])
+                    w = spline(0).item()*np.sqrt(T) # ATM var
+                    k = norm.cdf(-k/np.sqrt(w)+np.sqrt(w)/2)
+                if atmBar:
+                    if strikeType == "strike":
+                        ax_idx.axvline(x=dfT["Fwd"].iloc[0],c='grey',ls='--',lw=1)
+                    elif strikeType == "log-strike":
+                        ax_idx.axvline(x=0,c='grey',ls='--',lw=1)
+                    elif strikeType == "normalized-strike":
+                        ax_idx.axvline(x=0,c='grey',ls='--',lw=1)
+                    elif strikeType == "delta":
+                        ax_idx.axvline(x=norm.cdf(np.sqrt(w)/2),c='grey',ls='--',lw=1)
+                if "Fit" in dfT:
+                    fit = dfT["Fit"]
+                    i = (fit>1e-2)
+                    if fitErr:
+                        kk = np.log(dfT["Strike"]/dfT["Fwd"])
+                        err_chi = FitError(kk,fit,bid,ask,"chi")
+                        err_ave = FitError(kk,fit,bid,ask,"ave5")
+                        ax_idx.set_title(rf"$T={np.round(T,3)} chi={err_chi} ave5={err_ave}$")
+                    if plotVolErr:
+                        k = k[i]
+                        bid = (bid-fit)[i] # vol error
+                        ask = (ask-fit)[i]
+                        mid = (mid-fit)[i]
+                        ax_idx.set_ylabel("vol error")
+                    else:
+                        # ax_idx.scatter(k[i],fit[i],c='k',s=2)
+                        ax_idx.plot(k[i],fit[i],'k',linewidth=1)
+                if baBar:
+                    ax_idx.errorbar(k,mid,sprd,marker='o',mec='g',ms=1,
+                        ecolor='g',elinewidth=1,capsize=1,ls='none')
+                else:
+                    ax_idx.scatter(k,bid,c='r',s=2,marker="^")
+                    ax_idx.scatter(k,ask,c='b',s=2,marker="v")
+                if xlim is not None:
+                    ax_idx.set_ylabel(xlim)
+                if ylim is not None:
+                    ax_idx.set_ylabel(ylim)
+            else:
+                ax_idx.axis("off")
+
+    else:
+        pass
 
     fig.tight_layout()
     plt.savefig(figname)
