@@ -1335,6 +1335,7 @@ def CalibrateModelToImpliedVolFast(logStrike, maturity, optionImpVol, model, par
 def FitError(k, fit, bid, ask, errType="chi"):
     # Fit error based on bid/ask
     err = None
+    mid = (bid+ask)/2
     if err == "chi":
         pass
     elif err == "ave":
@@ -1400,18 +1401,20 @@ def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", atmBar=Fal
                     i = (fit>1e-2)
                     if fitErr:
                         kk = np.log(dfT["Strike"]/dfT["Fwd"])
-                        err_chi = FitError(kk,fit,bid,ask,"chi")
-                        err_ave = FitError(kk,fit,bid,ask,"ave5")
-                        ax_idx.set_title(rf"$T={np.round(T,3)} chi={err_chi} ave5={err_ave}$")
+                        err_chi = FitError(kk[i],fit[i],bid[i],ask[i],"chi")
+                        err_ave = FitError(kk[i],fit[i],bid[i],ask[i],"ave5")
+                        ax_idx.set_title(rf"$T={np.round(T,3)}$ chi$={err_chi}$ ave5$={err_ave}$",fontsize=8)
                     if plotVolErr:
                         k = k[i]
-                        bid = (bid-fit)[i] # vol error
-                        ask = (ask-fit)[i]
-                        mid = (mid-fit)[i]
-                        ax_idx.set_ylabel("vol error")
+                        sprd = 100*sprd[i]
+                        bid = 100*(bid-fit)[i] # vol error
+                        ask = 100*(ask-fit)[i]
+                        mid = 100*(mid-fit)[i]
+                        ax_idx.axhline(y=0,c='grey',ls='--',lw=1)
+                        ax_idx.set_ylabel("vol error (%)")
                     else:
                         # ax_idx.scatter(k[i],fit[i],c='k',s=2)
-                        ax_idx.plot(k[i],fit[i],'k',linewidth=1)
+                        ax_idx.plot(k[i],fit[i],'k',linewidth=1,zorder=999)
                 if baBar:
                     ax_idx.errorbar(k,mid,sprd,marker='o',mec='g',ms=1,
                         ecolor='g',elinewidth=1,capsize=1,ls='none')
