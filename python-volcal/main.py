@@ -1841,7 +1841,7 @@ def test_PlotArbFreeSimpleSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7, strikeType="normalized-strike", atmBar=True, baBar=True, fitErr=True)
+    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7, strikeType="normalized-strike", atmBar=True, baBar=True, fitErr=True, plotVolErr=True)
 
 def test_FitSqrtSVI():
     df = pd.read_csv("spxVols20170424.csv")
