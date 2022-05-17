@@ -21,6 +21,12 @@ def test_StandardizeOptionsChainDataset():
     df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
     print(StandardizeOptionsChainDataset(df,'2022-04-14').head())
 
+def test_SimplifyDatasetByPeriod():
+    df = pd.read_csv('data-futu/option_chain_US.SPY_2022-04-14.csv')
+    df = StandardizeOptionsChainDataset(df,'2022-04-14')
+    sim = SimplifyDatasetByPeriod(df)
+    print(sim['Texp'].unique())
+
 def test_GenerateImpVolDatasetFromStdDf():
     code = "SPY"
     df = pd.read_csv(f'data-futu/option_chain_US.{code}_2022-04-14.csv')
@@ -2468,6 +2474,7 @@ if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
     # test_StandardizeOptionsChainDataset()
+    test_SimplifyDatasetByPeriod()
     # test_GenerateImpVolDatasetFromStdDf()
     # test_TermStructure()
     #### Black-Scholes ####
@@ -2583,7 +2590,7 @@ if __name__ == '__main__':
     # test_SVIVolSurface2005()
     # test_sviParamsToJW()
     # test_jwParamsToSVI()
-    test_SVIAtmTermStructure()
+    # test_SVIAtmTermStructure()
     #### Am Option ####
     # test_PriceAmericanOption()
     # test_AmPrxConvergence()
