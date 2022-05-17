@@ -603,6 +603,60 @@ def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcu
     fit = FitArbFreeSimpleSVI(df, guess, initParamsMode, cArbPenalty)
     return fit
 
+def sviParamsToJW(df):
+    # Cast SVI params to jump-wing representation
+    # Columns: "a","b","sig","rho","m"; Index: maturity
+    a = df['a']
+    b = df['b']
+    sig = df['sig']
+    rho = df['rho']
+    m = df['m']
+    T = df.index
+
+    w0 = a+b*(np.sqrt(m**2+sig**2)-rho*m)
+    bb = b/np.sqrt(w0)
+
+    v = w0/T
+    vmin = (a+b*sig*np.sqrt(1-rho**2))/T
+    psi = bb*(rho-m/np.sqrt(m**2+sig**2))/2
+    p = bb*(1-rho)
+    c = bb*(1+rho)
+
+    fit = {'v':v, 'vmin':vmin, 'psi':psi, 'p':p, 'c':c}
+    fit = pd.DataFrame(fit)
+    fit.index = T
+
+    return fit
+
+def jwParamsToSVI(df):
+    # Cast jump-wing params to SVI representation
+    # Columns: "v","vmin","psi","p","c"; Index: maturity
+    v = df['v']
+    vmin = df['vmin']
+    psi = df['psi']
+    p = df['p']
+    c = df['c']
+    T = df.index
+
+    ww = np.sqrt(v*T)
+    bb = (p+c)/2
+
+    b = bb*ww
+    rho = 1-p/bb
+
+    beta = rho-2*psi/bb
+    alpha = np.sign(beta)*np.sqrt(1/beta**2-1)
+
+    m = (v-vmin)*T/(b*(-rho+np.sign(alpha)*np.sqrt(1+alpha**2)-alpha*np.sqrt(1-rho**2)))
+    sig = alpha*m
+    a = vmin*T-b*sig*np.sqrt(1-rho**2)
+
+    fit = {'a':a, 'b':b, 'sig':sig, 'rho':rho, 'm':m}
+    fit = pd.DataFrame(fit)
+    fit.index = T
+
+    return fit
+
 #### Surface Construction ######################################################
 
 def SVIVolSurface(fit):
