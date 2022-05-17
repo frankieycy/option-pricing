@@ -2017,6 +2017,15 @@ def test_SVIVolSurface2005():
         iv = pd.read_csv(dataFolder+'IVS_ArbFreeSimpleSVI2005.csv')
         PlotImpliedVolSurface(iv,dataFolder+f"IVS_ArbFreeSimpleSVI2005.png",surfaceOnly=True)
 
+def test_sviParamsToJW():
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+    print(sviParamsToJW(fit))
+
+def test_jwParamsToSVI():
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+    fit = sviParamsToJW(fit)
+    print(jwParamsToSVI(fit))
+
 #### Am Option #################################################################
 
 def test_PriceAmericanOption():
@@ -2521,7 +2530,7 @@ if __name__ == '__main__':
     # test_svi()
     # test_sviCross()
     # test_sviArb()
-    test_GenVogtButterflyArbitrage()
+    # test_GenVogtButterflyArbitrage()
     # test_FitSimpleSVI()
     # test_FitArbFreeSimpleSVI()
     # test_PlotArbFreeSimpleSVI()
@@ -2531,6 +2540,8 @@ if __name__ == '__main__':
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
+    # test_sviParamsToJW()
+    test_jwParamsToSVI()
     #### Am Option ####
     # test_PriceAmericanOption()
     # test_AmPrxConvergence()
