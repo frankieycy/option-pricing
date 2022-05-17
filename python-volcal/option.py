@@ -40,6 +40,31 @@ def StandardizeOptionsChainDataset(df, onDate):
     df = df[df['Texp']>0][cols].reset_index(drop=True)
     return df
 
+def SimplifyDatasetByPeriod(df, period='month', select='earliest'):
+    # Simplify options chain dataset according to specified period
+    Tdict = dict()
+    Texp = df['Texp'].unique()
+    for T in Texp:
+        if period == 'day':
+            T0 = np.ceil(T*365.25).astype('int') # Almost never used
+        elif period == 'month':
+            T0 = np.ceil(T*12).astype('int')
+        elif period == 'year':
+            T0 = np.ceil(T).astype('int')
+        if T0 in Tdict:
+            Tdict[T0] += [T]
+        else:
+            Tdict[T0] = [T]
+    # print(Tdict)
+    dfnew = list()
+    for T0 in Tdict:
+        if select == 'earliest':
+            dfnew.append(df[df['Texp']==Tdict[T0][0]])
+        elif select == 'latest':
+            dfnew.append(df[df['Texp']==Tdict[T0][-1]])
+    dfnew = pd.concat(dfnew)
+    return dfnew
+
 #### Implied Vol Dataset #######################################################
 
 def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
@@ -114,7 +139,3 @@ def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
             ivdf.append(ivdfT)
     ivdf = pd.concat(ivdf)
     return ivdf
-
-def SimplifyImpVolDatasetByPeriod(ivdf, period='month'):
-    # Simplify implied vol dataset according to specified period
-    pass
