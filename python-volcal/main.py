@@ -1823,7 +1823,7 @@ def test_FitSimpleSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitSimpleSVI.png", ncol=7)
+    PlotImpliedVol(dfnew, dataFolder+"test_FitSimpleSVI.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
     # PlotTotalVar(dfnew, dataFolder+"test_FitSimpleSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004]) # Arbitrage everywhere!
 
 def test_FitArbFreeSimpleSVI():
@@ -2025,6 +2025,47 @@ def test_jwParamsToSVI():
     fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
     fit = sviParamsToJW(fit)
     print(jwParamsToSVI(fit))
+
+def test_SVIAtmTermStructure():
+    fit = pd.read_csv(dataFolder+"fit_ArbFreeSimpleSVI.csv", index_col=0)
+    ts = SVIAtmTermStructure(fit)
+    T = ts.index
+    v = ts['atm']
+    s = ts['skew']
+    c = ts['curv']
+
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, v, c='k', s=20)
+    plt.title(f"ATM Vol")
+    plt.xlabel("maturity")
+    plt.ylabel("vol")
+    plt.xlim(0.002,2.7)
+    plt.ylim(0.05,0.2)
+    fig.tight_layout()
+    plt.savefig(dataFolder+f"sviAtmVol.png")
+    plt.close()
+
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, np.abs(s), c='k', s=20)
+    plt.title(f"ATM Skew")
+    plt.xlabel("maturity")
+    plt.ylabel("vol")
+    plt.xlim(0.002,2.7)
+    plt.ylim(0,1.4)
+    fig.tight_layout()
+    plt.savefig(dataFolder+f"sviAtmSkew.png")
+    plt.close()
+
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(T, c, c='k', s=20)
+    plt.title(f"ATM Curv")
+    plt.xlabel("maturity")
+    plt.ylabel("curv")
+    plt.xlim(0.002,2.7)
+    plt.ylim(0,200)
+    fig.tight_layout()
+    plt.savefig(dataFolder+f"sviAtmCurv.png")
+    plt.close()
 
 #### Am Option #################################################################
 
@@ -2532,7 +2573,7 @@ if __name__ == '__main__':
     # test_sviArb()
     # test_GenVogtButterflyArbitrage()
     # test_FitSimpleSVI()
-    test_FitArbFreeSimpleSVI()
+    # test_FitArbFreeSimpleSVI()
     # test_PlotArbFreeSimpleSVI()
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
@@ -2542,6 +2583,7 @@ if __name__ == '__main__':
     # test_SVIVolSurface2005()
     # test_sviParamsToJW()
     # test_jwParamsToSVI()
+    test_SVIAtmTermStructure()
     #### Am Option ####
     # test_PriceAmericanOption()
     # test_AmPrxConvergence()

@@ -264,16 +264,6 @@ def GenVogtButterflyArbitrage(params0=(0,0.1,0.4,0.3,0.3), penalty=(8,1,1)):
     opt = minimize(objective, x0=params0, bounds=bounds)
     return opt.x
 
-#### Other Parametrizations ####################################################
-
-def sviToJw():
-    # Cast SVI to JW parametrization
-    pass
-
-def jwToSvi():
-    # Cast JW to SVI parametrization
-    pass
-
 #### Surface Fitting ###########################################################
 # Return fit with raw-SVI parametrization, in total implied variance w=sig^2*T
 
@@ -378,7 +368,7 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000, 
             return loss
 
         # Normalizer
-        if sviGuess is None:
+        if sviGuess is None: # Constant normalizer is unstable!
             l2loss0 = l2Loss((0, 0.1, 0.1, -0.7, 0))
         else:
             l2loss0 = l2Loss(sviGuess.iloc[i])
@@ -615,6 +605,8 @@ def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcu
     fit = FitArbFreeSimpleSVI(df, guess, initParamsMode, cArbPenalty)
     return fit
 
+#### Other Parametrizations ####################################################
+
 def sviParamsToJW(df):
     # Cast SVI params to jump-wing representation
     # Columns: "a","b","sig","rho","m"; Index: maturity
@@ -682,3 +674,44 @@ def SVIVolSurface(fit):
         surf = np.sqrt(surf/T).T
         return surf
     return ivSurface
+
+#### ATM Term-Structure ########################################################
+
+def SVIAtmTermStructure(df, type='vol'):
+    # SVI ATM term-structure, including vol/skew/curv
+    # fit: term-structure of raw-SVI parametrization
+    a = df['a']
+    b = df['b']
+    sig = df['sig']
+    rho = df['rho']
+    m = df['m']
+    T = df.index
+
+    D = np.sqrt(m**2+sig**2)
+
+    # total var w=sig^2*T
+    atm = a+b*(-rho*m+D)
+    skew = b*(rho-m/D)
+    curv = b*sig**2/D**3
+    p = b*(1-rho)
+    c = b*(1+rho)
+
+    if type == 'var':
+        atm /= T
+        skew /= T
+        curv /= T
+        p /= T
+        c /= T
+    elif type == 'vol':
+        A = 2*np.sqrt(atm*T)
+        curv = (curv-skew**2/(2*atm))/A
+        skew = skew/A
+        atm = np.sqrt(atm/T)
+        p = 0 # scale as 1/sqrt(k) tending to 0
+        c = 0
+
+    ts = {'atm':atm, 'skew':skew, 'curv':curv, 'p':p, 'c':c}
+    ts = pd.DataFrame(ts)
+    ts.index = T
+
+    return ts
