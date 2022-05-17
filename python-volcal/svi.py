@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 from scipy.optimize import minimize, minimize_scalar
 from scipy.interpolate import InterpolatedUnivariateSpline, PchipInterpolator
 from pricer import *
@@ -322,7 +323,7 @@ def FitSimpleSVI(df, sviGuess=None, initParamsMode=0):
 
     return fit
 
-def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
+def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000, l2Weight=None):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage
     # Optimization w/o sviGuess is unstable under L2 loss in price!
     # df Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
@@ -347,10 +348,21 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000):
         mid = (bid+ask)/2
         callMid = dfT["CallMid"]
 
+        if l2Weight == "Vega":
+            w = BlackScholesVega(F,K,T,0,mid,'call')
+        elif l2Weight == "Gaussian":
+            w = norm.pdf(k/0.5)
+        elif l2Weight == "BidAsk":
+            callBid = BlackScholesFormula(F,K,T,0,bid,'call')
+            callAsk = BlackScholesFormula(F,K,T,0,ask,'call')
+            w = 1/(callAsk-callBid)
+        else:
+            w = 1
+
         def l2Loss(params): # L2 loss
             sviVar = svi(*params)(k)/T
             callSvi = BlackScholesFormula(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
-            loss = sum((callSvi-callMid)**2)
+            loss = sum(w*(callSvi-callMid)**2)
             return loss
 
         def caLoss(params): # Calendar arb loss

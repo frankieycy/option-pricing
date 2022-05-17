@@ -1849,7 +1849,7 @@ def test_FitArbFreeSimpleSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7)
+    PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
     # PlotTotalVar(dfnew, dataFolder+"test_FitArbFreeSimpleSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004]) # No arbitrage!
 
 def test_PlotArbFreeSimpleSVI():
@@ -2532,7 +2532,7 @@ if __name__ == '__main__':
     # test_sviArb()
     # test_GenVogtButterflyArbitrage()
     # test_FitSimpleSVI()
-    # test_FitArbFreeSimpleSVI()
+    test_FitArbFreeSimpleSVI()
     # test_PlotArbFreeSimpleSVI()
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
@@ -2541,7 +2541,7 @@ if __name__ == '__main__':
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
     # test_sviParamsToJW()
-    test_jwParamsToSVI()
+    # test_jwParamsToSVI()
     #### Am Option ####
     # test_PriceAmericanOption()
     # test_AmPrxConvergence()
