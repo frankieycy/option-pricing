@@ -114,3 +114,7 @@ def GenerateImpVolDatasetFromStdDf(df, Nntm=6, volCorrection=None):
             ivdf.append(ivdfT)
     ivdf = pd.concat(ivdf)
     return ivdf
+
+def SimplifyImpVolDatasetByPeriod(ivdf, period='month'):
+    # Simplify implied vol dataset according to specified period
+    pass
