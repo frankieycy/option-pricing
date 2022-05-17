@@ -1473,7 +1473,7 @@ def PlotTotalVar(df, figname=None, xlim=None, ylim=None):
             ask = dfT["Ask"]
             mid = (bid+ask)/2
         w = mid**2*T
-        plt.plot(k,w,c=col[i])
+        plt.plot(k,w,c=col[i],lw=1)
     plt.title(f"{len(Texp)} maturities: T={np.round(min(Texp),3)} to {np.round(max(Texp),3)}")
     plt.xlabel("log-strike")
     plt.ylabel("total implied var")
