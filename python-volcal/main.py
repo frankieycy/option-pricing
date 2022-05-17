@@ -1776,6 +1776,33 @@ def test_sviArb():
     plt.savefig(dataFolder+"test_sviDensityVogt.png")
     plt.close()
 
+def test_GenVogtButterflyArbitrage():
+    # sviParams = (-0.0410,0.1331,0.4153,0.3060,0.3586) # Vogt original params
+    for p in [7,8,9,15,20,40]: # produce negative density!
+        sviParams = GenVogtButterflyArbitrage(penalty=(p,1,1))
+        k = np.arange(-1.5,1.5,1e-3)
+        w = svi(*sviParams)(k)
+        d = sviDensityFactor(*sviParams)(k)
+
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(k, w, 'k')
+        plt.title("SVI Parametrization")
+        plt.xlabel("log-strike")
+        plt.ylabel("total implied var")
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_sviVogt_p={p}-1-1.png")
+        plt.close()
+
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(k, d, 'k')
+        plt.title("SVI Density Factor")
+        plt.xlabel("log-strike")
+        plt.ylabel("density factor $g(k)$")
+        plt.grid()
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_sviDensityVogt_p={p}-1-1.png")
+        plt.close()
+
 def test_FitSimpleSVI():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -2494,9 +2521,10 @@ if __name__ == '__main__':
     # test_svi()
     # test_sviCross()
     # test_sviArb()
+    test_GenVogtButterflyArbitrage()
     # test_FitSimpleSVI()
     # test_FitArbFreeSimpleSVI()
-    test_PlotArbFreeSimpleSVI()
+    # test_PlotArbFreeSimpleSVI()
     # test_FitSqrtSVI()
     # test_FitSurfaceSVI()
     # test_FitExtendedSurfaceSVI()

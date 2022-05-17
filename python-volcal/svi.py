@@ -248,6 +248,21 @@ def ButterflyArbLoss(params):
     loss = -min(opt.fun, 0)
     return loss
 
+def GenVogtButterflyArbitrage(params0=(0,0.1,0.4,0.3,0.3), penalty=(8,1,1)):
+    # Generate SVI params that gives butterfly arbitrage
+    # Vogt smile: (-0.0410,0.1331,0.4153,0.3060,0.3586)
+    k = np.arange(-1.5,1.5,1e-4)
+    def objective(params):
+        gk = sviDensityFactor(*params)(k)
+        loss1 = penalty[0]*min(gk) # negative density
+        loss2 = penalty[1]*sum(abs(gk[1:]-gk[:-1])) # smoothness
+        loss3 = penalty[2]*sum((params-params0)**2) # deviation from params0
+        print(f"params: {params} loss1: {loss1} loss2: {loss2} loss3: {loss3}")
+        return loss1+loss2+loss3
+    bounds = ((-10,10),(0,10),(0,10),(-0.99,0.99),(-10,10))
+    opt = minimize(objective, x0=params0, bounds=bounds)
+    return opt.x
+
 #### Other Parametrizations ####################################################
 
 def sviToJw():
