@@ -1877,14 +1877,15 @@ def test_PlotArbFreeSimpleSVI():
     PlotImpliedVol(dfnew, dataFolder+"test_FitArbFreeSimpleSVI.png", ncol=7, strikeType="normalized-strike", atmBar=True, baBar=True, fitErr=True, plotVolErr=True)
 
 def test_FitSqrtSVI():
-    df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20170424.csv")
+    df = pd.read_csv("spxVols20191220.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
 
-    # fit = FitSqrtSVI(df)
-    # fit.to_csv(dataFolder+"fit_SqrtSVI.csv")
-    # print(fit)
+    fit = FitSqrtSVI(df)
+    fit.to_csv(dataFolder+"fit_SqrtSVI.csv")
+    print(fit)
 
-    fit = pd.read_csv(dataFolder+"fit_SqrtSVI.csv", index_col=0)
+    # fit = pd.read_csv(dataFolder+"fit_SqrtSVI.csv", index_col=0)
 
     Texp = df["Texp"].unique()
     dfnew = list()
@@ -1896,19 +1897,20 @@ def test_FitSqrtSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitSqrtSVI.png", ncol=7)
-    # PlotTotalVar(dfnew, dataFolder+"test_FitSqrtSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
+    PlotImpliedVol(dfnew, dataFolder+"test_FitSqrtSVI.png", ncol=8, atmBar=True, baBar=True, fitErr=True)
+    PlotTotalVar(dfnew, dataFolder+"test_FitSqrtSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
 
 def test_FitSurfaceSVI():
-    df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20170424.csv")
+    df = pd.read_csv("spxVols20191220.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
 
-    # fit = FitSurfaceSVI(df,skewKernel='PowerLaw')
-    # # fit = FitSurfaceSVI(df,skewKernel='Heston')
-    # fit.to_csv(dataFolder+"fit_SurfaceSVI.csv")
-    # print(fit)
+    fit = FitSurfaceSVI(df,skewKernel='PowerLaw')
+    # fit = FitSurfaceSVI(df,skewKernel='Heston')
+    fit.to_csv(dataFolder+"fit_SurfaceSVI.csv")
+    print(fit)
 
-    fit = pd.read_csv(dataFolder+"fit_SurfaceSVI.csv", index_col=0)
+    # fit = pd.read_csv(dataFolder+"fit_SurfaceSVI.csv", index_col=0)
 
     Texp = df["Texp"].unique()
     dfnew = list()
@@ -1920,11 +1922,12 @@ def test_FitSurfaceSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitSurfaceSVI.png", ncol=7)
-    # PlotTotalVar(dfnew, dataFolder+"test_FitSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
+    PlotImpliedVol(dfnew, dataFolder+"test_FitSurfaceSVI.png", ncol=8, atmBar=True, baBar=True, fitErr=True)
+    PlotTotalVar(dfnew, dataFolder+"test_FitSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
 
 def test_FitExtendedSurfaceSVI():
-    df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20170424.csv")
+    df = pd.read_csv("spxVols20191220.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
 
     fit = FitExtendedSurfaceSVI(df)
@@ -1943,7 +1946,7 @@ def test_FitExtendedSurfaceSVI():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
 
-    PlotImpliedVol(dfnew, dataFolder+"test_FitExtSurfaceSVI.png", ncol=7)
+    PlotImpliedVol(dfnew, dataFolder+"test_FitExtSurfaceSVI.png", ncol=8, atmBar=True, baBar=True, fitErr=True)
     PlotTotalVar(dfnew, dataFolder+"test_FitExtSurfaceSVIw.png", xlim=[-0.2,0.2], ylim=[0,0.004])
 
 def test_FitArbFreeSimpleSVIWithSqrtSeed():
@@ -2632,13 +2635,13 @@ if __name__ == '__main__':
     # test_FitSimpleSVI()
     # test_FitArbFreeSimpleSVI()
     # test_PlotArbFreeSimpleSVI()
-    # test_FitSqrtSVI()
-    # test_FitSurfaceSVI()
-    # test_FitExtendedSurfaceSVI()
+    test_FitSqrtSVI()
+    test_FitSurfaceSVI()
+    test_FitExtendedSurfaceSVI()
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
-    test_SVIVolSurface2019()
+    # test_SVIVolSurface2019()
     # test_sviParamsToJW()
     # test_jwParamsToSVI()
     # test_SVIAtmTermStructure()
