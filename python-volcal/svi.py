@@ -3,7 +3,7 @@ import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
-from scipy.optimize import minimize, minimize_scalar
+from scipy.optimize import minimize, minimize_scalar, differential_evolution
 from scipy.interpolate import InterpolatedUnivariateSpline, PchipInterpolator
 from pricer import *
 plt.switch_backend("Agg")
@@ -440,6 +440,7 @@ def FitSqrtSVI(df, sviGuess=None, Tcut=0.2):
         params0 = sviGuess
 
     opt = minimize(loss, x0=params0, bounds=((-0.99,0.99),(-10,10)))
+    # opt = differential_evolution(loss, bounds=((-0.99,0.99),(-10,10)))
 
     print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
 
@@ -497,7 +498,8 @@ def FitSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', Tcut=0.2):
         sviFunc = sviPowerLaw
         skFunc = lambda w0,eta,gam: eta/(w0**gam*(1+w0)**(1-gam))
         params0 = (-0.7, 1, 0.3) if sviGuess is None else sviGuess
-        bounds0 = ((-0.99, 0.99), (-10, 10), (0.01, 0.5))
+        # bounds0 = ((-0.99, 0.99), (-10, 10), (0.01, 0.5))
+        bounds0 = ((-0.99, 0.99), (-10, 10), (0.01, 1)) # modified: gam
     elif skewKernel == 'Heston':
         sviFunc = sviHeston
         skFunc = lambda w0,eta,lda: eta*(1-(1-np.exp(-lda*w0))/(lda*w0))/(lda*w0)
@@ -514,6 +516,7 @@ def FitSurfaceSVI(df, sviGuess=None, skewKernel='PowerLaw', Tcut=0.2):
             return sum(((sviVar-midVar)/sprdVar)**2)
 
     opt = minimize(loss, x0=params0, bounds=bounds0)
+    # opt = differential_evolution(loss, bounds=bounds0)
 
     print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
 
@@ -566,7 +569,8 @@ def FitExtendedSurfaceSVI(df, sviGuess=None, Tcut=0.2):
     skFunc = lambda w0,eta,gam: eta/(w0**gam*(1+w0)**(1-gam))
     rhoFunc = lambda w0,rho0,rho1,wmax,a: rho0-(rho0-rho1)*(w0/wmax)**a
     params0 = (1, 0.3, -0.7, -0.8, 2, 0.5) if sviGuess is None else sviGuess
-    bounds0 = ((-10, 10), (0.01, 0.5), (-0.99, 0.99), (-0.99, 0.99), (0.01, 10), (0, 10))
+    # bounds0 = ((-10, 10), (0.01, 0.5), (-0.99, 0.99), (-0.99, 0.99), (0.01, 10), (0, 10))
+    bounds0 = ((-10, 10), (0.01, 1), (-0.99, 0.99), (-0.99, 0.99), (0.01, 10), (0, 1)) # modified: gam,a
 
     def loss(params): # L2 loss
         sviVar = sviFunc(w0,*params)(k)/T0
@@ -578,6 +582,7 @@ def FitExtendedSurfaceSVI(df, sviGuess=None, Tcut=0.2):
             return sum(((sviVar-midVar)/sprdVar)**2)
 
     opt = minimize(loss, x0=params0, bounds=bounds0)
+    # opt = differential_evolution(loss, bounds=bounds0)
 
     print(f'loss={np.round(opt.fun,4)} fit={opt.x}')
 
