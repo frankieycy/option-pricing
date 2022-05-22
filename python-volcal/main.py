@@ -2528,7 +2528,8 @@ def test_DeAmericanizedOptionsChainDataset():
 
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
-    FitCarrPelts(df)
+    CP = FitCarrPelts(df)
+    print(CP)
 
 if __name__ == '__main__':
     #### Options Chain ####
