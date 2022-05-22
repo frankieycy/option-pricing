@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from time import time
 from numba import njit
 from scipy.stats import norm
-from scipy.optimize import minimize, bisect
+from scipy.optimize import bisect, minimize, differential_evolution
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from pricer import BlackScholesFormula
 plt.switch_backend("Agg")
@@ -104,8 +104,8 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
             for k in range(k0,k1+1):
                 zt0 = zgrid[k-1] # bounds for z+tauT
                 zt1 = zgrid[k]
-                jj = (j-1)*(j-1>=n)+j*(j-1<n)
-                kk = (k-1)*(k-1>=n)+k*(k-1<n)
+                jj = (j-1)*(j-1>=n)+j*(j-1<n) # anchor idx for z
+                kk = (k-1)*(k-1>=n)+k*(k-1<n) # anchor idx for z+tauT
                 a0,b0,g0,zjj = alpha[j-1],beta[j-1],gamma[j-1],zgrid[jj]
                 a1,b1,g1,zkk = alpha[k-1],beta[k-1],gamma[k-1],zgrid[kk]
                 roots = QuadraticRoots(1/(2*g1)-1/(2*g0),b1-b0+(tauT-zkk)/g1+zjj/g0,-X+a1-a0+b1*(tauT-zkk)+b0*zjj+(tauT-zkk)**2/(2*g1)-zjj**2/(2*g0))
@@ -133,11 +133,14 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     Dpos = ohm(zpos)
     Dneg = ohm(zneg)
     P = D*(F*Dpos-K*Dneg)
-    P = np.nan_to_num(P)
+    P = np.nan_to_num(P) # small gamma makes D blow up
     return P
 
-def FitCarrPelts(df, zgridParams=(-100,200,100)):
+def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None):
     # Fit Carr-Pelts parametrization
+    # Left-skewed distribution implied by positive beta and decreasing gamma
+    # zgrid boundaries correspond to +/- inf; gamma[-1] is dummy (we chose z1~100>z)
+    # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
     Texp = df["Texp"].unique()
@@ -149,23 +152,34 @@ def FitCarrPelts(df, zgridParams=(-100,200,100)):
     ask = df["Ask"].to_numpy()
     midVar = (bid**2+ask**2)/2
 
-    w0 = np.zeros(Nexp)
-    T0 = df["Texp"].to_numpy()
+    #### Init params & bounds
+    if guessCP is None:
+        w0 = np.zeros(Nexp)
+        T0 = df["Texp"].to_numpy()
 
-    for j,T in enumerate(Texp):
-        i = (T0==T)
-        kT = k[i]
-        vT = midVar[i]
-        ntm = (kT>-0.05)&(kT<0.05)
-        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
-        w0[j] = spline(0).item()*T # ATM total variance
+        for j,T in enumerate(Texp):
+            i = (T0==T)
+            kT = k[i]
+            vT = midVar[i]
+            ntm = (kT>-0.05)&(kT<0.05)
+            spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+            w0[j] = spline(0).item()*T # ATM total variance
 
-    zgrid = np.arange(*zgridParams)
-    N = len(zgrid)
+        zgrid = np.arange(*zgridCfg)
+        N = len(zgrid)
 
-    sig0 = np.sqrt(w0/Texp)
-    alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(len(zgrid))
+        sig0 = np.sqrt(w0/Texp)
+        # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
+        alpha0, beta0, gamma0 = 1, 1, np.linspace(*gamma0Cfg,N) # Left-skewed
 
+        params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
+
+    else:
+        params0 = guessCP
+
+    bounds0 = [[-2,2],[-2,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
+
+    #### Loss function
     K = df['Strike']
     T = df['Texp']
     D = df['PV']
@@ -198,12 +212,11 @@ def FitCarrPelts(df, zgridParams=(-100,200,100)):
 
         return L
 
-    params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
-    bounds0 = [[-2,2],[-2,2]]+[[0.01,2]]*N+[[0.01,0.5]]*Nexp
+    # loss(params0) # Basic test!
 
-    # loss(params0)
-
-    opt = minimize(loss, x0=params0, bounds=bounds0)
+    #### Optimization
+    # opt = minimize(loss, x0=params0, bounds=bounds0)
+    opt = differential_evolution(loss, bounds=bounds0)
 
     alpha = opt.x[0]
     beta  = opt.x[1]
