@@ -13,6 +13,17 @@ plt.switch_backend("Agg")
 #### Carr-Pelts ################################################################
 # Parametrize surface with two functions (tau & h) along time/strike dimension
 
+def QuadraticRoots(a, b, c):
+    if a == 0:
+        return -c/b, -c/b
+    D = b**2-4*a*c
+    if D >= 0:
+        r0 = -b/(2*a)
+        r1 = np.sqrt(D)/(2*a)
+        return r0-r1, r0+r1
+    else:
+        return np.nan, np.nan
+
 def tauFunc(sig, Tgrid):
     # Piecewise-constant total implied vol
     # sig, Tgrid are vectors of size m
@@ -69,7 +80,7 @@ def ohmFunc(alpha, beta, gamma, zgrid):
         return ohm0[j] + np.sqrt(2*np.pi*gamma[j]) * np.exp(gamma[j]*beta[j]**2/2-alpha[j]) * (norm.cdf((z-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]) - norm.cdf((zgrid[j]-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]))
     return np.vectorize(ohm)
 
-def znegCalc(X, tauT, h, zgrid, method='Bisection'):
+def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisection'):
     # Compute zneg from X = h(z+tauT)-h(z)
     # Make this fast!
     zneg = np.nan
@@ -80,16 +91,41 @@ def znegCalc(X, tauT, h, zgrid, method='Bisection'):
         try: zneg = bisect(objective,z0,z1) # very slow!
         except Exception: pass
     elif method == 'Loop':
-        pass
+        N = len(zgrid)
+        n = (N-1)//2
+        jloop = True
+        for j in range(1,N):
+            z0 = zgrid[j-1] # bounds for z
+            z1 = zgrid[j]
+            k0 = np.argmax(zgrid>z0+tauT)
+            k1 = np.argmax(zgrid>z1+tauT)
+            kloop = True
+            for k in range(k0,k1+1):
+                zt0 = zgrid[k-1] # bounds for z+tauT
+                zt1 = zgrid[k]
+                jj = (j-1)*(j-1>=n)+j*(j-1<n)
+                kk = (k-1)*(k-1>=n)+k*(k-1<n)
+                a0,b0,g0,zjj = alpha[j-1],beta[j-1],gamma[j-1],zgrid[jj]
+                a1,b1,g1,zkk = alpha[k-1],beta[k-1],gamma[k-1],zgrid[kk]
+                roots = QuadraticRoots(1/(2*g1)-1/(2*g0),b1-b0+(tauT-zkk)/g1+zjj/g0,-X+a1-a0+b1*(tauT-zkk)+b0*zjj+(tauT-zkk)**2/(2*g1)-zjj**2/(2*g0))
+                # print(tauT,z0,z1,zt0,zt1,zjj,zkk,roots)
+                for z in roots:
+                    if (z >= z0 and z <= z1) and (z+tauT >= zt0 and z+tauT <= zt1):
+                        zneg = z
+                        jloop = False
+                        kloop = False
+                        break
+                if not kloop: break
+            if not jloop: break
     return zneg
 
-znegCalc = np.vectorize(znegCalc, excluded=(2,3))
+znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method'))
 
-def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid):
+def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     # Compute Carr-Pelts price (via their BS-like formula)
     X = np.log(F/K)
     tauT = tau(T)
-    zneg = znegCalc(X,tauT,h,zgrid)
+    zneg = znegCalc(X,tauT,h,zgrid,**kwargs)
     zpos = zneg+tauT
     Dpos = ohm(zpos)
     Dneg = ohm(zneg)
@@ -149,7 +185,9 @@ def FitCarrPelts(df):
         h = hFunc(alpha,beta,gamma,zgrid)
         ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
-        P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid) # most costly!
+        P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+            alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+        # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
         L = sum(w*(P-C)**2)
 
         print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}\n  loss={L}')
