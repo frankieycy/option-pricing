@@ -8,6 +8,7 @@ from pricer import *
 from params import *
 from svi import *
 from american import *
+from ecp import *
 plt.switch_backend("Agg")
 
 dataFolder = "test/"
@@ -2523,6 +2524,12 @@ def test_DeAmericanizedOptionsChainDataset():
     #     ivdf.to_csv(dataFolder+f'spyVols20220414_deam_r={r}.csv',index=False)
     #     PlotImpliedVol(pd.read_csv(dataFolder+f"spyVols20220414_deam_r={r}.csv").dropna(), dataFolder+f"test_SPYimpliedvol2022_deam_r={r}.png", ncol=7)
 
+#### Carr-Pelts ################################################################
+
+def test_FitCarrPelts():
+    df = pd.read_csv("spxVols20170424.csv")
+    FitCarrPelts(df)
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2635,9 +2642,9 @@ if __name__ == '__main__':
     # test_FitSimpleSVI()
     # test_FitArbFreeSimpleSVI()
     # test_PlotArbFreeSimpleSVI()
-    test_FitSqrtSVI()
-    test_FitSurfaceSVI()
-    test_FitExtendedSurfaceSVI()
+    # test_FitSqrtSVI()
+    # test_FitSurfaceSVI()
+    # test_FitExtendedSurfaceSVI()
     # test_FitArbFreeSimpleSVIWithSqrtSeed()
     # test_SVIVolSurface()
     # test_SVIVolSurface2005()
@@ -2655,3 +2662,5 @@ if __name__ == '__main__':
     # test_SPYAmOptionImpDivAndRate()
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
+    #### Carr-Pelts ####
+    test_FitCarrPelts()
