@@ -7,7 +7,7 @@ from numba import njit
 from scipy.stats import norm
 from scipy.optimize import bisect, minimize, differential_evolution
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
-from pricer import BlackScholesFormula
+from pricer import BlackScholesFormula, BlackScholesImpliedVol
 plt.switch_backend("Agg")
 
 #### Carr-Pelts ################################################################
@@ -136,6 +136,11 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     P = np.nan_to_num(P) # small gamma makes D blow up
     return P
 
+def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, method='Bisection', **kwargs):
+    P = CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs)
+    vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', method)
+    return vol
+
 def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None):
     # Fit Carr-Pelts parametrization
     # Left-skewed distribution implied by positive beta and decreasing gamma
@@ -177,14 +182,14 @@ def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None)
     else:
         params0 = guessCP
 
-    bounds0 = [[-2,2],[-2,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
+    bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
 
     #### Loss function
-    K = df['Strike']
-    T = df['Texp']
-    D = df['PV']
-    F = df['Fwd']
-    C = df['CallMid']
+    K = df['Strike'].to_numpy()
+    T = df['Texp'].to_numpy()
+    D = df['PV'].to_numpy()
+    F = df['Fwd'].to_numpy()
+    C = df['CallMid'].to_numpy()
 
     Cbid = D*BlackScholesFormula(F,K,T,0,bid,'call')
     Cask = D*BlackScholesFormula(F,K,T,0,ask,'call')
@@ -192,9 +197,9 @@ def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None)
 
     def loss(params):
         alpha = params[0]
-        beta = params[1]
+        beta  = params[1]
         gamma = params[2:2+N]
-        sig = params[2+N:]
+        sig   = params[2+N:]
 
         print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
 
@@ -212,12 +217,15 @@ def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None)
 
         return L
 
-    # loss(params0) # Basic test!
+    #### Basic test!
+    # loss(params0)
+    # return params0
 
     #### Optimization
-    # opt = minimize(loss, x0=params0, bounds=bounds0)
-    opt = differential_evolution(loss, bounds=bounds0)
+    opt = minimize(loss, x0=params0, bounds=bounds0)
+    # opt = differential_evolution(loss, bounds=bounds0)
 
+    #### Output
     alpha = opt.x[0]
     beta  = opt.x[1]
     gamma = opt.x[2:2+N]
@@ -227,7 +235,7 @@ def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None)
 
     CP = {
         'zgrid': zgrid,
-        'Tgrid': Tgrid,
+        'Tgrid': Texp,
         'alpha': alpha,
         'beta':  beta,
         'gamma': gamma,

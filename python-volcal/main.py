@@ -2531,6 +2531,45 @@ def test_FitCarrPelts():
     CP = FitCarrPelts(df)
     print(CP)
 
+def test_CarrPeltsImpliedVol():
+    # DEBUG: check function constructions hParams/tauFunc/hFunc/ohmFunc... seem wrong
+    df = pd.read_csv("spxVols20170424.csv")
+
+    K = df['Strike'].to_numpy()
+    T = df['Texp'].to_numpy()
+    D = df['PV'].to_numpy()
+    F = df['Fwd'].to_numpy()
+
+    Texp = df['Texp'].unique()
+    Nexp = len(Texp)
+
+    zcfg = (-100,200,100)
+    CP = FitCarrPelts(df,zcfg)
+
+    zgrid = np.arange(*zcfg)
+    N = len(zgrid)
+
+    # alpha = CP[0]
+    # beta  = CP[1]
+    # gamma = CP[2:2+N]
+    # sig   = CP[2+N:]
+
+    alpha = 1
+    beta = 0
+    gamma = np.ones(N)
+    sig = np.repeat(0.2,Nexp)
+
+    alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+    tau = tauFunc(sig,Texp)
+    h = hFunc(alpha,beta,gamma,zgrid)
+    ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+    iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
+    df['Fit'] = iv
+
+    PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2664,4 +2703,5 @@ if __name__ == '__main__':
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
-    test_FitCarrPelts()
+    # test_FitCarrPelts()
+    test_CarrPeltsImpliedVol()
