@@ -15,14 +15,14 @@ plt.switch_backend("Agg")
 
 def QuadraticRoots(a, b, c):
     if a == 0:
-        return -c/b, -c/b
+        return (-c/b, -c/b)
     D = b**2-4*a*c
     if D >= 0:
         r0 = -b/(2*a)
         r1 = np.sqrt(D)/(2*a)
-        return r0-r1, r0+r1
+        return (r0-r1, r0+r1)
     else:
-        return np.nan, np.nan
+        return (np.nan, np.nan)
 
 def tauFunc(sig, Tgrid):
     # Piecewise-constant total implied vol
@@ -99,6 +99,7 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
             z1 = zgrid[j]
             k0 = np.argmax(zgrid>z0+tauT)
             k1 = np.argmax(zgrid>z1+tauT)
+            if k1 < k0: k1 = k0
             kloop = True
             for k in range(k0,k1+1):
                 zt0 = zgrid[k-1] # bounds for z+tauT
@@ -108,7 +109,7 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
                 a0,b0,g0,zjj = alpha[j-1],beta[j-1],gamma[j-1],zgrid[jj]
                 a1,b1,g1,zkk = alpha[k-1],beta[k-1],gamma[k-1],zgrid[kk]
                 roots = QuadraticRoots(1/(2*g1)-1/(2*g0),b1-b0+(tauT-zkk)/g1+zjj/g0,-X+a1-a0+b1*(tauT-zkk)+b0*zjj+(tauT-zkk)**2/(2*g1)-zjj**2/(2*g0))
-                # print(tauT,z0,z1,zt0,zt1,zjj,zkk,roots)
+                # print(tauT,X,'|',j,z0,z1,zjj,'|',k,zt0,zt1,zkk,'|',roots)
                 for z in roots:
                     if (z >= z0 and z <= z1) and (z+tauT >= zt0 and z+tauT <= zt1):
                         zneg = z
@@ -126,13 +127,16 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     X = np.log(F/K)
     tauT = tau(T)
     zneg = znegCalc(X,tauT,h,zgrid,**kwargs)
+    # print(sum(np.isnan(zneg)))
+    # print(zneg[:200])
     zpos = zneg+tauT
     Dpos = ohm(zpos)
     Dneg = ohm(zneg)
     P = D*(F*Dpos-K*Dneg)
+    P = np.nan_to_num(P)
     return P
 
-def FitCarrPelts(df):
+def FitCarrPelts(df, zgridParams=(-100,200,100)):
     # Fit Carr-Pelts parametrization
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
@@ -156,7 +160,7 @@ def FitCarrPelts(df):
         spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
         w0[j] = spline(0).item()*T # ATM total variance
 
-    zgrid = np.arange(-100,110,10)
+    zgrid = np.arange(*zgridParams)
     N = len(zgrid)
 
     sig0 = np.sqrt(w0/Texp)
@@ -172,13 +176,13 @@ def FitCarrPelts(df):
     Cask = D*BlackScholesFormula(F,K,T,0,ask,'call')
     w = 1/(Cask-Cbid)
 
-    np.set_printoptions(precision=4, suppress=True, linewidth=80)
-
     def loss(params):
         alpha = params[0]
         beta = params[1]
         gamma = params[2:2+N]
         sig = params[2+N:]
+
+        print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
 
         tau = tauFunc(sig,Texp)
         alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
@@ -190,15 +194,34 @@ def FitCarrPelts(df):
         # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
         L = sum(w*(P-C)**2)
 
-        print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}\n  loss={L}')
+        print(f'  loss={L}')
 
         return L
 
     params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
-    bounds0 = [[-10,10],[-10,10]]+[[-10,10]]*N+[[0,1]]*Nexp
+    bounds0 = [[-2,2],[-2,2]]+[[0.01,2]]*N+[[0.01,0.5]]*Nexp
+
+    # loss(params0)
 
     opt = minimize(loss, x0=params0, bounds=bounds0)
-    print(opt.x)
+
+    alpha = opt.x[0]
+    beta  = opt.x[1]
+    gamma = opt.x[2:2+N]
+    sig   = opt.x[2+N:]
+
+    alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+    CP = {
+        'zgrid': zgrid,
+        'Tgrid': Tgrid,
+        'alpha': alpha,
+        'beta':  beta,
+        'gamma': gamma,
+        'sig':   sig,
+    }
+
+    return CP
 
 #### Ensemble Carr-Pelts #######################################################
 
