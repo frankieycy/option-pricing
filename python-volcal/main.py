@@ -2543,8 +2543,8 @@ def test_CarrPeltsImpliedVol():
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
 
-    zcfg = (-100,200,100)
-    CP = FitCarrPelts(df,zcfg)
+    zcfg = (-100,120,20)
+    # CP = FitCarrPelts(df,zcfg)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
@@ -2555,9 +2555,9 @@ def test_CarrPeltsImpliedVol():
     # sig   = CP[2+N:]
 
     alpha = 1
-    beta = 0
-    gamma = np.ones(N)
-    sig = np.repeat(0.2,Nexp)
+    beta = 1
+    gamma = np.linspace(2,0.5,N)
+    sig = np.linspace(0.10,0.30,Nexp)
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
