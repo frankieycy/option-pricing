@@ -27,7 +27,7 @@ def QuadraticRoots(a, b, c):
 def tauFunc(sig, Tgrid):
     # Piecewise-constant total implied vol
     # sig, Tgrid are vectors of size m
-    w = sig**2*np.diff(Tgrid,prepend=0)
+    w = np.cumsum(sig**2*np.diff(Tgrid,prepend=0))
     w0 = np.concatenate(([0],w))
     T0 = np.concatenate(([0],Tgrid))
     wFunc = interp1d(T0,w0) # linear
