@@ -2529,6 +2529,7 @@ def test_DeAmericanizedOptionsChainDataset():
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
     CP = FitCarrPelts(df,fixVol=True)
+    # CP = FitCarrPelts(df,fixVol=False)
     print(CP)
 
 def test_CarrPeltsImpliedVol():
@@ -2761,5 +2762,5 @@ if __name__ == '__main__':
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
-    # test_FitCarrPelts()
-    test_CarrPeltsImpliedVol()
+    test_FitCarrPelts()
+    # test_CarrPeltsImpliedVol()
