@@ -152,6 +152,7 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
 def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, methodIv='Bisection', **kwargs):
     P = CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs)
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
+    # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
 def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixVol=False):
@@ -202,7 +203,8 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
         params0 = guessCP
 
     if fixVol:
-        bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
+        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
+        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
     else:
         bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
 
@@ -278,8 +280,8 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
     # return params0
 
     #### Optimization
-    opt = minimize(loss, x0=params0, bounds=bounds0)
-    # opt = differential_evolution(loss, bounds=bounds0)
+    # opt = minimize(loss, x0=params0, bounds=bounds0)
+    opt = differential_evolution(loss, bounds=bounds0)
 
     print(opt)
 
