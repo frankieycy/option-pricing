@@ -213,12 +213,10 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
         params0 = np.array(guessCP)
 
     if fixVol: # Fix sig at ATM vols
-        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
         bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
     else:
         params0 = np.concatenate((params0,sig0))
-        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
-        bounds0 = [[0,2],[0,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
+        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
 
     # print(params0, bounds0)
 
@@ -343,7 +341,7 @@ def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
+def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, guessA=None, optMethod='Gradient'):
     # Fit ensemble Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
@@ -388,12 +386,15 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
         params0 = np.array(guessCP)
 
     if fixVol: # Fix sig at ATM vols
-        bounds0 = ([[0,2],[-2,2]]+[[0.01,5]]*N)*n
+        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n
     else:
         params0 = np.concatenate([params0,np.tile(sig0,n)])
-        bounds0 = ([[0,2],[-2,2]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n # Ad-hoc!
+        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n # Ad-hoc!
 
-    params0 = np.concatenate((params0,[0.5]*n))
+    if guessA is None:
+        params0 = np.concatenate((params0,[1]*n))
+    else:
+        params0 = np.concatenate((params0,guessA))
     bounds0 += [[0,1]]*n
 
     # print(params0, bounds0)
@@ -507,9 +508,9 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
     }
 
     for k in range(n):
-        alpha = params[(2+N)*k]
-        beta  = params[(2+N)*k+1]
-        gamma = params[(2+N)*k+2:(2+N)*k+2+N]
+        alpha = opt.x[(2+N)*k]
+        beta  = opt.x[(2+N)*k+1]
+        gamma = opt.x[(2+N)*k+2:(2+N)*k+2+N]
 
         alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
@@ -525,7 +526,7 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
             'sig':   sig,
         }
 
-    a = opt.x[(2+N+Nexp)*n:]
+    a = opt.x[(2+N+Nexp*(1-fixVol))*n:]
     a /= sum(a)
 
     CP['a'] = a
