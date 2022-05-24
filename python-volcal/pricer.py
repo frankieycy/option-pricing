@@ -1358,7 +1358,7 @@ def FitError(k, T, fit, bid, ask, errType="chi"):
     if err: err = np.round(100*err,2)
     return err
 
-def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", atmBar=False, baBar=False, fitErr=False, plotVolErr=False, xlim=None, ylim=None):
+def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", scatterFit=False, atmBar=False, baBar=False, fitErr=False, plotVolErr=False, xlim=None, ylim=None):
     # Plot bid-ask implied volatilities based on df
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
     if not figname:
@@ -1430,8 +1430,10 @@ def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", atmBar=Fal
                     ax_idx.axhline(y=0,c='grey',ls='--',lw=1)
                     ax_idx.set_ylabel("vol error (%)")
                 else:
-                    # ax_idx.scatter(k[i],fit[i],c='k',s=2)
-                    ax_idx.plot(k[i],fit[i],'k',linewidth=1,zorder=999)
+                    if scatterFit:
+                        ax_idx.scatter(k[i],fit[i],c='k',s=0.5,zorder=999)
+                    else:
+                        ax_idx.plot(k[i],fit[i],'k',linewidth=1,zorder=999)
             if baBar:
                 ax_idx.errorbar(k,mid,sprd,marker='o',mec='g',ms=1,
                     ecolor='g',elinewidth=1,capsize=1,ls='none')

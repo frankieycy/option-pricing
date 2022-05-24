@@ -2533,6 +2533,9 @@ def test_FitCarrPelts():
 
 def test_CarrPeltsImpliedVol():
     # DEBUG: check function constructions hParams/tauFunc/hFunc/ohmFunc...
+    # implied vols are not smooth ATM and not available for some strikes
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+
     run = [1,2]
     df = pd.read_csv("spxVols20170424.csv")
 
@@ -2564,14 +2567,14 @@ def test_CarrPeltsImpliedVol():
     D = df['PV'].to_numpy()
     F = df['Fwd'].to_numpy()
 
-    zcfg = (-100,200,100)
+    zcfg = (-100,150,50)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
-    alpha = 1
-    beta  = 1
-    gamma = np.linspace(2,0.5,N)
+    alpha = 1.090291573184069
+    beta  = 1.791308824174645
+    gamma = np.array([0.31592291,0.87049605,0.0255345,0.0117086,3.83474242])
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
@@ -2586,12 +2589,13 @@ def test_CarrPeltsImpliedVol():
     ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
 
     if 1 in run:
-        iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
+        iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid,
+            alpha=alpha, beta=beta, gamma=gamma, method='Loop')
         df['Fit'] = iv
 
         print(df.head(20))
 
-        PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True)
+        PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", scatterFit=True, ncol=7, atmBar=True, baBar=True)
 
     if 2 in run:
         #### Plot tau/h/ohm
@@ -2604,7 +2608,7 @@ def test_CarrPeltsImpliedVol():
         # plt.savefig(dataFolder+f"test_CPfuncTau.png")
         # plt.close()
 
-        z = np.linspace(-40,40,200)
+        z = np.linspace(-80,80,200)
         fig = plt.figure(figsize=(6,4))
         plt.plot(z,h(z),'k')
         plt.plot(z,h0(z),'k--')
@@ -2757,5 +2761,5 @@ if __name__ == '__main__':
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
-    test_FitCarrPelts()
-    # test_CarrPeltsImpliedVol()
+    # test_FitCarrPelts()
+    test_CarrPeltsImpliedVol()
