@@ -48,9 +48,9 @@
     - ok, rHeston: poor man's approx
     - ok, rHeston: Pade approx
     - x, rHeston: Riccati solver
-* back out local vol from model/market IVS
+* ok, back out local vol from model/market IVS
     - ok, model IVS
-    - market IVS under SVI fit
+    - ok, market IVS under SVI fit
 * ok, SVI parametrization with no-arb constraints
 * pricing under execution costs
 * joint calibration with VIX derivs

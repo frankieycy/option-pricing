@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from time import time
 from numba import njit
-from scipy.stats import norm
+from statistics import NormalDist
 from scipy.optimize import bisect, minimize, differential_evolution
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from pricer import BlackScholesFormula, BlackScholesImpliedVol
@@ -37,6 +37,7 @@ def tauFunc(sig, Tgrid):
 
 @njit
 def hParams(alpha0, beta0, gamma0, zgrid):
+    # Recursively compute alpha/beta vector
     N = len(zgrid)
     n = (N-1)//2
     alpha = np.zeros(N)
@@ -45,11 +46,13 @@ def hParams(alpha0, beta0, gamma0, zgrid):
     alpha[n] = alpha[n-1] = alpha0
     beta[n] = beta[n-1] = beta0
     for j in range(n,N-1):
-        alpha[j+1] = alpha[j]+beta[j]*(zgrid[j+1]-zgrid[j])+(zgrid[j+1]-zgrid[j])**2/(2*gamma[j])
-        beta[j+1] = beta[j]+(zgrid[j+1]-zgrid[j])/gamma[j]
+        z0 = zgrid[j+1]-zgrid[j]
+        alpha[j+1] = alpha[j]+beta[j]*z0+z0**2/(2*gamma[j])
+        beta[j+1] = beta[j]+z0/gamma[j]
     for j in range(n-1,-1,-1):
-        alpha[j-1] = alpha[j]+beta[j]*(zgrid[j]-zgrid[j+1])+(zgrid[j]-zgrid[j+1])**2/(2*gamma[j])
-        beta[j-1] = beta[j]+(zgrid[j]-zgrid[j+1])/gamma[j]
+        z0 = zgrid[j]-zgrid[j+1]
+        alpha[j-1] = alpha[j]+beta[j]*z0+z0**2/(2*gamma[j])
+        beta[j-1] = beta[j]+z0/gamma[j]
     return alpha, beta, gamma
 
 def hFunc(alpha, beta, gamma, zgrid):
@@ -58,9 +61,11 @@ def hFunc(alpha, beta, gamma, zgrid):
     N = len(zgrid)
     n = (N-1)//2
     def h(z):
-        j = np.argmax(zgrid>z)-1
-        jj = j*(j>=n)+(j+1)*(j<n)
-        return alpha[j]+beta[j]*(z-zgrid[jj])+(z-zgrid[jj])**2/(2*gamma[j])
+        # j = np.argmax(zgrid>z)-1
+        j = np.searchsorted(zgrid,z,side='right')-1 # params idx
+        jj = j*(j>=n)+(j+1)*(j<n) # anchor
+        z0 = z-zgrid[jj]
+        return alpha[j]+beta[j]*z0+z0**2/(2*gamma[j])
     return np.vectorize(h)
 
 def ohmFunc(alpha, beta, gamma, zgrid):
@@ -69,20 +74,26 @@ def ohmFunc(alpha, beta, gamma, zgrid):
     N = len(zgrid)
     n = (N-1)//2
     ohm0 = np.zeros(N)
+    fac1 = np.sqrt(2*np.pi*gamma)
+    fac2 = np.exp(gamma*beta**2/2-alpha)
+    fac3 = np.sqrt(gamma)
+    fac4 = np.sqrt(gamma)*beta
+    cdf = NormalDist().cdf
     for j in range(N-1):
         jj = j*(j>=n)+(j+1)*(j<n)
-        ohm0[j+1] = ohm0[j] + np.sqrt(2*np.pi*gamma[j]) * np.exp(gamma[j]*beta[j]**2/2-alpha[j]) * (norm.cdf((zgrid[j+1]-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]) - norm.cdf((zgrid[j]-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]))
+        ohm0[j+1] = ohm0[j] + fac1[j] * fac2[j] * (cdf((zgrid[j+1]-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
     alpha += np.log(ohm0[-1])
     ohm0 /= ohm0[-1] # normalize
     def ohm(z):
-        j = np.argmax(zgrid>z)-1
-        jj = j*(j>=n)+(j+1)*(j<n)
-        return ohm0[j] + np.sqrt(2*np.pi*gamma[j]) * np.exp(gamma[j]*beta[j]**2/2-alpha[j]) * (norm.cdf((z-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]) - norm.cdf((zgrid[j]-zgrid[jj])/np.sqrt(gamma[j])+np.sqrt(gamma[j])*beta[j]))
+        # j = np.argmax(zgrid>z)-1
+        j = np.searchsorted(zgrid,z,side='right')-1 # params idx
+        jj = j*(j>=n)+(j+1)*(j<n) # anchor
+        return ohm0[j] + fac1[j] * fac2[j] * (cdf((z-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
     return np.vectorize(ohm)
 
 def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisection'):
     # Compute zneg from X = h(z+tauT)-h(z)
-    # Make this fast!
+    # TO-DO: Make this fast!
     zneg = np.nan
     if method == 'Bisection':
         def objective(z):
@@ -125,12 +136,12 @@ znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method')
 def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     # Compute Carr-Pelts price (via their BS-like formula)
     X = np.log(F/K)
-    tauT = tau(T)
-    zneg = znegCalc(X,tauT,h,zgrid,**kwargs)
+    tauT = tau(T) # 0.035s
+    zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # 0.135s
     # print(sum(np.isnan(zneg)))
     # print(zneg[:200])
     zpos = zneg+tauT
-    Dpos = ohm(zpos)
+    Dpos = ohm(zpos) # 0.070s
     Dneg = ohm(zneg)
     P = D*(F*Dpos-K*Dneg)
     P = np.nan_to_num(P) # small gamma makes D blow up
@@ -141,11 +152,12 @@ def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, method='Bisection', **kw
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', method)
     return vol
 
-def FitCarrPelts(df, zgridCfg=(-100,200,100), gamma0Cfg=(1.5,0.5), guessCP=None):
+def FitCarrPelts(df, zgridCfg=(-100,110,10), gamma0Cfg=(1.5,0.5), guessCP=None):
     # Fit Carr-Pelts parametrization
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # zgrid boundaries correspond to +/- inf; gamma[-1] is dummy (we chose z1~100>z)
     # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
+    # TO-DO: (1) fix vol & optmize only h (2) calibrate to imp vol
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
     Texp = df["Texp"].unique()
