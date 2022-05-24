@@ -2643,6 +2643,23 @@ def test_CarrPeltsImpliedVol():
         plt.savefig(dataFolder+f"test_CPfuncOhm.png")
         plt.close()
 
+def test_FitEnsembleCarrPelts():
+    df = pd.read_csv("spxVols20170424.csv")
+    # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+
+    # guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
+    #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243]
+    # guessA  = [0.24546622,  0.75453378]
+    # CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP,guessA=guessA)
+
+    guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
+               1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
+               1.00000000,  0.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000]
+    guessA  = [0.24546622,  0.75453378,  0]
+    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
+
+    print(CP)
+
 def test_EnsembleCarrPeltsImpliedVol():
     np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
 
@@ -2671,9 +2688,9 @@ def test_EnsembleCarrPeltsImpliedVol():
 
     #### alpha/beta/gamma
     # Surface 1
-    alpha0 = 1.09043105
-    beta0  = 1.79142401
-    gamma0 = np.array([0.31592291,0.86579468,0.02561319,0.0117086,1.5])
+    alpha0 = 1.0876363
+    beta0  = 0.11901932
+    gamma0 = np.array([0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243])
 
     alpha0, beta0, gamma0 = hParams(alpha0,beta0,gamma0,zgrid)
 
@@ -2682,9 +2699,9 @@ def test_EnsembleCarrPeltsImpliedVol():
     ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
 
     # Surface 2
-    alpha1 = 1.09043105
-    beta1  = -1.79142401
-    gamma1 = np.array([0.0117086,0.02561319,0.86579468,0.31592291,1.5])
+    alpha1 = 1.49959243
+    beta1  = -2.88409317
+    gamma1 = np.array([0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243])
 
     alpha1, beta1, gamma1 = hParams(alpha1,beta1,gamma1,zgrid)
 
@@ -2692,7 +2709,7 @@ def test_EnsembleCarrPeltsImpliedVol():
     h1   = hFunc(alpha1,beta1,gamma1,zgrid)
     ohm1 = ohmFunc(alpha1,beta1,gamma1,zgrid)
 
-    a0 = 0.5
+    a0 = 0.24546622
     a = [a0,1-a0]
 
     tau_vec = [tau0,tau1]
@@ -2710,16 +2727,6 @@ def test_EnsembleCarrPeltsImpliedVol():
     print(df.head(20))
 
     PlotImpliedVol(df, dataFolder+"test_ECPImpliedVol.png", scatterFit=True, ncol=7, atmBar=True, baBar=True)
-
-def test_FitEnsembleCarrPelts():
-    df = pd.read_csv("spxVols20170424.csv")
-    # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
-
-    guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5,
-               1.09043105,-1.79142401,0.0117086,0.02561319,0.86579468,0.31592291,1.5]
-    CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP)
-
-    print(CP)
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2856,5 +2863,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    # test_EnsembleCarrPeltsImpliedVol()
     test_FitEnsembleCarrPelts()
+    # test_EnsembleCarrPeltsImpliedVol()
