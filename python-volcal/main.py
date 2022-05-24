@@ -2654,8 +2654,8 @@ def test_FitEnsembleCarrPelts():
 
     guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
                1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-               1.00000000,  0.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000]
-    guessA  = [0.24546622,  0.75453378,  0]
+               1.00000000, -0.50000000,  0.30000000,  2.00000000,  0.40000000,  0.01000000,  1.50000000]
+    guessA  = [0.30000000,  0.30000000,  0.40000000]
     CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
 
     print(CP)
@@ -2709,16 +2709,30 @@ def test_EnsembleCarrPeltsImpliedVol():
     h1   = hFunc(alpha1,beta1,gamma1,zgrid)
     ohm1 = ohmFunc(alpha1,beta1,gamma1,zgrid)
 
-    a0 = 0.24546622
-    a = [a0,1-a0]
+    # Surface 3
+    alpha2 = 1
+    beta2  = -0.5
+    gamma2 = np.array([0.3,  2,  0.4,  0.01,  1.5])
 
-    tau_vec = [tau0,tau1]
-    h_vec   = [h0,h1]
-    ohm_vec = [ohm0,ohm1]
+    alpha2, beta2, gamma2 = hParams(alpha2,beta2,gamma2,zgrid)
+
+    tau2 = tauFunc(sig0,Texp)
+    h2   = hFunc(alpha2,beta2,gamma2,zgrid)
+    ohm2 = ohmFunc(alpha2,beta2,gamma2,zgrid)
+
+    a0 = 0.3
+    a1 = 0.3
+    a2 = 0.4
+    a = [a0,a1,a2]
+
+    tau_vec = [tau0,tau1,tau2]
+    h_vec   = [h0,h1,h2]
+    ohm_vec = [ohm0,ohm1,ohm2]
 
     kwargs = (
         {'alpha': alpha0, 'beta': beta0, 'gamma': gamma0, 'method': 'Loop'},
         {'alpha': alpha1, 'beta': beta1, 'gamma': gamma1, 'method': 'Loop'},
+        {'alpha': alpha2, 'beta': beta2, 'gamma': gamma2, 'method': 'Loop'},
     )
 
     iv = EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, kwargs=kwargs)
