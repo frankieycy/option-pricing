@@ -2531,7 +2531,7 @@ def test_FitCarrPelts():
     # CP = FitCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
 
     # guessCP = CP['opt.x']
-    guessCP = [1.090291573184069,1.791308824174645,0.31592291,0.87049605,0.0255345,0.0117086,3.83474242] # loss~120
+    guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5] # loss~120
     CP = FitCarrPelts(df,fixVol=False,guessCP=guessCP) # Calibrate sig (polish!)
 
     print(CP)
@@ -2547,39 +2547,49 @@ def test_CarrPeltsImpliedVol():
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
 
-    w0 = np.zeros(Nexp)
-    T0 = df["Texp"].to_numpy()
+    # w0 = np.zeros(Nexp)
+    # T0 = df["Texp"].to_numpy()
+    #
+    # k = np.log(df["Strike"]/df["Fwd"])
+    # k = k.to_numpy()
+    # bid = df["Bid"].to_numpy()
+    # ask = df["Ask"].to_numpy()
+    # midVar = (bid**2+ask**2)/2
 
-    k = np.log(df["Strike"]/df["Fwd"])
-    k = k.to_numpy()
-    bid = df["Bid"].to_numpy()
-    ask = df["Ask"].to_numpy()
-    midVar = (bid**2+ask**2)/2
+    #### ATM vol
+    # for j,T in enumerate(Texp):
+    #     i = (T0==T)
+    #     kT = k[i]
+    #     vT = midVar[i]
+    #     ntm = (kT>-0.05)&(kT<0.05)
+    #     spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+    #     w0[j] = spline(0).item()*T # ATM total variance
 
-    for j,T in enumerate(Texp):
-        i = (T0==T)
-        kT = k[i]
-        vT = midVar[i]
-        ntm = (kT>-0.05)&(kT<0.05)
-        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
-        w0[j] = spline(0).item()*T # ATM total variance
-
-    sig0 = np.sqrt(w0/Texp)
+    # sig0 = np.sqrt(w0/Texp)
     # sig0 = np.repeat(0.2,Nexp)
+
+    sig0 = np.array([0.085551, 0.06899478, 0.08430794,
+       0.08296784, 0.07225215, 0.0739847 , 0.08986545, 0.04923874,
+       0.08886235, 0.11096293, 0.04916429, 0.07978778, 0.08382571,
+       0.07063071, 0.08712787, 0.09492285, 0.10087667, 0.11641034,
+       0.08904639, 0.09504792, 0.10752649, 0.10780065, 0.11797003,
+       0.13049167, 0.15830622, 0.13472059, 0.13664479, 0.16663575])
 
     K = df['Strike'].to_numpy()
     T = df['Texp'].to_numpy()
     D = df['PV'].to_numpy()
     F = df['Fwd'].to_numpy()
 
+    #### zgrid
     zcfg = (-100,150,50)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
-    alpha = 1.090291573184069
-    beta  = 1.791308824174645
-    gamma = np.array([0.31592291,0.87049605,0.0255345,0.0117086,3.83474242])
+    #### alpha/beta/gamma
+    alpha = 1.09043105
+    beta  = 1.79142401
+    gamma = np.array([0.31592291,0.86579468,0.02561319,0.0117086,1.5])
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
@@ -2604,14 +2614,14 @@ def test_CarrPeltsImpliedVol():
 
     if 2 in run:
         #### Plot tau/h/ohm
-        # T = np.linspace(0,2,200)
-        # fig = plt.figure(figsize=(6,4))
-        # plt.plot(T,tau(T),'k')
-        # plt.xlabel('$T$')
-        # plt.ylabel(r'$\tau$')
-        # fig.tight_layout()
-        # plt.savefig(dataFolder+f"test_CPfuncTau.png")
-        # plt.close()
+        T = np.linspace(0,2,200)
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(T,tau(T),'k')
+        plt.xlabel('$T$')
+        plt.ylabel(r'$\tau$')
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_CPfuncTau.png")
+        plt.close()
 
         z = np.linspace(-80,80,200)
         fig = plt.figure(figsize=(6,4))
@@ -2632,6 +2642,74 @@ def test_CarrPeltsImpliedVol():
         fig.tight_layout()
         plt.savefig(dataFolder+f"test_CPfuncOhm.png")
         plt.close()
+
+def test_EnsembleCarrPeltsImpliedVol():
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+
+    df = pd.read_csv("spxVols20170424.csv")
+
+    Texp = df['Texp'].unique()
+    Nexp = len(Texp)
+
+    sig0 = np.array([0.085551, 0.06899478, 0.08430794,
+       0.08296784, 0.07225215, 0.0739847 , 0.08986545, 0.04923874,
+       0.08886235, 0.11096293, 0.04916429, 0.07978778, 0.08382571,
+       0.07063071, 0.08712787, 0.09492285, 0.10087667, 0.11641034,
+       0.08904639, 0.09504792, 0.10752649, 0.10780065, 0.11797003,
+       0.13049167, 0.15830622, 0.13472059, 0.13664479, 0.16663575])
+
+    K = df['Strike'].to_numpy()
+    T = df['Texp'].to_numpy()
+    D = df['PV'].to_numpy()
+    F = df['Fwd'].to_numpy()
+
+    #### zgrid
+    zcfg = (-100,150,50)
+
+    zgrid = np.arange(*zcfg)
+    N = len(zgrid)
+
+    #### alpha/beta/gamma
+    # Surface 1
+    alpha0 = 1.09043105
+    beta0  = 1.79142401
+    gamma0 = np.array([0.31592291,0.86579468,0.02561319,0.0117086,1.5])
+
+    alpha0, beta0, gamma0 = hParams(alpha0,beta0,gamma0,zgrid)
+
+    tau0 = tauFunc(sig0,Texp)
+    h0   = hFunc(alpha0,beta0,gamma0,zgrid)
+    ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
+
+    # Surface 2
+    alpha1 = 1.09043105
+    beta1  = -1.79142401
+    gamma1 = np.array([0.0117086,0.02561319,0.86579468,0.31592291,1.5])
+
+    alpha1, beta1, gamma1 = hParams(alpha1,beta1,gamma1,zgrid)
+
+    tau1 = tauFunc(sig0,Texp)
+    h1   = hFunc(alpha1,beta1,gamma1,zgrid)
+    ohm1 = ohmFunc(alpha1,beta1,gamma1,zgrid)
+
+    a0 = 0.5
+    a = [a0,1-a0]
+
+    tau_vec = [tau0,tau1]
+    h_vec   = [h0,h1]
+    ohm_vec = [ohm0,ohm1]
+
+    kwargs = (
+        {'alpha': alpha0, 'beta': beta0, 'gamma': gamma0, 'method': 'Loop'},
+        {'alpha': alpha1, 'beta': beta1, 'gamma': gamma1, 'method': 'Loop'},
+    )
+
+    iv = EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, kwargs=kwargs)
+    df['Fit'] = iv
+
+    print(df.head(20))
+
+    PlotImpliedVol(df, dataFolder+"test_ECPImpliedVol.png", scatterFit=True, ncol=7, atmBar=True, baBar=True)
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2766,5 +2844,6 @@ if __name__ == '__main__':
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
-    test_FitCarrPelts()
+    # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
+    test_EnsembleCarrPeltsImpliedVol()

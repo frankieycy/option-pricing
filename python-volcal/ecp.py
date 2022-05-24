@@ -158,7 +158,7 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
     Dpos = ohm(zpos) # 0.070s
     Dneg = ohm(zneg)
     P = D*(F*Dpos-K*Dneg)
-    P = np.nan_to_num(P) # small gamma makes D blow up
+    P = np.nan_to_num(P) # small gamma makes Dpos/neg blow up
     return P
 
 def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, methodIv='Bisection', **kwargs):
@@ -315,25 +315,175 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
 
 #### Ensemble Carr-Pelts #######################################################
 
-def EnsembleCarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
+def EnsembleCarrPeltsPrice(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None, tauT_vec=None, kwargs=None):
     # Compute ensemble Carr-Pelts price (via their BS-like formula)
+    # a = ensemble weights (assume sum to 1)
+    n = len(a)
+    P = 0
     if X is None:
         X = np.log(F/K)
-    if tauT is None:
-        tauT = tau(T) # 0.035s
-    zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # 0.135s
-    # print(sum(np.isnan(zneg)))
-    # print(zneg[:200])
-    zpos = zneg+tauT
-    Dpos = ohm(zpos) # 0.070s
-    Dneg = ohm(zneg)
-    P = D*(F*Dpos-K*Dneg)
-    P = np.nan_to_num(P) # small gamma makes D blow up
+    if tauT_vec is None:
+        tauT_vec = [tau(T) for tau in tau_vec]
+    if kwargs is None:
+        kwargs = ({} for i in range(n))
+    for i,par in enumerate(zip(tauT_vec,h_vec,ohm_vec,kwargs)):
+        tauT,h,ohm,kw = par
+        zneg = znegCalc(X,tauT,h,zgrid,**kw)
+        zpos = zneg+tauT
+        Dpos = ohm(zpos)
+        Dneg = ohm(zneg)
+        P += a[i]*D*(F*Dpos-K*Dneg)
+    P = np.nan_to_num(P) # small gamma makes Dpos/neg blow up
     return P
 
-def EnsembleCarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, methodIv='Bisection', **kwargs):
+def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None, tauT_vec=None, methodIv='Bisection', kwargs=None):
     # Compute ensemble Carr-Pelts price and invert to implied vol
-    P = EnsembleCarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X, tauT, **kwargs)
+    P = EnsembleCarrPeltsPrice(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X, tauT_vec, kwargs)
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
+
+def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
+    # Fit ensemble Carr-Pelts parametrization - require trial & error and artisanal knowledge!
+    # Left-skewed distribution implied by positive beta and decreasing gamma
+    # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
+    # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
+    df = df.dropna()
+    df = df[(df['Bid']>0)&(df['Ask']>0)]
+    Texp = df["Texp"].unique()
+    Nexp = len(Texp)
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    mid = (bid+ask)/2
+    midVar = (bid**2+ask**2)/2
+
+    w = 1/(ask-bid)
+
+    zgrid = np.arange(*zgridCfg)
+    N = len(zgrid)
+
+    #### ATM vol
+    w0 = np.zeros(Nexp)
+    T0 = df["Texp"].to_numpy()
+
+    for j,T in enumerate(Texp):
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[j] = spline(0).item()*T # ATM total variance
+
+    sig0 = np.sqrt(w0/Texp)
+
+    #### Init params & bounds
+    if guessCP is None:
+        # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
+        alpha0, beta0, gamma0 = 1, 0, np.linspace(*gamma0Cfg,N)
+        params0 = np.concatenate(([alpha0],[beta0],gamma0))
+    else: # User-defined (alpha0,beta0,gamma0)
+        params0 = np.array(guessCP)
+
+    if fixVol: # Fix sig at ATM vols
+        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
+        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
+    else:
+        params0 = np.concatenate((params0,sig0))
+        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
+        bounds0 = [[0.9,1.1],[1.5,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
+
+    # print(params0, bounds0)
+
+    #### Loss function
+    K = df['Strike'].to_numpy()
+    T = df['Texp'].to_numpy()
+    D = df['PV'].to_numpy()
+    F = df['Fwd'].to_numpy()
+    C = df['CallMid'].to_numpy()
+    X = np.log(F/K) # pre-compute
+
+    if fixVol:
+        tau = tauFunc(sig0,Texp)
+        tauT = tau(T) # pre-compute
+
+        def loss(params):
+            alpha = params[0]
+            beta  = params[1]
+            gamma = params[2:2+N]
+
+            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}')
+
+            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+            h   = hFunc(alpha,beta,gamma,zgrid)
+            ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X,tauT, # most costly!
+                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            L = sum(w*(iv-mid)**2)
+
+            print(f'  loss={L}')
+
+            return L
+
+    else:
+        def loss(params):
+            alpha = params[0]
+            beta  = params[1]
+            gamma = params[2:2+N]
+            sig   = params[2+N:]
+
+            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
+
+            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+            tau = tauFunc(sig,Texp)
+            h   = hFunc(alpha,beta,gamma,zgrid)
+            ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X, # most costly!
+                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            L = sum(w*(iv-mid)**2)
+
+            print(f'  loss={L}')
+
+            return L
+
+    #### Basic test!
+    # loss(params0)
+    # return params0
+
+    #### Optimization
+    if optMethod == 'Gradient':
+        opt = minimize(loss, x0=params0, bounds=bounds0)
+    elif optMethod == 'Evolution':
+        opt = differential_evolution(loss, bounds=bounds0)
+
+    print(opt)
+
+    #### Output
+    alpha = opt.x[0]
+    beta  = opt.x[1]
+    gamma = opt.x[2:2+N]
+
+    alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+    if fixVol:
+        sig = sig0
+    else:
+        sig = opt.x[2+N:]
+
+    CP = {
+        'zgrid': zgrid,
+        'Tgrid': Texp,
+        'alpha': alpha,
+        'beta':  beta,
+        'gamma': gamma,
+        'sig':   sig,
+        'opt.x': opt.x,
+    }
+
+    return CP
