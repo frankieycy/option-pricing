@@ -218,7 +218,7 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
     else:
         params0 = np.concatenate((params0,sig0))
         # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
-        bounds0 = [[0.9,1.1],[1.5,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
+        bounds0 = [[0,2],[0,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
 
     # print(params0, bounds0)
 
@@ -343,7 +343,7 @@ def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
+def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
     # Fit ensemble Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
@@ -380,20 +380,21 @@ def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=Fal
     sig0 = np.sqrt(w0/Texp)
 
     #### Init params & bounds
+    # Structure of params: (alpha, beta, gamma) * n + sig * n + a
     if guessCP is None:
-        # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
         alpha0, beta0, gamma0 = 1, 0, np.linspace(*gamma0Cfg,N)
-        params0 = np.concatenate(([alpha0],[beta0],gamma0))
+        params0 = np.concatenate([[alpha0],[beta0],gamma0]*n)
     else: # User-defined (alpha0,beta0,gamma0)
         params0 = np.array(guessCP)
 
     if fixVol: # Fix sig at ATM vols
-        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
-        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
+        bounds0 = ([[0,2],[-2,2]]+[[0.01,5]]*N)*n
     else:
-        params0 = np.concatenate((params0,sig0))
-        # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
-        bounds0 = [[0.9,1.1],[1.5,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
+        params0 = np.concatenate([params0,np.tile(sig0,n)])
+        bounds0 = ([[0,2],[-2,2]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n # Ad-hoc!
+
+    params0 = np.concatenate((params0,[0.5]*n))
+    bounds0 += [[0,1]]*n
 
     # print(params0, bounds0)
 
@@ -408,21 +409,38 @@ def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=Fal
     if fixVol:
         tau = tauFunc(sig0,Texp)
         tauT = tau(T) # pre-compute
+        tau_vec = [tau]*n
+        tauT_vec = [tauT]*n
 
         def loss(params):
-            alpha = params[0]
-            beta  = params[1]
-            gamma = params[2:2+N]
+            print(f'params:')
 
-            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}')
+            h_vec   = list()
+            ohm_vec = list()
+            kwargs  = list()
 
-            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+            for k in range(n):
+                alpha = params[(2+N)*k]
+                beta  = params[(2+N)*k+1]
+                gamma = params[(2+N)*k+2:(2+N)*k+2+N]
 
-            h   = hFunc(alpha,beta,gamma,zgrid)
-            ohm = ohmFunc(alpha,beta,gamma,zgrid)
+                print(f'  alpha{k}={alpha}\n  beta{k}={beta}\n  gamma{k}={gamma}')
 
-            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X,tauT, # most costly!
-                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+                alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+                h   = hFunc(alpha,beta,gamma,zgrid)
+                ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+                h_vec.append(h)
+                ohm_vec.append(ohm)
+                kwargs.append({'alpha': alpha, 'beta': beta, 'gamma': gamma, 'method': 'Loop'})
+
+            a = params[(2+N)*n:]
+            a /= sum(a) # normalize
+
+            print(f'  a={a}')
+
+            iv = EnsembleCarrPeltsImpliedVol(K,T,D,F,a,tau_vec,h_vec,ohm_vec,zgrid,X,tauT_vec,kwargs=kwargs) # most costly!
             L = sum(w*(iv-mid)**2)
 
             print(f'  loss={L}')
@@ -431,21 +449,38 @@ def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=Fal
 
     else:
         def loss(params):
-            alpha = params[0]
-            beta  = params[1]
-            gamma = params[2:2+N]
-            sig   = params[2+N:]
+            print(f'params:')
 
-            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
+            tau_vec = list()
+            h_vec   = list()
+            ohm_vec = list()
+            kwargs  = list()
 
-            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+            for k in range(n):
+                alpha = params[(2+N)*k]
+                beta  = params[(2+N)*k+1]
+                gamma = params[(2+N)*k+2:(2+N)*k+2+N]
+                sig   = params[(2+N)*n+Nexp*k:(2+N)*n+Nexp*k+Nexp]
 
-            tau = tauFunc(sig,Texp)
-            h   = hFunc(alpha,beta,gamma,zgrid)
-            ohm = ohmFunc(alpha,beta,gamma,zgrid)
+                print(f'  alpha{k}={alpha}\n  beta{k}={beta}\n  gamma{k}={gamma}\n  sig{k}={sig}')
 
-            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X, # most costly!
-                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+                alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+                tau = tauFunc(sig,Texp)
+                h   = hFunc(alpha,beta,gamma,zgrid)
+                ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+                tau_vec.append(tau)
+                h_vec.append(h)
+                ohm_vec.append(ohm)
+                kwargs.append({'alpha': alpha, 'beta': beta, 'gamma': gamma, 'method': 'Loop'})
+
+            a = params[(2+N+Nexp)*n:]
+            a /= sum(a)
+
+            print(f'  a={a}')
+
+            iv = EnsembleCarrPeltsImpliedVol(K,T,D,F,a,tau_vec,h_vec,ohm_vec,zgrid,X,kwargs=kwargs) # most costly!
             L = sum(w*(iv-mid)**2)
 
             print(f'  loss={L}')
@@ -465,25 +500,34 @@ def FitEnsembleCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=Fal
     print(opt)
 
     #### Output
-    alpha = opt.x[0]
-    beta  = opt.x[1]
-    gamma = opt.x[2:2+N]
-
-    alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
-
-    if fixVol:
-        sig = sig0
-    else:
-        sig = opt.x[2+N:]
-
     CP = {
         'zgrid': zgrid,
         'Tgrid': Texp,
-        'alpha': alpha,
-        'beta':  beta,
-        'gamma': gamma,
-        'sig':   sig,
         'opt.x': opt.x,
     }
+
+    for k in range(n):
+        alpha = params[(2+N)*k]
+        beta  = params[(2+N)*k+1]
+        gamma = params[(2+N)*k+2:(2+N)*k+2+N]
+
+        alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+        if fixVol:
+            sig = sig0
+        else:
+            sig = params[(2+N)*n+Nexp*k:(2+N)*n+Nexp*k+Nexp]
+
+        CP[k] = {
+            'alpha': alpha,
+            'beta':  beta,
+            'gamma': gamma,
+            'sig':   sig,
+        }
+
+    a = opt.x[(2+N+Nexp)*n:]
+    a /= sum(a)
+
+    CP['a'] = a
 
     return CP

@@ -2711,6 +2711,16 @@ def test_EnsembleCarrPeltsImpliedVol():
 
     PlotImpliedVol(df, dataFolder+"test_ECPImpliedVol.png", scatterFit=True, ncol=7, atmBar=True, baBar=True)
 
+def test_FitEnsembleCarrPelts():
+    df = pd.read_csv("spxVols20170424.csv")
+    # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+
+    guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5,
+               1.09043105,-1.79142401,0.0117086,0.02561319,0.86579468,0.31592291,1.5]
+    CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP)
+
+    print(CP)
+
 if __name__ == '__main__':
     #### Options Chain ####
     # test_GenerateYfinOptionsChainDataset()
@@ -2846,4 +2856,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    test_EnsembleCarrPeltsImpliedVol()
+    # test_EnsembleCarrPeltsImpliedVol()
+    test_FitEnsembleCarrPelts()
