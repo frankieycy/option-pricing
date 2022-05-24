@@ -2528,7 +2528,7 @@ def test_DeAmericanizedOptionsChainDataset():
 
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
-    CP = FitCarrPelts(df)
+    CP = FitCarrPelts(df,fixVol=True)
     print(CP)
 
 def test_CarrPeltsImpliedVol():
@@ -2602,7 +2602,7 @@ def test_CarrPeltsImpliedVol():
         # plt.savefig(dataFolder+f"test_CPfuncTau.png")
         # plt.close()
 
-        z = np.linspace(-20,20,200)
+        z = np.linspace(-40,40,200)
         fig = plt.figure(figsize=(6,4))
         plt.plot(z,h(z),'k')
         plt.plot(z,h0(z),'k--')

@@ -83,7 +83,9 @@ def ohmFunc(alpha, beta, gamma, zgrid):
         jj = j*(j>=n)+(j+1)*(j<n)
         ohm0[j+1] = ohm0[j] + fac1[j] * fac2[j] * (cdf((zgrid[j+1]-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
     alpha += np.log(ohm0[-1])
-    ohm0 /= ohm0[-1] # normalize
+    ohm0inf = ohm0[-1]
+    ohm0 /= ohm0inf # normalize
+    fac2 /= ohm0inf
     def ohm(z):
         # j = np.argmax(zgrid>z)-1
         j = np.searchsorted(zgrid,z,side='right')-1 # params idx
@@ -152,7 +154,7 @@ def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, method='Bisection', **kw
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', method)
     return vol
 
-def FitCarrPelts(df, zgridCfg=(-100,110,10), gamma0Cfg=(1.5,0.5), guessCP=None):
+def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, fixVol=False):
     # Fit Carr-Pelts parametrization
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # zgrid boundaries correspond to +/- inf; gamma[-1] is dummy (we chose z1~100>z)
@@ -189,12 +191,18 @@ def FitCarrPelts(df, zgridCfg=(-100,110,10), gamma0Cfg=(1.5,0.5), guessCP=None):
         # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
         alpha0, beta0, gamma0 = 1, 1, np.linspace(*gamma0Cfg,N) # Left-skewed
 
-        params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
+        if fixVol:
+            params0 = np.concatenate(([alpha0],[beta0],gamma0))
+        else:
+            params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
 
     else:
         params0 = guessCP
 
-    bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
+    if fixVol:
+        bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
+    else:
+        bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
 
     #### Loss function
     K = df['Strike'].to_numpy()
@@ -207,27 +215,53 @@ def FitCarrPelts(df, zgridCfg=(-100,110,10), gamma0Cfg=(1.5,0.5), guessCP=None):
     Cask = D*BlackScholesFormula(F,K,T,0,ask,'call')
     w = 1/(Cask-Cbid)
 
-    def loss(params):
-        alpha = params[0]
-        beta  = params[1]
-        gamma = params[2:2+N]
-        sig   = params[2+N:]
+    if fixVol:
+        tau = tauFunc(sig0,Texp)
 
-        print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
+        def loss(params):
+            alpha = params[0]
+            beta  = params[1]
+            gamma = params[2:2+N]
 
-        tau = tauFunc(sig,Texp)
-        alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
-        h = hFunc(alpha,beta,gamma,zgrid)
-        ohm = ohmFunc(alpha,beta,gamma,zgrid)
+            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}')
 
-        P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
-            alpha=alpha,beta=beta,gamma=gamma,method='Loop')
-        # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
-        L = sum(w*(P-C)**2)
+            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
-        print(f'  loss={L}')
+            h   = hFunc(alpha,beta,gamma,zgrid)
+            ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
-        return L
+            P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
+            L = sum(w*(P-C)**2)
+
+            print(f'  loss={L}')
+
+            return L
+
+    else:
+        def loss(params):
+            alpha = params[0]
+            beta  = params[1]
+            gamma = params[2:2+N]
+            sig   = params[2+N:]
+
+            print(f'params:\n  alpha={alpha}\n  beta={beta}\n  gamma={gamma}\n  sig={sig}')
+
+            alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+            tau = tauFunc(sig,Texp)
+            h   = hFunc(alpha,beta,gamma,zgrid)
+            ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+            P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+                alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
+            L = sum(w*(P-C)**2)
+
+            print(f'  loss={L}')
+
+            return L
 
     #### Basic test!
     # loss(params0)
@@ -241,9 +275,13 @@ def FitCarrPelts(df, zgridCfg=(-100,110,10), gamma0Cfg=(1.5,0.5), guessCP=None):
     alpha = opt.x[0]
     beta  = opt.x[1]
     gamma = opt.x[2:2+N]
-    sig   = opt.x[2+N:]
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+    if fixVol:
+        sig = sig0
+    else:
+        sig = opt.x[2+N:]
 
     CP = {
         'zgrid': zgrid,
