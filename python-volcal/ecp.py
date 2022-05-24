@@ -162,15 +162,16 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
     return P
 
 def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, methodIv='Bisection', **kwargs):
-    P = CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, tauT, **kwargs)
+    # Compute Carr-Pelts price and invert to implied vol
+    P = CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X, tauT, **kwargs)
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixVol=False):
+def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
     # Fit Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
-    # zgrid boundaries correspond to +/- inf; gamma[-1] is dummy (we chose z1~100>z)
+    # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
     # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
@@ -186,38 +187,36 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
 
     w = 1/(ask-bid)
 
+    zgrid = np.arange(*zgridCfg)
+    N = len(zgrid)
+
+    #### ATM vol
+    w0 = np.zeros(Nexp)
+    T0 = df["Texp"].to_numpy()
+
+    for j,T in enumerate(Texp):
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[j] = spline(0).item()*T # ATM total variance
+
+    sig0 = np.sqrt(w0/Texp)
+
     #### Init params & bounds
     if guessCP is None:
-        w0 = np.zeros(Nexp)
-        T0 = df["Texp"].to_numpy()
-
-        for j,T in enumerate(Texp):
-            i = (T0==T)
-            kT = k[i]
-            vT = midVar[i]
-            ntm = (kT>-0.05)&(kT<0.05)
-            spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
-            w0[j] = spline(0).item()*T # ATM total variance
-
-        zgrid = np.arange(*zgridCfg)
-        N = len(zgrid)
-
-        sig0 = np.sqrt(w0/Texp)
         # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
         alpha0, beta0, gamma0 = 1, 0, np.linspace(*gamma0Cfg,N)
+        params0 = np.concatenate(([alpha0],[beta0],gamma0))
+    else: # User-defined (alpha0,beta0,gamma0)
+        params0 = np.array(guessCP)
 
-        if fixVol:
-            params0 = np.concatenate(([alpha0],[beta0],gamma0))
-        else:
-            params0 = np.concatenate(([alpha0],[beta0],gamma0,sig0))
-
-    else:
-        params0 = guessCP
-
-    if fixVol:
+    if fixVol: # Fix sig at ATM vols
         # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N
         bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
     else:
+        params0 = np.concatenate((params0,sig0))
         # bounds0 = [[0,2],[0,2]]+[[0.0001,5]]*N+[[0.01,0.5]]*Nexp
         bounds0 = [[0.9,1.1],[1.5,2]]+[[0.01,1.5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
 
@@ -229,11 +228,11 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
     D = df['PV'].to_numpy()
     F = df['Fwd'].to_numpy()
     C = df['CallMid'].to_numpy()
-    X = np.log(F/K)
+    X = np.log(F/K) # pre-compute
 
     if fixVol:
         tau = tauFunc(sig0,Texp)
-        tauT = tau(Texp)
+        tauT = tau(T) # pre-compute
 
         def loss(params):
             alpha = params[0]
@@ -283,8 +282,10 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
     # return params0
 
     #### Optimization
-    # opt = minimize(loss, x0=params0, bounds=bounds0)
-    opt = differential_evolution(loss, bounds=bounds0)
+    if optMethod == 'Gradient':
+        opt = minimize(loss, x0=params0, bounds=bounds0)
+    elif optMethod == 'Evolution':
+        opt = differential_evolution(loss, bounds=bounds0)
 
     print(opt)
 
@@ -307,12 +308,32 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixV
         'beta':  beta,
         'gamma': gamma,
         'sig':   sig,
+        'opt.x': opt.x,
     }
 
     return CP
 
 #### Ensemble Carr-Pelts #######################################################
 
-def EnsembleCarrPeltsPrice(K, T, D, F, tau, h, ohm):
-    # Fit ensemble Carr-Pelts parametrization
-    pass
+def EnsembleCarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
+    # Compute ensemble Carr-Pelts price (via their BS-like formula)
+    if X is None:
+        X = np.log(F/K)
+    if tauT is None:
+        tauT = tau(T) # 0.035s
+    zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # 0.135s
+    # print(sum(np.isnan(zneg)))
+    # print(zneg[:200])
+    zpos = zneg+tauT
+    Dpos = ohm(zpos) # 0.070s
+    Dneg = ohm(zneg)
+    P = D*(F*Dpos-K*Dneg)
+    P = np.nan_to_num(P) # small gamma makes D blow up
+    return P
+
+def EnsembleCarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, methodIv='Bisection', **kwargs):
+    # Compute ensemble Carr-Pelts price and invert to implied vol
+    P = EnsembleCarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X, tauT, **kwargs)
+    vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
+    # print(np.array([T,F,K,P,vol]).T[:200])
+    return vol

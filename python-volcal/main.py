@@ -2528,8 +2528,12 @@ def test_DeAmericanizedOptionsChainDataset():
 
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
-    CP = FitCarrPelts(df,fixVol=True)
-    # CP = FitCarrPelts(df,fixVol=False)
+    # CP = FitCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+
+    # guessCP = CP['opt.x']
+    guessCP = [1.090291573184069,1.791308824174645,0.31592291,0.87049605,0.0255345,0.0117086,3.83474242] # loss~120
+    CP = FitCarrPelts(df,fixVol=False,guessCP=guessCP) # Calibrate sig (polish!)
+
     print(CP)
 
 def test_CarrPeltsImpliedVol():
