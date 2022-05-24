@@ -2654,8 +2654,8 @@ def test_FitEnsembleCarrPelts():
 
     guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
                1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-               1.00000000, -0.50000000,  0.30000000,  2.00000000,  0.40000000,  0.01000000,  1.50000000]
-    guessA  = [0.30000000,  0.30000000,  0.40000000]
+               1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000]
+    guessA  = [0.23000000,  0.35000000,  0.42000000]
     CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
 
     print(CP)
@@ -2687,10 +2687,10 @@ def test_EnsembleCarrPeltsImpliedVol():
     N = len(zgrid)
 
     #### alpha/beta/gamma
-    # Surface 1
-    alpha0 = 1.0876363
-    beta0  = 0.11901932
-    gamma0 = np.array([0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243])
+    # Surface 1 - put-wing
+    alpha0 = 1.087429351148465
+    beta0  = 0.2197853023024234
+    gamma0 = np.array([0.31501638,2.0997709,0.02224476,0.01080859,1.49909347])
 
     alpha0, beta0, gamma0 = hParams(alpha0,beta0,gamma0,zgrid)
 
@@ -2698,10 +2698,10 @@ def test_EnsembleCarrPeltsImpliedVol():
     h0   = hFunc(alpha0,beta0,gamma0,zgrid)
     ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
 
-    # Surface 2
-    alpha1 = 1.49959243
-    beta1  = -2.88409317
-    gamma1 = np.array([0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243])
+    # Surface 2 - call-wing (roughly inverting put-wing params!)
+    alpha1 = 1.0858167579807256
+    beta1  = -2.7681004645646423
+    gamma1 = np.array([0.0108086,0.01074356,0.87047506,0.31501638,1.49909347])
 
     alpha1, beta1, gamma1 = hParams(alpha1,beta1,gamma1,zgrid)
 
@@ -2709,10 +2709,10 @@ def test_EnsembleCarrPeltsImpliedVol():
     h1   = hFunc(alpha1,beta1,gamma1,zgrid)
     ohm1 = ohmFunc(alpha1,beta1,gamma1,zgrid)
 
-    # Surface 3
-    alpha2 = 1
-    beta2  = -0.5
-    gamma2 = np.array([0.3,  2,  0.4,  0.01,  1.5])
+    # Surface 3 - ATM skew & min-vol location
+    alpha2 = 0.9996906702178574
+    beta2  = -0.42176109143353435
+    gamma2 = np.array([0.29950104,2.04891654,0.50372092,0.01005024,1.49950104])
 
     alpha2, beta2, gamma2 = hParams(alpha2,beta2,gamma2,zgrid)
 
@@ -2720,10 +2720,7 @@ def test_EnsembleCarrPeltsImpliedVol():
     h2   = hFunc(alpha2,beta2,gamma2,zgrid)
     ohm2 = ohmFunc(alpha2,beta2,gamma2,zgrid)
 
-    a0 = 0.3
-    a1 = 0.3
-    a2 = 0.4
-    a = [a0,a1,a2]
+    a = [0.22996749,0.34915391,0.4208786]
 
     tau_vec = [tau0,tau1,tau2]
     h_vec   = [h0,h1,h2]
@@ -2877,5 +2874,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    test_FitEnsembleCarrPelts()
-    # test_EnsembleCarrPeltsImpliedVol()
+    # test_FitEnsembleCarrPelts()
+    test_EnsembleCarrPeltsImpliedVol()
