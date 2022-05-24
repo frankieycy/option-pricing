@@ -2532,7 +2532,8 @@ def test_FitCarrPelts():
     print(CP)
 
 def test_CarrPeltsImpliedVol():
-    # DEBUG: check function constructions hParams/tauFunc/hFunc/ohmFunc... seem wrong
+    # DEBUG: check function constructions hParams/tauFunc/hFunc/ohmFunc...
+    run = [2]
     df = pd.read_csv("spxVols20170424.csv")
 
     K = df['Strike'].to_numpy()
@@ -2543,32 +2544,83 @@ def test_CarrPeltsImpliedVol():
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
 
-    zcfg = (-100,120,20)
-    # CP = FitCarrPelts(df,zcfg)
+    w0 = np.zeros(Nexp)
+    T0 = df["Texp"].to_numpy()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
+
+    for j,T in enumerate(Texp):
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[j] = spline(0).item()*T # ATM total variance
+
+    sig0 = np.sqrt(w0/Texp)
+    # sig0 = np.repeat(0.2,Nexp)
+
+    zcfg = (-100,105,5)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
-    # alpha = CP[0]
-    # beta  = CP[1]
-    # gamma = CP[2:2+N]
-    # sig   = CP[2+N:]
-
     alpha = 1
-    beta = 1
+    beta  = 1
     gamma = np.linspace(2,0.5,N)
-    sig = np.linspace(0.10,0.30,Nexp)
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
-    tau = tauFunc(sig,Texp)
-    h = hFunc(alpha,beta,gamma,zgrid)
+    tau = tauFunc(sig0,Texp)
+    h   = hFunc(alpha,beta,gamma,zgrid)
     ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
-    iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
-    df['Fit'] = iv
+    #### Black-Scholes case
+    alpha0, beta0, gamma0 = hParams(1,0,np.ones(N),zgrid)
 
-    PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
+    h0   = hFunc(alpha0,beta0,gamma0,zgrid)
+    ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
+
+    if 1 in run:
+        iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
+        df['Fit'] = iv
+
+        PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
+
+    elif 2 in run:
+        #### Plot tau/h/ohm
+        # T = np.linspace(0,2,200)
+        # fig = plt.figure(figsize=(6,4))
+        # plt.plot(T,tau(T),'k')
+        # plt.xlabel('$T$')
+        # plt.ylabel(r'$\tau$')
+        # fig.tight_layout()
+        # plt.savefig(dataFolder+f"test_CPfuncTau.png")
+        # plt.close()
+
+        z = np.linspace(-20,20,200)
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(z,h(z),'k')
+        plt.plot(z,h0(z),'k--')
+        plt.xlabel('$z$')
+        plt.ylabel(r'$h$')
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_CPfuncH.png")
+        plt.close()
+
+        z = np.linspace(-20,20,200)
+        fig = plt.figure(figsize=(6,4))
+        plt.plot(z,ohm(z),'k')
+        plt.plot(z,ohm0(z),'k--')
+        plt.xlabel('$z$')
+        plt.ylabel(r'$\Omega$')
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_CPfuncOhm.png")
+        plt.close()
 
 if __name__ == '__main__':
     #### Options Chain ####
@@ -2703,5 +2755,5 @@ if __name__ == '__main__':
     # test_SPYAmOptionPlotImpDivAndRate()
     # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
-    # test_FitCarrPelts()
-    test_CarrPeltsImpliedVol()
+    test_FitCarrPelts()
+    # test_CarrPeltsImpliedVol()
