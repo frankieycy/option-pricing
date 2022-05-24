@@ -346,6 +346,7 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
     # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
+    # TO-DO: fix certain CP surfaces and calibrate the rest!
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
     Texp = df["Texp"].unique()
