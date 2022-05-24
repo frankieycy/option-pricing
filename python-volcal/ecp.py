@@ -58,11 +58,11 @@ def hParams(alpha0, beta0, gamma0, zgrid):
 def hFunc(alpha, beta, gamma, zgrid):
     # Piecewise-quadratic pdf exponent (BS case: h = log(2pi)/2+z^2/2)
     # arguments are vectors of size 2n+1
+    # TO-DO: bound guard for z (when < min or > max zgrid)
     N = len(zgrid)
     n = (N-1)//2
     def h(z):
-        # j = np.argmax(zgrid>z)-1
-        j = np.searchsorted(zgrid,z,side='right')-1 # params idx
+        j = np.argmax(zgrid>z)-1
         jj = j*(j>=n)+(j+1)*(j<n) # anchor
         z0 = z-zgrid[jj]
         return alpha[j]+beta[j]*z0+z0**2/(2*gamma[j])
@@ -71,6 +71,7 @@ def hFunc(alpha, beta, gamma, zgrid):
 def ohmFunc(alpha, beta, gamma, zgrid):
     # Cdf under piecewise-quadratic h
     # arguments are vectors of size 2n+1
+    # TO-DO: bound guard for z (when < min or > max zgrid)
     N = len(zgrid)
     n = (N-1)//2
     ohm0 = np.zeros(N)
@@ -87,8 +88,7 @@ def ohmFunc(alpha, beta, gamma, zgrid):
     ohm0 /= ohm0inf # normalize
     fac2 /= ohm0inf
     def ohm(z):
-        # j = np.argmax(zgrid>z)-1
-        j = np.searchsorted(zgrid,z,side='right')-1 # params idx
+        j = np.argmax(zgrid>z)-1
         jj = j*(j>=n)+(j+1)*(j<n) # anchor
         return ohm0[j] + fac1[j] * fac2[j] * (cdf((z-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
     return np.vectorize(ohm)
@@ -149,17 +149,16 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs):
     P = np.nan_to_num(P) # small gamma makes D blow up
     return P
 
-def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, method='Bisection', **kwargs):
+def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, methodIv='Bisection', **kwargs):
     P = CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, **kwargs)
-    vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', method)
+    vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
     return vol
 
-def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, fixVol=False):
+def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), guessCP=None, fixVol=False):
     # Fit Carr-Pelts parametrization
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # zgrid boundaries correspond to +/- inf; gamma[-1] is dummy (we chose z1~100>z)
     # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
-    # TO-DO: (1) fix vol & optmize only h (2) calibrate to imp vol
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
     Texp = df["Texp"].unique()
@@ -169,7 +168,10 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
     k = k.to_numpy()
     bid = df["Bid"].to_numpy()
     ask = df["Ask"].to_numpy()
+    mid = (bid+ask)/2
     midVar = (bid**2+ask**2)/2
+
+    w = 1/(ask-bid)
 
     #### Init params & bounds
     if guessCP is None:
@@ -189,7 +191,7 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
 
         sig0 = np.sqrt(w0/Texp)
         # alpha0, beta0, gamma0 = np.log(2*np.pi)/2, 0, np.ones(N) # BS-case
-        alpha0, beta0, gamma0 = 1, 1, np.linspace(*gamma0Cfg,N) # Left-skewed
+        alpha0, beta0, gamma0 = 1, 0, np.linspace(*gamma0Cfg,N)
 
         if fixVol:
             params0 = np.concatenate(([alpha0],[beta0],gamma0))
@@ -211,9 +213,9 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
     F = df['Fwd'].to_numpy()
     C = df['CallMid'].to_numpy()
 
-    Cbid = D*BlackScholesFormula(F,K,T,0,bid,'call')
-    Cask = D*BlackScholesFormula(F,K,T,0,ask,'call')
-    w = 1/(Cask-Cbid)
+    # Cbid = D*BlackScholesFormula(F,K,T,0,bid,'call')
+    # Cask = D*BlackScholesFormula(F,K,T,0,ask,'call')
+    # w = 1/(Cask-Cbid)
 
     if fixVol:
         tau = tauFunc(sig0,Texp)
@@ -230,10 +232,14 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
             h   = hFunc(alpha,beta,gamma,zgrid)
             ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
-            P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+            #     alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            # # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
+            # L = sum(w*(P-C)**2)
+
+            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid, # most costly!
                 alpha=alpha,beta=beta,gamma=gamma,method='Loop')
-            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
-            L = sum(w*(P-C)**2)
+            L = sum(w*(iv-mid)**2)
 
             print(f'  loss={L}')
 
@@ -254,10 +260,14 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
             h   = hFunc(alpha,beta,gamma,zgrid)
             ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
-            P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid, # most costly!
+            #     alpha=alpha,beta=beta,gamma=gamma,method='Loop')
+            # # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
+            # L = sum(w*(P-C)**2)
+
+            iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid, # most costly!
                 alpha=alpha,beta=beta,gamma=gamma,method='Loop')
-            # P = CarrPeltsPrice(K,T,D,F,tau,h,ohm,zgrid)
-            L = sum(w*(P-C)**2)
+            L = sum(w*(iv-mid)**2)
 
             print(f'  loss={L}')
 
@@ -270,6 +280,8 @@ def FitCarrPelts(df, zgridCfg=(-100,120,20), gamma0Cfg=(1.5,0.5), guessCP=None, 
     #### Optimization
     opt = minimize(loss, x0=params0, bounds=bounds0)
     # opt = differential_evolution(loss, bounds=bounds0)
+
+    print(opt)
 
     #### Output
     alpha = opt.x[0]

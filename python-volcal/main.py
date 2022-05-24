@@ -2533,13 +2533,8 @@ def test_FitCarrPelts():
 
 def test_CarrPeltsImpliedVol():
     # DEBUG: check function constructions hParams/tauFunc/hFunc/ohmFunc...
-    run = [2]
+    run = [1,2]
     df = pd.read_csv("spxVols20170424.csv")
-
-    K = df['Strike'].to_numpy()
-    T = df['Texp'].to_numpy()
-    D = df['PV'].to_numpy()
-    F = df['Fwd'].to_numpy()
 
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
@@ -2564,7 +2559,12 @@ def test_CarrPeltsImpliedVol():
     sig0 = np.sqrt(w0/Texp)
     # sig0 = np.repeat(0.2,Nexp)
 
-    zcfg = (-100,105,5)
+    K = df['Strike'].to_numpy()
+    T = df['Texp'].to_numpy()
+    D = df['PV'].to_numpy()
+    F = df['Fwd'].to_numpy()
+
+    zcfg = (-100,200,100)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
@@ -2589,9 +2589,11 @@ def test_CarrPeltsImpliedVol():
         iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
         df['Fit'] = iv
 
-        PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True, fitErr=True)
+        print(df.head(20))
 
-    elif 2 in run:
+        PlotImpliedVol(df, dataFolder+"test_CPImpliedVol.png", ncol=7, atmBar=True, baBar=True)
+
+    if 2 in run:
         #### Plot tau/h/ohm
         # T = np.linspace(0,2,200)
         # fig = plt.figure(figsize=(6,4))
