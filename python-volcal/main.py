@@ -2528,11 +2528,16 @@ def test_DeAmericanizedOptionsChainDataset():
 
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
-    CP = FitCarrPelts(df,zgridCfg=(-100,120,20),fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+
+    #### zgridCfg=(-100,150,50) - 5 zgrids
+    # CP = FitCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
 
     # # guessCP = CP['opt.x']
     # guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5] # loss~120
     # CP = FitCarrPelts(df,fixVol=False,guessCP=guessCP) # Calibrate sig (polish!)
+
+    #### zgridCfg=(-100,120,20) - 11 zgrids
+    CP = FitCarrPelts(df,zgridCfg=(-100,120,20),fixVol=True,optMethod='Evolution')
 
     print(CP)
 
@@ -2566,6 +2571,7 @@ def test_CarrPeltsImpliedVol():
         w0[j] = spline(0).item()*T # ATM total variance
 
     sig0 = np.sqrt(w0/Texp)
+
     # sig0 = np.repeat(0.2,Nexp)
 
     # sig0 = np.array([0.085551, 0.06899478, 0.08430794,
@@ -2581,13 +2587,17 @@ def test_CarrPeltsImpliedVol():
     F = df['Fwd'].to_numpy()
 
     #### zgrid
-    zcfg = (-100,120,20)
+    # zcfg = (-100,150,50) # 5 zgrids
+    zcfg = (-100,120,20) # 11 zgrids
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
     #### alpha/beta/gamma
-    params = np.array(
+    # params = np.array( # 5 zgrids
+    #     [1.09043105, 1.79142401, 0.31592291, 0.86579468, 0.02561319, 0.0117086, 1.5]
+    # )
+    params = np.array( # 11 zgrids
         [ .90994071, 1.7866975 , 1.93437616, 2.57515921, 2.33462905,
          3.39656242, 0.87252293, 0.02561133, 0.01764116, 0.01490584,
          0.0111626 , 0.01128269, 3.27720366]
@@ -2651,39 +2661,25 @@ def test_CarrPeltsImpliedVol():
         plt.close()
 
 def test_FitEnsembleCarrPelts():
+    # Suggest: fix 5 zgrids, choose n=3,4 CP surfaces
+    # Interpretation of each surface?
     df = pd.read_csv("spxVols20170424.csv")
-    # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+    #### 5 zgrids, 2 CP surfaces
+    # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # brute-force an init params set
 
     # guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
-    #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243]
+    #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243] # roughly inverting put-wing params!
     # guessA  = [0.24546622,  0.75453378]
     # CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP,guessA=guessA)
 
+    #### 5 zgrids, 3 CP surfaces
+    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,optMethod='Evolution') # brute-force an init params set... search space much larger!
+
     # guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
     #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-    #            1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000]
+    #            1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000] # 3rd surface hand-calibrated... long ATM skew could be better
     # guessA  = [0.23000000,  0.35000000,  0.42000000]
     # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
-
-    # guessCP = [ 0.90994071,  1.65103568,  1.93437616,  2.57515921,  2.33462905,
-    #     3.39656242,  0.83628979,  0.01665794,  0.01764116,  0.01490584,
-    #     0.0111626 ,  0.01128269,  3.27720366,  0.90989685, -1.83432161,
-    #     0.01128269,  0.0111626 ,  0.01490584,  0.01764116,  0.11014273,
-    #     0.95509276,  3.39656242,  2.33462905,  2.57515921,  1.93437616,
-    #     3.27720366 ]
-    # guessA  = [0.28407354,  0.72987899]
-    # CP = FitEnsembleCarrPelts(df,zgridCfg=(-100,120,20),fixVol=True,guessCP=guessCP,guessA=guessA)
-
-    guessCP = [ 0.90994071,  1.65103568,  1.93437616,  2.57515921,  2.33462905,
-        3.39656242,  0.83628979,  0.01665794,  0.01764116,  0.01490584,
-        0.0111626 ,  0.01128269,  3.27720366,  0.90989685, -1.83432161,
-        0.01128269,  0.0111626 ,  0.01490584,  0.01764116,  0.11014273,
-        0.95509276,  3.39656242,  2.33462905,  2.57515921,  1.93437616,
-        3.27720366,  1.00000000, -0.40000000,  1.00000000,  1.00000000,
-        1.00000000,  0.30000000,  2.00000000,  0.50000000,  0.01000000,
-        1.00000000,  1.00000000,  1.00000000,  1.00000000   ]
-    guessA  = [0.23, 0.35, 0.42]
-    CP = FitEnsembleCarrPelts(df,n=3,zgridCfg=(-100,120,20),fixVol=True,guessCP=guessCP,guessA=guessA)
 
     print(CP)
 
@@ -2721,25 +2717,26 @@ def test_EnsembleCarrPeltsImpliedVol():
     F = df['Fwd'].to_numpy()
 
     #### zgrid
-    zcfg = (-100,120,20)
+    zcfg = (-100,150,50)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
     #### alpha/beta/gamma, fixVol=True
-    # Surface 1 - put-wing
+    # Surface 1 - put-wing (left-skewed distribution i.e. small h(neg) and large h(pos))
     # Surface 2 - call-wing (roughly inverting put-wing params!)
     # Surface 3 - ATM skew & min-vol location
-    params = np.array(
-      [ 0.90994071,  1.65097336,  1.93437616,  2.57515921,  2.33462905,
-        3.39656242,  0.83628068,  0.01665787,  0.01764116,  0.01490584,
-        0.0111626 ,  0.01128269,  3.27720366,  0.90989685, -1.83434549,
-        0.01128269,  0.0111626 ,  0.01490584,  0.01764116,  0.11019666,
-        0.95508234,  3.39656242,  2.33462905,  2.57515921,  1.93437616,
-        3.27720366,  1.        , -0.4000397 ,  1.        ,  1.        ,
-        1.        ,  1.        ,  2.00002146,  0.4999946 ,  1.        ,
-        1.        ,  1.        ,  1.        ,  1.        ,  0.30000772,
-        0.39999559,  0.29999669]
+    # params = np.array( # 5 zgrids, 2 CP surfaces
+    #     [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
+    #      1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
+    #      0.24546622,  0.75453378]
+    # )
+    params = np.array( # 5 zgrids, 3 CP surfaces
+      [ 1.08764159,  0.13048861,  0.31554504,  2.04635757,  0.02140597,
+        0.01133725,  1.49962213,  1.08634542, -2.77079712,  0.01133725,
+        0.01126602,  0.86569983,  0.31554504,  1.49962213,  1.00002971,
+       -0.42552432,  0.3000297 ,  2.01915182,  0.51074735,  0.01003229,
+        1.5000297 ,  0.20072051,  0.36981458,  0.42326299]
     )
 
     n = len(params)//(3+N)
@@ -2910,5 +2907,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    # test_FitEnsembleCarrPelts()
-    test_EnsembleCarrPeltsImpliedVol()
+    test_FitEnsembleCarrPelts()
+    # test_EnsembleCarrPeltsImpliedVol()
