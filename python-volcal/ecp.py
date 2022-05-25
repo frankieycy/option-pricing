@@ -67,13 +67,15 @@ def hFunc(alpha, beta, gamma, zgrid):
     n = (N-1)//2
     zmin = min(zgrid)
     zmax = max(zgrid)
-    def h(z):
-        z = max(zmin,min(zmax-zeps,z)) # range guard
-        j = np.argmax(zgrid>z)-1
+    def h(z): # used only in znegCalc(method='Bisection')
+        z = np.maximum(zmin,np.minimum(zmax-zeps,z)) # range guard
+        # j = np.argmax(zgrid>z)-1
+        j = np.searchsorted(zgrid,z,side='right')-1
         jj = j*(j>=n)+(j+1)*(j<n) # anchor
         z0 = z-zgrid[jj]
         return alpha[j]+beta[j]*z0+z0**2/(2*gamma[j])
-    return np.vectorize(h)
+    # return np.vectorize(h)
+    return h
 
 def ohmFunc(alpha, beta, gamma, zgrid):
     # Cdf under piecewise-quadratic h
@@ -88,20 +90,27 @@ def ohmFunc(alpha, beta, gamma, zgrid):
     fac2 = np.exp(gamma*beta**2/2-alpha)
     fac3 = np.sqrt(gamma)
     fac4 = np.sqrt(gamma)*beta
-    cdf = NormalDist().cdf
+    cdf = np.vectorize(NormalDist().cdf)
+    j = np.arange(N-1)
+    jj = j*(j>=n)+(j+1)*(j<n)
+    cdf0 = cdf((zgrid[:-1]-zgrid[jj])/fac3[:-1]+fac4[:-1])
+    cdf1 = cdf((zgrid[1:]-zgrid[jj])/fac3[:-1]+fac4[:-1])
     for j in range(N-1):
         jj = j*(j>=n)+(j+1)*(j<n)
-        ohm0[j+1] = ohm0[j] + fac1[j] * fac2[j] * (cdf((zgrid[j+1]-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
+        ohm0[j+1] = ohm0[j] + fac1[j] * fac2[j] * (cdf1[j] - cdf0[j])
     alpha += np.log(ohm0[-1])
     ohm0inf = ohm0[-1]
     ohm0 /= ohm0inf # normalize
     fac2 /= ohm0inf
     def ohm(z):
-        z = max(zmin,min(zmax-zeps,z)) # range guard
-        j = np.argmax(zgrid>z)-1
+        z = np.maximum(zmin,np.minimum(zmax-zeps,z)) # range guard
+        z = np.nan_to_num(z)
+        # j = np.argmax(zgrid>z)-1
+        j = np.searchsorted(zgrid,z,side='right')-1
         jj = j*(j>=n)+(j+1)*(j<n) # anchor
-        return ohm0[j] + fac1[j] * fac2[j] * (cdf((z-zgrid[jj])/fac3[j]+fac4[j]) - cdf((zgrid[j]-zgrid[jj])/fac3[j]+fac4[j]))
-    return np.vectorize(ohm)
+        return ohm0[j] + fac1[j] * fac2[j] * (cdf((z-zgrid[jj])/fac3[j]+fac4[j]) - cdf0[j])
+    # return np.vectorize(ohm)
+    return ohm
 
 def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisection'):
     # Compute zneg from X = h(z+tauT)-h(z)
@@ -110,7 +119,7 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
     if method == 'Bisection':
         def objective(z):
             return h(z+tauT)-h(z)-X
-        z0, z1 = zgrid[0], zgrid[-1]
+        z0, z1 = zgrid[0], zgrid[-2]
         try: zneg = bisect(objective,z0,z1) # very slow!
         except Exception: pass
     elif method == 'Loop':
