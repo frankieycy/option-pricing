@@ -216,7 +216,7 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
         bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
     else:
         params0 = np.concatenate((params0,sig0))
-        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03)) # Ad-hoc!
+        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))
 
     # print(params0, bounds0)
 
@@ -341,7 +341,7 @@ def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, guessA=None, optMethod='Gradient'):
+def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, fixCP=[], guessCP=None, guessA=None, w=None, optMethod='Gradient'):
     # Fit ensemble Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
@@ -359,7 +359,8 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
     mid = (bid+ask)/2
     midVar = (bid**2+ask**2)/2
 
-    w = 1/(ask-bid)
+    if w is None:
+        w = 1/(ask-bid)
 
     zgrid = np.arange(*zgridCfg)
     N = len(zgrid)
@@ -390,12 +391,13 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
         bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n
     else:
         params0 = np.concatenate([params0,np.tile(sig0,n)])
-        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n # Ad-hoc!
+        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n
 
     if guessA is None:
         params0 = np.concatenate((params0,[1]*n))
     else:
         params0 = np.concatenate((params0,guessA))
+
     bounds0 += [[0,1]]*n
 
     # print(params0, bounds0)
