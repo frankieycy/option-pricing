@@ -2653,11 +2653,18 @@ def test_FitEnsembleCarrPelts():
     # guessA  = [0.24546622,  0.75453378]
     # CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP,guessA=guessA)
 
+    # guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
+    #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
+    #            1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000]
+    # guessA  = [0.23000000,  0.35000000,  0.42000000]
+    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
+
     guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
                1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-               1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000]
-    guessA  = [0.23000000,  0.35000000,  0.42000000]
-    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,fixCP=[0,1])
+               1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000,
+               1.00000000,  0.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000]
+    guessA  = [0.23000000,  0.35000000,  0.42000000,  0.00000000]
+    CP = FitEnsembleCarrPelts(df,n=4,fixVol=True,guessCP=guessCP,guessA=guessA)
 
     print(CP)
 
@@ -2669,12 +2676,25 @@ def test_EnsembleCarrPeltsImpliedVol():
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
 
-    sig0 = np.array([0.085551, 0.06899478, 0.08430794,
-       0.08296784, 0.07225215, 0.0739847 , 0.08986545, 0.04923874,
-       0.08886235, 0.11096293, 0.04916429, 0.07978778, 0.08382571,
-       0.07063071, 0.08712787, 0.09492285, 0.10087667, 0.11641034,
-       0.08904639, 0.09504792, 0.10752649, 0.10780065, 0.11797003,
-       0.13049167, 0.15830622, 0.13472059, 0.13664479, 0.16663575])
+    w0 = np.zeros(Nexp)
+    T0 = df["Texp"].to_numpy()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
+
+    ### ATM vol
+    for j,T in enumerate(Texp):
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[j] = spline(0).item()*T # ATM total variance
+
+    sig0 = np.sqrt(w0/Texp)
 
     K = df['Strike'].to_numpy()
     T = df['Texp'].to_numpy()
@@ -2687,51 +2707,42 @@ def test_EnsembleCarrPeltsImpliedVol():
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
-    #### alpha/beta/gamma
+    #### alpha/beta/gamma, fixVol=True
     # Surface 1 - put-wing
-    alpha0 = 1.087429351148465
-    beta0  = 0.2197853023024234
-    gamma0 = np.array([0.31501638,2.0997709,0.02224476,0.01080859,1.49909347])
-
-    alpha0, beta0, gamma0 = hParams(alpha0,beta0,gamma0,zgrid)
-
-    tau0 = tauFunc(sig0,Texp)
-    h0   = hFunc(alpha0,beta0,gamma0,zgrid)
-    ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
-
     # Surface 2 - call-wing (roughly inverting put-wing params!)
-    alpha1 = 1.0858167579807256
-    beta1  = -2.7681004645646423
-    gamma1 = np.array([0.0108086,0.01074356,0.87047506,0.31501638,1.49909347])
-
-    alpha1, beta1, gamma1 = hParams(alpha1,beta1,gamma1,zgrid)
-
-    tau1 = tauFunc(sig0,Texp)
-    h1   = hFunc(alpha1,beta1,gamma1,zgrid)
-    ohm1 = ohmFunc(alpha1,beta1,gamma1,zgrid)
-
     # Surface 3 - ATM skew & min-vol location
-    alpha2 = 0.9996906702178574
-    beta2  = -0.42176109143353435
-    gamma2 = np.array([0.29950104,2.04891654,0.50372092,0.01005024,1.49950104])
-
-    alpha2, beta2, gamma2 = hParams(alpha2,beta2,gamma2,zgrid)
-
-    tau2 = tauFunc(sig0,Texp)
-    h2   = hFunc(alpha2,beta2,gamma2,zgrid)
-    ohm2 = ohmFunc(alpha2,beta2,gamma2,zgrid)
-
-    a = [0.22996749,0.34915391,0.4208786]
-
-    tau_vec = [tau0,tau1,tau2]
-    h_vec   = [h0,h1,h2]
-    ohm_vec = [ohm0,ohm1,ohm2]
-
-    kwargs = (
-        {'alpha': alpha0, 'beta': beta0, 'gamma': gamma0, 'method': 'Loop'},
-        {'alpha': alpha1, 'beta': beta1, 'gamma': gamma1, 'method': 'Loop'},
-        {'alpha': alpha2, 'beta': beta2, 'gamma': gamma2, 'method': 'Loop'},
+    params = np.array(
+      [ 1.08764159,  0.13048861,  0.31554504,  2.04635757,  0.02140597,
+        0.01133725,  1.49962213,  1.08634542, -2.77079712,  0.01133725,
+        0.01126602,  0.86569983,  0.31554504,  1.49962213,  1.00002971,
+       -0.42552432,  0.3000297 ,  2.01915182,  0.51074735,  0.01003229,
+        1.5000297 ,  0.20072051,  0.36981458,  0.42326299]
     )
+
+    n = len(params)//(3+N)
+
+    h_vec   = list()
+    ohm_vec = list()
+    kwargs  = list()
+
+    for k in range(n):
+        alpha = params[(2+N)*k]
+        beta  = params[(2+N)*k+1]
+        gamma = params[(2+N)*k+2:(2+N)*k+2+N]
+
+        alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
+
+        h   = hFunc(alpha,beta,gamma,zgrid)
+        ohm = ohmFunc(alpha,beta,gamma,zgrid)
+
+        h_vec.append(h)
+        ohm_vec.append(ohm)
+        kwargs.append({'alpha': alpha, 'beta': beta, 'gamma': gamma, 'method': 'Loop'})
+
+    a = params[(2+N)*n:]
+
+    tau     = tauFunc(sig0,Texp)
+    tau_vec = [tau]*3
 
     iv = EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, kwargs=kwargs)
     df['Fit'] = iv
@@ -2875,5 +2886,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    test_FitEnsembleCarrPelts()
-    # test_EnsembleCarrPeltsImpliedVol()
+    # test_FitEnsembleCarrPelts()
+    test_EnsembleCarrPeltsImpliedVol()

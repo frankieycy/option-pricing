@@ -114,7 +114,6 @@ def ohmFunc(alpha, beta, gamma, zgrid):
 
 def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisection'):
     # Compute zneg from X = h(z+tauT)-h(z)
-    # TO-DO: Make this fast!
     zneg = np.nan
     if method == 'Bisection':
         def objective(z):
@@ -156,6 +155,7 @@ znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method')
 
 @njit
 def znegCalc_loop(X_vec, tauT_vec, zgrid, alpha, beta, gamma):
+    # Compute zneg from X = h(z+tauT)-h(z) (very fast implementation!)
     zneg_vec = np.zeros(len(X_vec))
     N = len(zgrid)
     n = (N-1)//2
@@ -204,12 +204,15 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
     if X is None:
         X = np.log(F/K)
     if tauT is None:
-        tauT = tau(T) # 0.035s
-    zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # 0.135s
+        tauT = tau(T)
+    # zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # slow!
+    if 'method' in kw and kw['method'] == 'Loop':
+        alpha,beta,gamma = kw['alpha'],kw['beta'],kw['gamma']
+        zneg = znegCalc_loop(X,tauT,zgrid,alpha,beta,gamma)
     # print(sum(np.isnan(zneg)))
     # print(zneg[:200])
     zpos = zneg+tauT
-    Dpos = ohm(zpos) # 0.070s
+    Dpos = ohm(zpos)
     Dneg = ohm(zneg)
     P = D*(F*Dpos-K*Dneg)
     P = np.nan_to_num(P) # small gamma makes Dpos/neg blow up
@@ -398,12 +401,11 @@ def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, fixCP=[], guessCP=None, guessA=None, w=None, optMethod='Gradient'):
+def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, guessA=None, w=None, optMethod='Gradient'):
     # Fit ensemble Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
     # Ref: Antonov, A New Arbitrage-Free Parametric Volatility Surface
-    # TO-DO: fix certain CP surfaces and calibrate the rest!
     df = df.dropna()
     df = df[(df['Bid']>0)&(df['Ask']>0)]
     Texp = df["Texp"].unique()
