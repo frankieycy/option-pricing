@@ -2604,6 +2604,7 @@ def test_CarrPeltsImpliedVol():
     ohm0 = ohmFunc(alpha0,beta0,gamma0,zgrid)
 
     if 1 in run:
+        # iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid)
         iv = CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid,
             alpha=alpha, beta=beta, gamma=gamma, method='Loop')
         df['Fit'] = iv
