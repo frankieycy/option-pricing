@@ -2,11 +2,29 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from time import time
+from numba import njit
 from scipy.stats import norm
+from scipy.special import ndtr
 from scipy.optimize import minimize, minimize_scalar, differential_evolution
 from scipy.interpolate import InterpolatedUnivariateSpline, PchipInterpolator
-from pricer import *
+from pricer import BlackScholesFormula, BlackScholesVega
 plt.switch_backend("Agg")
+
+#### Black-Scholes #############################################################
+
+def BlackScholesFormula_fast(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes formula for call/put
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    discountFactor = np.exp(-riskFreeRate*maturity)
+    d1 = logMoneyness/totalImpVol+totalImpVol/2
+    d2 = d1-totalImpVol
+
+    if optionType == 'call':
+        return spotPrice * ndtr(d1) - discountFactor * strike * ndtr(d2)
+    else:
+        return discountFactor * strike * ndtr(-d2) - spotPrice * ndtr(-d1)
 
 #### Parametrization ###########################################################
 
@@ -15,6 +33,11 @@ def svi(a, b, sig, rho, m):
     def sviFunc(k):
         return a+b*(rho*(k-m)+np.sqrt((k-m)**2+sig**2))
     return sviFunc
+
+@njit
+def svi_jit(k, a, b, sig, rho, m):
+    # Raw-SVI parametrization
+    return a+b*(rho*(k-m)+np.sqrt((k-m)**2+sig**2))
 
 def sviSkew(a, b, sig, rho, m):
     # SVI skew
@@ -205,6 +228,158 @@ def sviCrossing(params1, params2):
         'cross': cross,
     }
 
+@njit
+def sviCrossing_jit(a1, b1, s1, r1, m1, a2, b2, s2, r2, m2):
+    # Intersections & crossedness of two SVI slices
+
+    # Quartic equation: q4 x^4 + q3 x^3 + q2 x^2 + q1 x + q0 = 0
+    q2 = 1000000 * -2 * (-3 * b1 ** 4 * m1 ** 2 + b1 ** 2 * b2 ** 2 * m1 ** 2 + 4 * b1 ** 2 * b2 ** 2 * m1 * m2 +
+              b1 ** 2 * b2 ** 2 * m2 ** 2 - 3 * b2 ** 4 * m2 ** 2 + 6 * b1 ** 4 * m1 ** 2 * r1 ** 2 +
+              b1 ** 2 * b2 ** 2 * m1 ** 2 * r1 ** 2 + 4 * b1 ** 2 * b2 ** 2 * m1 * m2 * r1 ** 2 +
+              b1 ** 2 * b2 ** 2 * m2 ** 2 * r1 ** 2 - 3 * b1 ** 4 * m1 ** 2 * r1 ** 4 - 6 * b1 ** 3 * b2 * m1 ** 2 * r1 * r2 -
+              6 * b1 ** 3 * b2 * m1 * m2 * r1 * r2 - 6 * b1 * b2 ** 3 * m1 * m2 * r1 * r2 -
+              6 * b1 * b2 ** 3 * m2 ** 2 * r1 * r2 + 6 * b1 ** 3 * b2 * m1 ** 2 * r1 ** 3 * r2 +
+              6 * b1 ** 3 * b2 * m1 * m2 * r1 ** 3 * r2 + b1 ** 2 * b2 ** 2 * m1 ** 2 * r2 ** 2 +
+              4 * b1 ** 2 * b2 ** 2 * m1 * m2 * r2 ** 2 + b1 ** 2 * b2 ** 2 * m2 ** 2 * r2 ** 2 + 6 * b2 ** 4 * m2 ** 2 * r2 ** 2 -
+              3 * b1 ** 2 * b2 ** 2 * m1 ** 2 * r1 ** 2 * r2 ** 2 - 12 * b1 ** 2 * b2 ** 2 * m1 * m2 * r1 ** 2 * r2 ** 2 -
+              3 * b1 ** 2 * b2 ** 2 * m2 ** 2 * r1 ** 2 * r2 ** 2 + 6 * b1 * b2 ** 3 * m1 * m2 * r1 * r2 ** 3 +
+              6 * b1 * b2 ** 3 * m2 ** 2 * r1 * r2 ** 3 - 3 * b2 ** 4 * m2 ** 2 * r2 ** 4 -
+              a1 ** 2 * (b1 ** 2 * (-1 + 3 * r1 ** 2) - 6 * b1 * b2 * r1 * r2 + b2 ** 2 * (-1 + 3 * r2 ** 2)) -
+              a2 ** 2 * (b1 ** 2 * (-1 + 3 * r1 ** 2) - 6 * b1 * b2 * r1 * r2 + b2 ** 2 * (-1 + 3 * r2 ** 2)) -
+              2 * a2 * (3 * b1 ** 3 * m1 * r1 * (-1 + r1 ** 2) - b1 ** 2 * b2 * (2 * m1 + m2) * (-1 +
+              3 * r1 ** 2) * r2 - 3 * b2 ** 3 * m2 * r2 * (-1 + r2 ** 2) + b1 * b2 ** 2 * (m1 + 2 * m2) *
+              r1 * (-1 + 3 * r2 ** 2)) + 2 * a1 * (3 * b1 ** 3 * m1 * r1 * (-1 + r1 ** 2) -
+              b1 ** 2 * b2 * (2 * m1 + m2) * (-1 + 3 * r1 ** 2) * r2 - 3 * b2 ** 3 * m2 * r2 * (-1 +
+              r2 ** 2) + b1 * b2 ** 2 * (m1 + 2 * m2) * r1 * (-1 + 3 * r2 ** 2) +
+              a2 * (b1 ** 2 * (-1 + 3 * r1 ** 2) - 6 * b1 * b2 * r1 * r2 + b2 ** 2 * (-1 + 3 * r2 ** 2))) -
+              b1 ** 4 * s1 ** 2 + b1 ** 2 * b2 ** 2 * s1 ** 2 + b1 ** 4 * r1 ** 2 * s1 ** 2 - 2 * b1 ** 3 * b2 * r1 * r2 *
+              s1 ** 2 + b1 ** 2 * b2 ** 2 * r2 ** 2 * s1 ** 2 + b1 ** 2 * b2 ** 2 * s2 ** 2 - b2 ** 4 * s2 ** 2 +
+              b1 ** 2 * b2 ** 2 * r1 ** 2 * s2 ** 2 - 2 * b1 * b2 ** 3 * r1 * r2 * s2 ** 2 + b2 ** 4 * r2 ** 2 * s2 ** 2)
+
+    q4 = 1000000 * (b1 ** 4 * (-1 + r1 ** 2) ** 2 - 4 * b1 ** 3 * b2 * r1 * (-1 + r1 ** 2) * r2 -
+              4 * b1 * b2 ** 3 * r1 * r2 * (-1 + r2 ** 2) + b2 ** 4 * (-1 + r2 ** 2) ** 2 +
+              2 * b1 ** 2 * b2 ** 2 * (-1 - r2 ** 2 + r1 ** 2 * (-1 + 3 * r2 ** 2)))
+
+    q0 = 1000000 * (a1 ** 4 + a2 ** 4 + b1 ** 4 * m1 ** 4 - 2 * b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 ** 2 + b2 ** 4 * m2 ** 4 -
+              2 * b1 ** 4 * m1 ** 4 * r1 ** 2 - 2 * b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 ** 2 * r1 ** 2 + b1 ** 4 * m1 ** 4 * r1 ** 4 +
+              4 * b1 ** 3 * b2 * m1 ** 3 * m2 * r1 * r2 + 4 * b1 * b2 ** 3 * m1 * m2 ** 3 * r1 * r2 -
+              4 * b1 ** 3 * b2 * m1 ** 3 * m2 * r1 ** 3 * r2 - 2 * b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 ** 2 * r2 ** 2 -
+              2 * b2 ** 4 * m2 ** 4 * r2 ** 2 + 6 * b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 ** 2 * r1 ** 2 * r2 ** 2 -
+              4 * b1 * b2 ** 3 * m1 * m2 ** 3 * r1 * r2 ** 3 + b2 ** 4 * m2 ** 4 * r2 ** 4 +
+              4 * a2 ** 3 * (b1 * m1 * r1 - b2 * m2 * r2) - 4 * a1 ** 3 * (a2 + b1 * m1 * r1 -
+              b2 * m2 * r2) + 2 * b1 ** 4 * m1 ** 2 * s1 ** 2 - 2 * b1 ** 2 * b2 ** 2 * m2 ** 2 * s1 ** 2 -
+              2 * b1 ** 4 * m1 ** 2 * r1 ** 2 * s1 ** 2 + 4 * b1 ** 3 * b2 * m1 * m2 * r1 * r2 * s1 ** 2 -
+              2 * b1 ** 2 * b2 ** 2 * m2 ** 2 * r2 ** 2 * s1 ** 2 + b1 ** 4 * s1 ** 4 - 2 * b1 ** 2 * b2 ** 2 * m1 ** 2 * s2 ** 2 +
+              2 * b2 ** 4 * m2 ** 2 * s2 ** 2 - 2 * b1 ** 2 * b2 ** 2 * m1 ** 2 * r1 ** 2 * s2 ** 2 +
+              4 * b1 * b2 ** 3 * m1 * m2 * r1 * r2 * s2 ** 2 - 2 * b2 ** 4 * m2 ** 2 * r2 ** 2 * s2 ** 2 -
+              2 * b1 ** 2 * b2 ** 2 * s1 ** 2 * s2 ** 2 + b2 ** 4 * s2 ** 4 + 4 * a2 * (b1 * m1 * r1 - b2 * m2 * r2) *
+              (-2 * b1 * b2 * m1 * m2 * r1 * r2 + b1 ** 2 * (m1 ** 2 * (-1 + r1 ** 2) - s1 ** 2) +
+              b2 ** 2 * (m2 ** 2 * (-1 + r2 ** 2) - s2 ** 2)) - 4 * a1 * (a2 + b1 * m1 * r1 -
+              b2 * m2 * r2) * (a2 ** 2 - 2 * b1 * b2 * m1 * m2 * r1 * r2 + 2 * a2 * (b1 * m1 * r1 -
+              b2 * m2 * r2) + b1 ** 2 * (m1 ** 2 * (-1 + r1 ** 2) - s1 ** 2) +
+              b2 ** 2 * (m2 ** 2 * (-1 + r2 ** 2) - s2 ** 2)) + 2 * a2 ** 2 *
+              (-6 * b1 * b2 * m1 * m2 * r1 * r2 + b1 ** 2 * (m1 ** 2 * (-1 + 3 * r1 ** 2) - s1 ** 2) +
+              b2 ** 2 * (m2 ** 2 * (-1 + 3 * r2 ** 2) - s2 ** 2)) +
+              2 * a1 ** 2 * (3 * a2 ** 2 - 6 * b1 * b2 * m1 * m2 * r1 * r2 + 6 * a2 * (b1 * m1 * r1 -
+              b2 * m2 * r2) + b1 ** 2 * (m1 ** 2 * (-1 + 3 * r1 ** 2) - s1 ** 2) +
+              b2 ** 2 * (m2 ** 2 * (-1 + 3 * r2 ** 2) - s2 ** 2)))
+
+    q3 = 1000000 * -4 * (b1 ** 4 * m1 * (-1 + r1 ** 2) ** 2 - b1 ** 3 * r1 * (-1 + r1 ** 2) *
+              (a1 - a2 + b2 * (3 * m1 + m2) * r2) + b2 ** 3 * (-1 + r2 ** 2) *
+              ((a1 - a2) * r2 + b2 * m2 * (-1 + r2 ** 2)) + b1 * b2 ** 2 * r1 *
+              (a1 - 3 * a1 * r2 ** 2 - b2 * (m1 + 3 * m2) * r2 * (-1 + r2 ** 2) +
+              a2 * (-1 + 3 * r2 ** 2)) + b1 ** 2 * b2 * ((a1 - a2) * (-1 + 3 * r1 ** 2) * r2 +
+              b2 * (m1 + m2) * (-1 - r2 ** 2 + r1 ** 2 * (-1 + 3 * r2 ** 2))))
+
+    q1 = 1000000 * 4 * (-(b1 ** 4 * m1 ** 3) + b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 + b1 ** 2 * b2 ** 2 * m1 * m2 ** 2 -
+              b2 ** 4 * m2 ** 3 + 2 * b1 ** 4 * m1 ** 3 * r1 ** 2 + b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 * r1 ** 2 +
+              b1 ** 2 * b2 ** 2 * m1 * m2 ** 2 * r1 ** 2 - b1 ** 4 * m1 ** 3 * r1 ** 4 - b1 ** 3 * b2 * m1 ** 3 * r1 * r2 -
+              3 * b1 ** 3 * b2 * m1 ** 2 * m2 * r1 * r2 - 3 * b1 * b2 ** 3 * m1 * m2 ** 2 * r1 * r2 - b1 * b2 ** 3 * m2 ** 3 * r1 * r2 + b1 ** 3 * b2 * m1 ** 3 * r1 ** 3 * r2 + 3 * b1 ** 3 * b2 * m1 ** 2 * m2 *
+              r1 ** 3 * r2 + b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 * r2 ** 2 + b1 ** 2 * b2 ** 2 * m1 * m2 ** 2 * r2 ** 2 +
+              2 * b2 ** 4 * m2 ** 3 * r2 ** 2 - 3 * b1 ** 2 * b2 ** 2 * m1 ** 2 * m2 * r1 ** 2 * r2 ** 2 -
+              3 * b1 ** 2 * b2 ** 2 * m1 * m2 ** 2 * r1 ** 2 * r2 ** 2 + 3 * b1 * b2 ** 3 * m1 * m2 ** 2 * r1 * r2 ** 3 +
+              b1 * b2 ** 3 * m2 ** 3 * r1 * r2 ** 3 - b2 ** 4 * m2 ** 3 * r2 ** 4 + a1 ** 3 * (b1 * r1 - b2 * r2) +
+              a2 ** 3 * (-(b1 * r1) + b2 * r2) + a2 ** 2 * (b1 ** 2 * (m1 - 3 * m1 * r1 ** 2) + 3 * b1 * b2 * (m1 + m2) * r1 * r2 + b2 ** 2 * m2 * (1 - 3 * r2 ** 2)) +
+              a1 ** 2 * (b1 ** 2 * (m1 - 3 * m1 * r1 ** 2) + 3 * b1 * r1 * (-a2 + b2 * (m1 + m2) * r2) +
+              b2 * (3 * a2 * r2 + b2 * (m2 - 3 * m2 * r2 ** 2))) - b1 ** 4 * m1 * s1 ** 2 +
+              b1 ** 2 * b2 ** 2 * m2 * s1 ** 2 + b1 ** 4 * m1 * r1 ** 2 * s1 ** 2 - b1 ** 3 * b2 * m1 * r1 * r2 * s1 ** 2 -
+              b1 ** 3 * b2 * m2 * r1 * r2 * s1 ** 2 + b1 ** 2 * b2 ** 2 * m2 * r2 ** 2 * s1 ** 2 +
+              b1 ** 2 * b2 ** 2 * m1 * s2 ** 2 - b2 ** 4 * m2 * s2 ** 2 + b1 ** 2 * b2 ** 2 * m1 * r1 ** 2 * s2 ** 2 -
+              b1 * b2 ** 3 * m1 * r1 * r2 * s2 ** 2 - b1 * b2 ** 3 * m2 * r1 * r2 * s2 ** 2 +
+              b2 ** 4 * m2 * r2 ** 2 * s2 ** 2 + a2 * (b1 ** 2 * b2 * r2 * (m1 ** 2 * (-1 + 3 * r1 ** 2) +
+              2 * m1 * m2 * (-1 + 3 * r1 ** 2) - s1 ** 2) + b1 ** 3 * r1 * (-3 * m1 ** 2 *
+              (-1 + r1 ** 2) + s1 ** 2) + b2 ** 3 * r2 * (3 * m2 ** 2 * (-1 + r2 ** 2) - s2 ** 2) +
+              b1 * b2 ** 2 * r1 * (m1 * m2 * (2 - 6 * r2 ** 2) + m2 ** 2 * (1 - 3 * r2 ** 2) + s2 ** 2)) +
+              a1 * (3 * a2 ** 2 * (b1 * r1 - b2 * r2) + a2 * (2 * b1 ** 2 * m1 * (-1 + 3 * r1 ** 2) -
+              6 * b1 * b2 * (m1 + m2) * r1 * r2 + 2 * b2 ** 2 * m2 * (-1 + 3 * r2 ** 2)) +
+              b1 ** 3 * r1 * (3 * m1 ** 2 * (-1 + r1 ** 2) - s1 ** 2) + b1 ** 2 * b2 * r2 * (
+              m1 * m2 * (2 - 6 * r1 ** 2) + m1 ** 2 * (1 - 3 * r1 ** 2) + s1 ** 2) +
+              b1 * b2 ** 2 * r1 * (2 * m1 * m2 * (-1 + 3 * r2 ** 2) + m2 ** 2 * (-1 + 3 * r2 ** 2) -
+              s2 ** 2) + b2 ** 3 * r2 * (-3 * m2 ** 2 * (-1 + r2 ** 2) + s2 ** 2)))
+
+    # Quartic roots
+    # with np.errstate(divide='ignore', invalid='ignore'):
+
+    if np.abs(q4) < 1e-15:
+        q4 = 1e-15
+
+    term16 = (2 * q2 ** 3 + 27 * q3 ** 2 * q0 - 72 * q4 * q2 * q0 - 9 * q3 * q2 * q1 + 27 * q4 * q1 ** 2)
+    term21 = (q2 ** 2 / 4 + 3 * q4 * q0 - 3 * q3 * q1 / 4)
+    term1sq = -256 * term21 ** 3 + term16 ** 2
+    term1 = np.sqrt(term1sq + 0*1j)
+    term23 = (term16 + term1) ** (1/3)
+    term22 = 3 * q4 * term23
+
+    temp1 = (4 * 2 ** (1 / 3) * term21)
+    temp2 = (3 * 2 ** (1 / 3) * q4)
+    temp3 = q3 ** 2 / (4 * q4 ** 2) - (2 * q2) / (3 * q4)
+    temp4 = temp1 / term22 + term23 / temp2
+
+    rr = np.sqrt(temp3 + temp4)
+
+    temp5 = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4)
+    temp6 = (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3)
+
+    ee = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) - \
+        (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
+    dd = q3 ** 2 / (2 * q4 ** 2) - (4 * q2) / (3 * q4) - (4 * 2 ** (1 / 3) * term21) / term22 - term23 / (3 * 2 ** (1 / 3) * q4) + \
+        (-q3 ** 3 / 4 + q4 * q3 * q2 - 2 * q4 ** 2 * q1) / (q4 ** 3 * rr)
+
+    temp7 = -q3 / (4 * q4)
+
+    # Candidate roots
+    roots = np.array([
+        -q3 / (4 * q4) + rr / 2 + np.sqrt(dd) / 2,
+        -q3 / (4 * q4) + rr / 2 - np.sqrt(dd) / 2,
+        -q3 / (4 * q4) - rr / 2 + np.sqrt(ee) / 2,
+        -q3 / (4 * q4) - rr / 2 - np.sqrt(ee) / 2
+    ])
+
+    # Real roots
+    kr = roots * (np.abs(np.imag(roots)) < 1e-10)
+    test = lambda k: (a1 + b1 * (r1 * (k - m1) + np.sqrt((k - m1) ** 2 + s1 ** 2))) - (a2 + b2 * (r2 * (k - m2) + np.sqrt((k - m2) ** 2 + s2 ** 2)))
+
+    idx = (np.abs(test(kr)) < 1e-10)
+
+    roots = np.sort(np.real(kr[idx]))
+    nroots = len(roots)
+
+    # Crossedness
+    cross = 0
+
+    if nroots > 1:
+        midpt = list((roots[:-1]+roots[1:])/2)
+    else:
+        midpt = [np.float64(x) for x in range(0)]
+
+    if nroots > 0:
+        samplept = np.array([roots[0]-1] + midpt + [roots[-1]+1])
+        svi1 = svi_jit(samplept,a1,b1,s1,r1,m1)
+        svi2 = svi_jit(samplept,a2,b2,s2,r2,m2)
+        cross = max(max(svi1-svi2), 0)
+
+    return cross
+
 def sviSqrt(w0, rho, eta):
     # Sqrt-SVI parametrization
     def sviFunc(k):
@@ -238,9 +413,10 @@ def esviPowerLaw(w0, eta, gam, rho0, rho1, wmax, a):
 
 def CalendarArbLoss(params1, params2):
     # Penalty for calendar spread arbitrage (across two slices)
-    sviCrx = sviCrossing(params1, params2)
-    loss = sviCrx['cross']
-    return loss
+    # sviCrx = sviCrossing(params1, params2)
+    # loss = sviCrx['cross']
+    # return loss
+    return sviCrossing_jit(*params1, *params2)
 
 def ButterflyArbLoss(params):
     # Penalty for butterfly spread arbitrage (single slice)
@@ -338,6 +514,11 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000, 
         mid = (bid+ask)/2
         callMid = dfT["CallMid"]
 
+        F = F.to_numpy()
+        K = K.to_numpy()
+        k = k.to_numpy()
+        callMid = callMid.to_numpy()
+
         if l2Weight == "Vega":
             w = BlackScholesVega(F,K,T,0,mid,'call')
         elif l2Weight == "Gaussian":
@@ -349,10 +530,17 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000, 
         else:
             w = 1
 
+        @njit
+        def prxToL2Loss(callSvi): # Fast loss computation!
+            return np.sum(w*(callSvi-callMid)**2)
+
         def l2Loss(params): # L2 loss
-            sviVar = svi(*params)(k)/T
-            callSvi = BlackScholesFormula(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
-            loss = sum(w*(callSvi-callMid)**2)
+            # sviVar = svi(*params)(k)/T
+            sviVar = svi_jit(k,*params)/T
+            # callSvi = BlackScholesFormula(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
+            callSvi = BlackScholesFormula_fast(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
+            # loss = sum(w*(callSvi-callMid)**2)
+            loss = prxToL2Loss(callSvi)
             return loss
 
         def caLoss(params): # Calendar arb loss

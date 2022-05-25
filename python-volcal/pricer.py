@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from time import time
 from math import isclose
 from scipy.stats import norm
+from scipy.special import ndtr
 from scipy.fftpack import fft
 from scipy.optimize import fsolve, minimize, dual_annealing, \
     shgo, differential_evolution, basinhopping
@@ -71,19 +72,19 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     d2 = d1-totalImpVol
 
     if isinstance(optionType, str): # Uniform optionType
-        return spotPrice * norm.cdf(d1) - discountFactor * strike * norm.cdf(d2) if optionType == "call" else \
-            discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1)
+        return spotPrice * ndtr(d1) - discountFactor * strike * ndtr(d2) if optionType == "call" else \
+            discountFactor * strike * ndtr(-d2) - spotPrice * ndtr(-d1)
     else: # Vector optionType
         # strike & optionType must be vectors
         call = (optionType == "call")
         price = np.zeros(len(strike))
-        price[call] = (spotPrice[call] if isinstance(spotPrice, np.ndarray) else spotPrice) * norm.cdf(d1[call]) - (discountFactor[call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[call] * norm.cdf(d2[call]) # call
-        price[~call] = (discountFactor[~call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[~call] * norm.cdf(-d2[~call]) - (spotPrice[~call] if isinstance(spotPrice, np.ndarray) else spotPrice) * norm.cdf(-d1[~call]) # put
+        price[call] = (spotPrice[call] if isinstance(spotPrice, np.ndarray) else spotPrice) * ndtr(d1[call]) - (discountFactor[call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[call] * ndtr(d2[call]) # call
+        price[~call] = (discountFactor[~call] if isinstance(discountFactor, np.ndarray) else discountFactor) * strike[~call] * ndtr(-d2[~call]) - (spotPrice[~call] if isinstance(spotPrice, np.ndarray) else spotPrice) * ndtr(-d1[~call]) # put
         return price
 
     # price = np.where(optionType == "call",
-    #     spotPrice * norm.cdf(d1) - discountFactor * strike * norm.cdf(d2),
-    #     discountFactor * strike * norm.cdf(-d2) - spotPrice * norm.cdf(-d1))
+    #     spotPrice * ndtr(d1) - discountFactor * strike * ndtr(d2),
+    #     discountFactor * strike * ndtr(-d2) - spotPrice * ndtr(-d1))
     # return price
 
 def BlackScholesDelta(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
@@ -91,7 +92,7 @@ def BlackScholesDelta(spotPrice, strike, maturity, riskFreeRate, impliedVol, opt
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
     totalImpVol = impliedVol*np.sqrt(maturity)
     d1 = logMoneyness/totalImpVol+totalImpVol/2
-    return np.where(optionType == "call", norm.cdf(d1), -norm.cdf(-d1))
+    return np.where(optionType == "call", ndtr(d1), -ndtr(-d1))
 
 def BlackScholesVega(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes vega for call/put (first deriv wrt sigma)
@@ -168,7 +169,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
         global bsIv_interpInit, bsIv_interpFunc
         if not bsIv_interpInit:
             def call(k,v):
-                return np.exp(-k/2)*norm.cdf(-k/v+v/2) - np.exp(k/2)*norm.cdf(-k/v-v/2)
+                return np.exp(-k/2)*ndtr(-k/v+v/2) - np.exp(k/2)*ndtr(-k/v-v/2)
             K = np.arange(-5,5,4e-3) # Log-moneyness: log(K/F)
             V = np.arange(1e-3,1,2e-4) # Total implied vol: sig*sqrt(T)
             C = call(*np.meshgrid(K,V))
@@ -202,7 +203,7 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             bsIv_rationalLBnd = lambda x: (-0.00424532412773*x+0.00099075112125*x**2)/(1+0.26674393279214*x+0.03360553011959*x**2)
             bsIv_rationalUBnd = lambda x: (0.38292495908775+0.31382372544666*x+0.07116503261172*x**2)/(1+0.01380361926221*x+0.11791124749938*x**2)
             bsIv_rationalIv = lambda x,c: (-0.969271876255*x+0.097428338274*c**0.5+1.750081126685*c)+(-0.068098378725*c**0.5-0.263473754689*c+4.714393825758*c**1.5+14.749084301452*c**2.0+0.440639436211*x-5.792537721792*x*c**0.5+3.529944137559*x*c-32.570660102526*x*c**1.5-5.267481008429*x**2-23.636495876611*x**2*c**0.5+76.398155779133*x**2*c-9.020361771283*x**3+41.855161781749*x**3*c**0.5-12.150611865704*x**4)/(1+6.268456292246*c**0.5+30.068281276567*c-11.473184324152*c**1.5-13.954993561151*c**2.0-6.284840445036*x-11.780036995036*x*c**0.5-230.101682610568*x*c+261.950288864225*x*c**1.5-2.310966989723*x**2+86.127219899668*x**2*c**0.5+20.090690444187*x**2*c+3.730181294225*x**3-50.117067019539*x**3*c**0.5+13.723711519422*x**4)
-            bsIv_rationalCall = lambda x,v: norm.cdf(x/v+v/2)-np.exp(-x)*norm.cdf(x/v-v/2)
+            bsIv_rationalCall = lambda x,v: ndtr(x/v+v/2)-np.exp(-x)*ndtr(x/v-v/2)
             bsIv_rationalVega = lambda x,v: norm.pdf(x/v+v/2)
         x = np.log(forwardPrice/strike)
         c = priceMkt/spotPrice
@@ -1402,7 +1403,7 @@ def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", scatterFit
                 ntm = (k>-0.05)&(k<0.05)
                 spline = InterpolatedUnivariateSpline(k[ntm], mid[ntm])
                 w = spline(0).item()*np.sqrt(T) # ATM var
-                k = norm.cdf(-k/np.sqrt(w)+np.sqrt(w)/2)
+                k = ndtr(-k/np.sqrt(w)+np.sqrt(w)/2)
             if atmBar:
                 if strikeType == "strike":
                     ax_idx.axvline(x=dfT["Fwd"].iloc[0],c='grey',ls='--',lw=1)
@@ -1411,7 +1412,7 @@ def PlotImpliedVol(df, figname=None, ncol=6, strikeType="log-strike", scatterFit
                 elif strikeType == "normalized-strike":
                     ax_idx.axvline(x=0,c='grey',ls='--',lw=1)
                 elif strikeType == "delta":
-                    ax_idx.axvline(x=norm.cdf(np.sqrt(w)/2),c='grey',ls='--',lw=1)
+                    ax_idx.axvline(x=ndtr(np.sqrt(w)/2),c='grey',ls='--',lw=1)
             if "Fit" in dfT:
                 fit = dfT["Fit"]
                 i = (fit>1e-2)
@@ -1587,7 +1588,7 @@ def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
     logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
     totalImpVol = impliedVol*np.sqrt(maturity)
     d2 = -logStrike/totalImpVol-totalImpVol/2
-    y = norm.cdf(d2)
+    y = ndtr(d2)
     ord = np.argsort(y)
     ymin,ymax = np.min(y),np.max(y)
     y,d2,logStrike,totalImpVol = y[ord],d2[ord],logStrike[ord],totalImpVol[ord]
@@ -1609,8 +1610,8 @@ def VarianceSwapFormula(logStrike, maturity, impliedVol, showPlot=False):
     intTotalImpVar = lambda x: pch(x)
 
     areaMid = quad(intTotalImpVar, ymin, ymax, limit=1000)[0]
-    areaMin = totalImpVol[0]**2*norm.cdf(d2[0])
-    areaMax = totalImpVol[-1]**2*norm.cdf(-d2[-1])
+    areaMin = totalImpVol[0]**2*ndtr(d2[0])
+    areaMax = totalImpVol[-1]**2*ndtr(-d2[-1])
     price = areaMin + areaMid + areaMax
     return price
 
@@ -1619,7 +1620,7 @@ def GammaSwapFormula(logStrike, maturity, impliedVol):
     logStrike,impliedVol = np.array(logStrike),np.array(impliedVol)
     totalImpVol = impliedVol*np.sqrt(maturity)
     d1 = -logStrike/totalImpVol+totalImpVol/2
-    y = norm.cdf(d1)
+    y = ndtr(d1)
     ord = np.argsort(y)
     ymin,ymax = np.min(y),np.max(y)
     y,d1,logStrike,totalImpVol = y[ord],d1[ord],logStrike[ord],totalImpVol[ord]
@@ -1630,8 +1631,8 @@ def GammaSwapFormula(logStrike, maturity, impliedVol):
     intTotalImpVar = lambda x: pch(x)
 
     areaMid = quad(intTotalImpVar, ymin, ymax, limit=1000)[0]
-    areaMin = totalImpVol[0]**2*norm.cdf(d1[0])
-    areaMax = totalImpVol[-1]**2*norm.cdf(-d1[-1])
+    areaMin = totalImpVol[0]**2*ndtr(d1[0])
+    areaMax = totalImpVol[-1]**2*ndtr(-d1[-1])
     price = areaMin + areaMid + areaMax
     return price
 

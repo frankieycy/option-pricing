@@ -2528,11 +2528,11 @@ def test_DeAmericanizedOptionsChainDataset():
 
 def test_FitCarrPelts():
     df = pd.read_csv("spxVols20170424.csv")
-    # CP = FitCarrPelts(df,fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
+    CP = FitCarrPelts(df,zgridCfg=(-100,120,20),fixVol=True,optMethod='Evolution') # Calibrate alpha/beta/gamma
 
-    # guessCP = CP['opt.x']
-    guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5] # loss~120
-    CP = FitCarrPelts(df,fixVol=False,guessCP=guessCP) # Calibrate sig (polish!)
+    # # guessCP = CP['opt.x']
+    # guessCP = [1.09043105,1.79142401,0.31592291,0.86579468,0.02561319,0.0117086,1.5] # loss~120
+    # CP = FitCarrPelts(df,fixVol=False,guessCP=guessCP) # Calibrate sig (polish!)
 
     print(CP)
 
@@ -2547,33 +2547,33 @@ def test_CarrPeltsImpliedVol():
     Texp = df['Texp'].unique()
     Nexp = len(Texp)
 
-    # w0 = np.zeros(Nexp)
-    # T0 = df["Texp"].to_numpy()
-    #
-    # k = np.log(df["Strike"]/df["Fwd"])
-    # k = k.to_numpy()
-    # bid = df["Bid"].to_numpy()
-    # ask = df["Ask"].to_numpy()
-    # midVar = (bid**2+ask**2)/2
+    w0 = np.zeros(Nexp)
+    T0 = df["Texp"].to_numpy()
+
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    midVar = (bid**2+ask**2)/2
 
     #### ATM vol
-    # for j,T in enumerate(Texp):
-    #     i = (T0==T)
-    #     kT = k[i]
-    #     vT = midVar[i]
-    #     ntm = (kT>-0.05)&(kT<0.05)
-    #     spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
-    #     w0[j] = spline(0).item()*T # ATM total variance
+    for j,T in enumerate(Texp):
+        i = (T0==T)
+        kT = k[i]
+        vT = midVar[i]
+        ntm = (kT>-0.05)&(kT<0.05)
+        spline = InterpolatedUnivariateSpline(kT[ntm], vT[ntm])
+        w0[j] = spline(0).item()*T # ATM total variance
 
-    # sig0 = np.sqrt(w0/Texp)
+    sig0 = np.sqrt(w0/Texp)
     # sig0 = np.repeat(0.2,Nexp)
 
-    sig0 = np.array([0.085551, 0.06899478, 0.08430794,
-       0.08296784, 0.07225215, 0.0739847 , 0.08986545, 0.04923874,
-       0.08886235, 0.11096293, 0.04916429, 0.07978778, 0.08382571,
-       0.07063071, 0.08712787, 0.09492285, 0.10087667, 0.11641034,
-       0.08904639, 0.09504792, 0.10752649, 0.10780065, 0.11797003,
-       0.13049167, 0.15830622, 0.13472059, 0.13664479, 0.16663575])
+    # sig0 = np.array([0.085551, 0.06899478, 0.08430794,
+    #    0.08296784, 0.07225215, 0.0739847 , 0.08986545, 0.04923874,
+    #    0.08886235, 0.11096293, 0.04916429, 0.07978778, 0.08382571,
+    #    0.07063071, 0.08712787, 0.09492285, 0.10087667, 0.11641034,
+    #    0.08904639, 0.09504792, 0.10752649, 0.10780065, 0.11797003,
+    #    0.13049167, 0.15830622, 0.13472059, 0.13664479, 0.16663575])
 
     K = df['Strike'].to_numpy()
     T = df['Texp'].to_numpy()
@@ -2581,15 +2581,21 @@ def test_CarrPeltsImpliedVol():
     F = df['Fwd'].to_numpy()
 
     #### zgrid
-    zcfg = (-100,150,50)
+    zcfg = (-100,120,20)
 
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
     #### alpha/beta/gamma
-    alpha = 1.09043105
-    beta  = 1.79142401
-    gamma = np.array([0.31592291,0.86579468,0.02561319,0.0117086,1.5])
+    params = np.array(
+        [ .90994071, 1.7866975 , 1.93437616, 2.57515921, 2.33462905,
+         3.39656242, 0.87252293, 0.02561133, 0.01764116, 0.01490584,
+         0.0111626 , 0.01128269, 3.27720366]
+    )
+
+    alpha = params[0]
+    beta  = params[1]
+    gamma = params[2:2+N]
 
     alpha, beta, gamma = hParams(alpha,beta,gamma,zgrid)
 
@@ -2659,12 +2665,10 @@ def test_FitEnsembleCarrPelts():
     # guessA  = [0.23000000,  0.35000000,  0.42000000]
     # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
 
-    guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
-               1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-               1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000,
-               1.00000000,  0.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000,  1.00000000]
-    guessA  = [0.23000000,  0.35000000,  0.42000000,  0.00000000]
-    CP = FitEnsembleCarrPelts(df,n=4,fixVol=True,guessCP=guessCP,guessA=guessA)
+    guessCP = [ .90994071, 1.7866975 , 1.93437616, 2.57515921, 2.33462905, 3.39656242, 0.87252293, 0.02561133, 0.01764116, 0.01490584, 0.0111626 , 0.01128269, 3.27720366,
+                .90994071, -1.7866975 , 0.01128269, 0.0111626, 0.01490584, 0.01764116, 0.02561133, 0.87252293, 3.39656242, 2.33462905, 2.57515921, 1.93437616, 3.27720366]
+    guessA  = [0.24546622,  0.75453378]
+    CP = FitEnsembleCarrPelts(df,zgridCfg=(-100,120,20),fixVol=True,guessCP=guessCP,guessA=guessA)
 
     print(CP)
 
@@ -2712,11 +2716,10 @@ def test_EnsembleCarrPeltsImpliedVol():
     # Surface 2 - call-wing (roughly inverting put-wing params!)
     # Surface 3 - ATM skew & min-vol location
     params = np.array(
-      [ 1.08764159,  0.13048861,  0.31554504,  2.04635757,  0.02140597,
-        0.01133725,  1.49962213,  1.08634542, -2.77079712,  0.01133725,
-        0.01126602,  0.86569983,  0.31554504,  1.49962213,  1.00002971,
-       -0.42552432,  0.3000297 ,  2.01915182,  0.51074735,  0.01003229,
-        1.5000297 ,  0.20072051,  0.36981458,  0.42326299]
+      [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
+       1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
+       1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000,
+       0.23000000,  0.35000000,  0.42000000]
     )
 
     n = len(params)//(3+N)
@@ -2886,5 +2889,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    # test_FitEnsembleCarrPelts()
-    test_EnsembleCarrPeltsImpliedVol()
+    test_FitEnsembleCarrPelts()
+    # test_EnsembleCarrPeltsImpliedVol()

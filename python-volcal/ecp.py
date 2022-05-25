@@ -37,7 +37,8 @@ def tauFunc(sig, Tgrid):
     wFunc = interp1d(T0,w0) # linear
     def tau(T):
         return np.sqrt(wFunc(T))
-    return np.vectorize(tau)
+    # return np.vectorize(tau)
+    return tau
 
 @njit
 def hParams(alpha0, beta0, gamma0, zgrid):
@@ -206,8 +207,8 @@ def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
     if tauT is None:
         tauT = tau(T)
     # zneg = znegCalc(X,tauT,h,zgrid,**kwargs) # slow!
-    if 'method' in kw and kw['method'] == 'Loop':
-        alpha,beta,gamma = kw['alpha'],kw['beta'],kw['gamma']
+    if 'method' in kwargs and kwargs['method'] == 'Loop':
+        alpha,beta,gamma = kwargs['alpha'],kwargs['beta'],kwargs['gamma']
         zneg = znegCalc_loop(X,tauT,zgrid,alpha,beta,gamma)
     # print(sum(np.isnan(zneg)))
     # print(zneg[:200])
@@ -270,10 +271,10 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
         params0 = np.array(guessCP)
 
     if fixVol: # Fix sig at ATM vols
-        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N
+        bounds0 = [[0,2],[-2,2]]+[[0.01,5]]*N
     else:
         params0 = np.concatenate((params0,sig0))
-        bounds0 = [[0,2],[0,2]]+[[0.01,5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))
+        bounds0 = [[0,2],[-2,2]]+[[0.01,5]]*N+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))
 
     # print(params0, bounds0)
 
