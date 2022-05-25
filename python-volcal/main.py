@@ -2656,7 +2656,7 @@ def test_FitEnsembleCarrPelts():
                1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
                1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000]
     guessA  = [0.23000000,  0.35000000,  0.42000000]
-    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
+    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,fixCP=[0,1])
 
     print(CP)
 
@@ -2874,5 +2874,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    # test_FitEnsembleCarrPelts()
-    test_EnsembleCarrPeltsImpliedVol()
+    test_FitEnsembleCarrPelts()
+    # test_EnsembleCarrPeltsImpliedVol()
