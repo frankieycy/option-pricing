@@ -119,7 +119,7 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
     if method == 'Bisection':
         def objective(z):
             return h(z+tauT)-h(z)-X
-        z0, z1 = zgrid[0], zgrid[-2]
+        z0, z1 = zgrid[0], zgrid[-1]-tauT
         try: zneg = bisect(objective,z0,z1) # very slow!
         except Exception: pass
     elif method == 'Loop':
@@ -152,7 +152,52 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
             if not jloop: break
     return zneg
 
-znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method'))
+znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method')) # vectorize X,tauT
+
+@njit
+def znegCalc_loop(X_vec, tauT_vec, zgrid, alpha, beta, gamma):
+    zneg_vec = np.zeros(len(X_vec))
+    N = len(zgrid)
+    n = (N-1)//2
+    for i,par in enumerate(zip(X_vec,tauT_vec)):
+        zneg = np.nan
+        X,tauT = par
+        jloop = True
+        for j in range(1,N):
+            z0 = zgrid[j-1] # bounds for z
+            z1 = zgrid[j]
+            k0 = np.argmax(zgrid>z0+tauT)
+            k1 = np.argmax(zgrid>z1+tauT)
+            if k1 < k0: k1 = k0
+            kloop = True
+            for k in range(k0,k1+1):
+                zt0 = zgrid[k-1] # bounds for z+tauT
+                zt1 = zgrid[k]
+                jj = (j-1)*(j-1>=n)+j*(j-1<n) # anchor idx for z
+                kk = (k-1)*(k-1>=n)+k*(k-1<n) # anchor idx for z+tauT
+                a0,b0,g0,zjj = alpha[j-1],beta[j-1],gamma[j-1],zgrid[jj]
+                a1,b1,g1,zkk = alpha[k-1],beta[k-1],gamma[k-1],zgrid[kk]
+                q2 = 1/(2*g1)-1/(2*g0)
+                q1 = b1-b0+(tauT-zkk)/g1+zjj/g0
+                q0 = -X+a1-a0+b1*(tauT-zkk)+b0*zjj+(tauT-zkk)**2/(2*g1)-zjj**2/(2*g0)
+                if q2 == 0:
+                    roots = [-q0/q1]*2
+                else:
+                    D = q1**2-4*q0*q2
+                    if D >= 0:
+                        roots = [(-q1+np.sqrt(D))/(2*q2),(-q1-np.sqrt(D))/(2*q2)]
+                    else: roots = [np.nan]*2
+                # print(tauT,X,'|',j,z0,z1,zjj,'|',k,zt0,zt1,zkk,'|',roots)
+                for z in roots:
+                    if (z >= z0 and z <= z1) and (z+tauT >= zt0 and z+tauT <= zt1):
+                        zneg = z
+                        jloop = False
+                        kloop = False
+                        break
+                if not kloop: break
+            if not jloop: break
+        zneg_vec[i] = zneg
+    return zneg_vec
 
 def CarrPeltsPrice(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, **kwargs):
     # Compute Carr-Pelts price (via their BS-like formula)
@@ -335,7 +380,10 @@ def EnsembleCarrPeltsPrice(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None
         kwargs = ({} for i in range(n))
     for i,par in enumerate(zip(tauT_vec,h_vec,ohm_vec,kwargs)):
         tauT,h,ohm,kw = par
-        zneg = znegCalc(X,tauT,h,zgrid,**kw)
+        # zneg = znegCalc(X,tauT,h,zgrid,**kw) # slow!
+        if 'method' in kw and kw['method'] == 'Loop':
+            alpha,beta,gamma = kw['alpha'],kw['beta'],kw['gamma']
+            zneg = znegCalc_loop(X,tauT,zgrid,alpha,beta,gamma)
         zpos = zneg+tauT
         Dpos = ohm(zpos)
         Dneg = ohm(zneg)
