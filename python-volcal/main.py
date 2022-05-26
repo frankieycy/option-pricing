@@ -137,6 +137,20 @@ def test_BlackScholesImpVolRational():
     impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Rational")
     print(impVol)
 
+def test_BlackScholesFormula_jit():
+    K = np.arange(0.7,1.4,0.1)
+    n = len(K)
+    T = np.ones(n)
+    sig = np.repeat(0.2,n)
+    print(BlackScholesFormula_jit(1,K,T,0,sig,'call'))
+
+def test_BlackScholesImpliedVol_jitBisect():
+    vol = np.array([0.23,0.20,0.18])
+    strike = np.array([0.9,1.0,1.1])
+    price = BlackScholesFormula_jit(1,strike,1,0,vol,"call")
+    impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Bisection_jit")
+    print(impVol)
+
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -544,7 +558,8 @@ def test_CalibrateHestonModelToImpVol(): # Benchmark!
     # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COSAdpt")
     # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Rational",useGlobal=True,curryCharFunc=True,formulaType="COS")
     # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
-    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
+    x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection_jit",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,HestonCharFunc,paramsBCCval,paramsBCCkey,bounds=paramsBCCbnd,w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsBCCkey)
     x.to_csv(dataFolder+"test_HestonCalibrationIv.csv", index=False)
 
@@ -2824,6 +2839,8 @@ if __name__ == '__main__':
     # test_BlackScholesImpVol()
     # test_BlackScholesImpVolInterp()
     # test_BlackScholesImpVolRational()
+    # test_BlackScholesFormula_jit()
+    # test_BlackScholesImpliedVol_jitBisect()
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
     # test_PlotImpliedVolSPY2022()
@@ -2847,7 +2864,7 @@ if __name__ == '__main__':
     # test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    # test_CalibrateHestonModelToImpVol()
+    test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
@@ -2949,4 +2966,4 @@ if __name__ == '__main__':
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
     # test_FitEnsembleCarrPelts()
-    test_EnsembleCarrPeltsImpliedVol()
+    # test_EnsembleCarrPeltsImpliedVol()
