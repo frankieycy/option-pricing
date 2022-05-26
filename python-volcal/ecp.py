@@ -448,10 +448,10 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
         params0 = np.array(guessCP)
 
     if fixVol: # Fix sig at ATM vols
-        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n
+        bounds0 = ([[0,2],[-4,4]]+[[0.005,5]]*N)*n
     else:
         params0 = np.concatenate([params0,np.tile(sig0,n)])
-        bounds0 = ([[0,2],[-4,4]]+[[0.01,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n
+        bounds0 = ([[0,2],[-4,4]]+[[0.005,5]]*N)*n+list(zip(np.maximum(sig0-0.03,0),sig0+0.03))*n
 
     if guessA is None:
         params0 = np.concatenate((params0,[1]*n))
@@ -580,7 +580,7 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
         if fixVol:
             sig = sig0
         else:
-            sig = params[(2+N)*n+Nexp*k:(2+N)*n+Nexp*k+Nexp]
+            sig = opt.x[(2+N)*n+Nexp*k:(2+N)*n+Nexp*k+Nexp]
 
         CP[k] = {
             'alpha': alpha,
