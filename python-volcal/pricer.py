@@ -12,6 +12,7 @@ from scipy.optimize import fsolve, minimize, dual_annealing, \
 from scipy.integrate import quad, quad_vec
 from scipy.interpolate import splrep, splev, pchip, interp1d, interp2d, \
     InterpolatedUnivariateSpline, RectBivariateSpline
+from numba import njit, float64, vectorize
 plt.switch_backend("Agg")
 
 #### Global Variables ##########################################################
@@ -63,6 +64,35 @@ rhPadeCF_dict = dict()
 
 #### Black-Scholes #############################################################
 
+INVROOT2PI = 0.3989422804014327
+
+@njit(float64(float64), fastmath=True, cache=True)
+def _ndtr_jit(x):
+    a1 = 0.319381530
+    a2 = -0.356563782
+    a3 = 1.781477937
+    a4 = -1.821255978
+    a5 = 1.330274429
+    g = 0.2316419
+
+    k = 1.0 / (1.0 + g * np.abs(x))
+    k2 = k * k
+    k3 = k2 * k
+    k4 = k3 * k
+    k5 = k4 * k
+
+    if x >= 0.0:
+        c = (a1 * k + a2 * k2 + a3 * k3 + a4 * k4 + a5 * k5)
+        phi = 1.0 - c * np.exp(-x*x/2.0) * INVROOT2PI
+    else:
+        phi = 1.0 - _ndtr_jit(-x)
+
+    return phi
+
+@vectorize([float64(float64)], fastmath=True, cache=True)
+def ndtr_jit(x):
+    return _ndtr_jit(x)
+
 def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes formula for call/put
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
@@ -87,6 +117,22 @@ def BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, o
     #     discountFactor * strike * ndtr(-d2) - spotPrice * ndtr(-d1))
     # return price
 
+@njit
+def BlackScholesFormula_jit(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes formula for call/put
+    # Fast implementation for use in BlackScholesImpliedVol_jitBisect
+    # spotPrice & riskFreeRate are scalars; optionType is 'call' or 'put'; the rest are vectors
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    discountFactor = np.exp(-riskFreeRate*maturity)
+    d1 = logMoneyness/totalImpVol+totalImpVol/2
+    d2 = d1-totalImpVol
+
+    if optionType == 'call':
+        return spotPrice * ndtr_jit(d1) - discountFactor * strike * ndtr_jit(d2)
+    else:
+        return discountFactor * strike * ndtr_jit(-d2) - spotPrice * ndtr_jit(-d1)
+
 def BlackScholesDelta(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes delta for call/put (first deriv wrt spot)
     logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
@@ -108,6 +154,23 @@ def WithinNoArbBound(spotPrice, strike, maturity, riskFreeRate, priceMkt, option
         (priceMkt > np.maximum(spotPrice-strike*discountFactor,0)) & (priceMkt < spotPrice),
         (priceMkt > np.maximum(strike*discountFactor-spotPrice,0)) & (priceMkt < strike*discountFactor))
     return noArb
+
+@njit
+def BlackScholesImpliedVol_jitBisect(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType):
+    nStrikes = len(strike)
+    impVol = np.zeros(nStrikes)
+    impVol0 = np.repeat(1e-10, nStrikes)
+    impVol1 = np.repeat(10., nStrikes)
+    price0 = BlackScholesFormula_jit(spotPrice, strike, maturity, riskFreeRate, impVol0, optionType)
+    price1 = BlackScholesFormula_jit(spotPrice, strike, maturity, riskFreeRate, impVol1, optionType)
+    while np.mean(impVol1-impVol0) > 1e-10:
+        impVol = (impVol0+impVol1)/2
+        price = BlackScholesFormula_jit(spotPrice, strike, maturity, riskFreeRate, impVol, optionType)
+        price0 += (price<priceMkt)*(price-price0)
+        impVol0 += (price<priceMkt)*(impVol-impVol0)
+        price1 += (price>=priceMkt)*(price-price1)
+        impVol1 += (price>=priceMkt)*(impVol-impVol1)
+    return impVol
 
 def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType="OTM", method="Bisection"):
     # Black Scholes implied volatility for call/put/OTM
@@ -137,6 +200,14 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
             price1 += (price>=priceMkt)*(price-price1)
             impVol1 += (price>=priceMkt)*(impVol-impVol1)
         return impVol
+
+    elif method == "Bisection_jit":
+        if np.all(optionType == 'call'):
+            return BlackScholesImpliedVol_jitBisect(spotPrice, strike, maturity, riskFreeRate, priceMkt, 'call')
+        elif np.all(optionType == 'put'):
+            return BlackScholesImpliedVol_jitBisect(spotPrice, strike, maturity, riskFreeRate, priceMkt, 'put')
+        else:
+            return BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, optionType, method="Bisection")
 
     elif method == "Newton": # Newton-Raphson method (NTM options)
         k = np.log(strike/forwardPrice)
@@ -1030,6 +1101,10 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
         price = spline(logStrike)
         return price
 
+@njit(fastmath=True, cache=True)
+def COSFormula_prxMult(ftMtrxKI, cfVec):
+    return np.real(np.sum(ftMtrxKI*cfVec,axis=1))
+
 def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b=5, useGlobal=False, curryCharFunc=False, **kwargs):
     # COS formula for call/put
     def cosInt0(k,c,d):
@@ -1099,7 +1174,8 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
         ftMtrxKI = ftMtrxK*cosInt
 
     # price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
-    price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
+    # price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
+    price = COSFormula_prxMult(ftMtrxKI,cfVec) # 0.0005s
     return price
 
 def COSFormulaAdpt(charFunc, logStrike, maturity, optionType="call", curryCharFunc=False, **kwargs):
