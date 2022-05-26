@@ -2664,6 +2664,12 @@ def test_FitEnsembleCarrPelts():
     # Suggest: fix 5 zgrids, choose n=3,4 CP surfaces
     # Interpretation of each surface?
     df = pd.read_csv("spxVols20170424.csv")
+    k = np.log(df["Strike"]/df["Fwd"])
+    k = k.to_numpy()
+    bid = df["Bid"].to_numpy()
+    ask = df["Ask"].to_numpy()
+    w = norm.pdf(k/0.5)/(ask-bid)
+
     #### 5 zgrids, 2 CP surfaces
     # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # brute-force an init params set
 
@@ -2673,13 +2679,16 @@ def test_FitEnsembleCarrPelts():
     # CP = FitEnsembleCarrPelts(df,fixVol=True,guessCP=guessCP,guessA=guessA)
 
     #### 5 zgrids, 3 CP surfaces
-    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,optMethod='Evolution') # brute-force an init params set... search space much larger!
+    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,optMethod='Evolution') # brute-force an init params set... search space much larger!
 
-    # guessCP = [1.0876363 ,  0.11901932,  0.31551534,  2.04308282,  0.02370585,  0.01130755,  1.49959243,
-    #            1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
-    #            1.00000000, -0.42000000,  0.30000000,  2.05000000,  0.50000000,  0.01000000,  1.50000000] # 3rd surface hand-calibrated... long ATM skew could be better
-    # guessA  = [0.23000000,  0.35000000,  0.42000000]
-    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA)
+    guessCP = [ 1.04747098,  1.27027123,  2.77936925,  1.73583826,  0.01      ,
+                0.01003176,  3.81457591,  0.71732888, -0.43689362,  1.82137236,
+                2.27882578,  0.3060605 ,  0.2801662 ,  1.6963499 ,  1.9211284 ,
+                1.15258598,  0.11015172,  0.14813081,  0.05307462,  0.05164228,
+                3.42524198 ]
+    guessA  = [ 0.45457594,  0.47716727,  0.03878731 ]
+    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,w=w)
+    CP = FitEnsembleCarrPelts(df,n=3,fixVol=False,guessCP=guessCP,guessA=guessA,w=w)
 
     print(CP)
 
@@ -2722,6 +2731,9 @@ def test_EnsembleCarrPeltsImpliedVol():
     zgrid = np.arange(*zcfg)
     N = len(zgrid)
 
+    #### fixVol
+    fixVol = False
+
     #### alpha/beta/gamma, fixVol=True
     # Surface 1 - put-wing (left-skewed distribution i.e. small h(neg) and large h(pos))
     # Surface 2 - call-wing (roughly inverting put-wing params!)
@@ -2731,16 +2743,41 @@ def test_EnsembleCarrPeltsImpliedVol():
     #      1.08631572, -2.88409317,  0.01130755,  0.02178048,  0.89096674,  0.31551534,  1.49959243,
     #      0.24546622,  0.75453378]
     # )
-    params = np.array( # 5 zgrids, 3 CP surfaces
-      [ 1.08764159,  0.13048861,  0.31554504,  2.04635757,  0.02140597,
-        0.01133725,  1.49962213,  1.08634542, -2.77079712,  0.01133725,
-        0.01126602,  0.86569983,  0.31554504,  1.49962213,  1.00002971,
-       -0.42552432,  0.3000297 ,  2.01915182,  0.51074735,  0.01003229,
-        1.5000297 ,  0.20072051,  0.36981458,  0.42326299]
+    # params = np.array( # 5 zgrids, 3 CP surfaces
+    #   [ 1.04747573,  1.26196696,  2.779374  ,  1.73310471,  0.00998579,
+    #     0.01003651,  3.81458066,  0.71733363, -0.43320597,  1.82137711,
+    #     2.27951254,  0.30728308,  0.28017095,  1.69635465,  1.92113315,
+    #     1.15235403,  0.11015647,  0.14789898,  0.05299257,  0.05164703,
+    #     3.42524673,  0.45543536,  0.47641541,  0.04030187 ]
+    # )
+    params = np.array( # 5 zgrids, 3 CP surfaces, fixVol=False
+      [ 1.04747863,  1.2533667 ,  2.77937693,  1.73075612,  0.00998294,
+        0.01003944,  3.81458359,  0.7173367 , -0.43143604,  1.82138004,
+        2.27931593,  0.30881051,  0.28017388,  1.69635758,  1.92113608,
+        1.15229033,  0.1101594 ,  0.14876791,  0.05420374,  0.05164996,
+        3.42524966,  0.08770981,  0.07023338,  0.07509953,  0.07695766,
+        0.08052575,  0.08008519,  0.08065011,  0.07893452,  0.07970602,
+        0.08109841,  0.07935945,  0.08109815,  0.0819862 ,  0.08072235,
+        0.0832824 ,  0.08478851,  0.087123  ,  0.09136709,  0.09342295,
+        0.09926045,  0.10534947,  0.1103217 ,  0.12350295,  0.12520876,
+        0.1325    ,  0.13963413,  0.14920771,  0.16112874,  0.08718827,
+        0.06861108,  0.07453411,  0.07650054,  0.07996808,  0.07972035,
+        0.08028876,  0.07848651,  0.07922337,  0.08064494,  0.07881499,
+        0.08073779,  0.08182795,  0.08053495,  0.08320502,  0.08476189,
+        0.08713188,  0.09145421,  0.09360833,  0.09982446,  0.10578801,
+        0.11066384,  0.1243384 ,  0.12541527,  0.13272255,  0.13980338,
+        0.14933069,  0.16116822,  0.08816215,  0.07107922,  0.07537483,
+        0.07718102,  0.08071669,  0.08014518,  0.08067418,  0.07895096,
+        0.07965828,  0.08105142,  0.07927586,  0.08103022,  0.08190924,
+        0.08056671,  0.08315375,  0.08458367,  0.08703886,  0.09112352,
+        0.09331438,  0.0991501 ,  0.10529339,  0.11027208,  0.12337004,
+        0.12516309,  0.13243698,  0.13957408,  0.14905837,  0.16110432,
+        0.45572028,  0.47601834,  0.04094101 ]
     )
 
-    n = len(params)//(3+N)
+    n = len(params)//(3+N+Nexp*(1-fixVol))
 
+    tau_vec = list()
     h_vec   = list()
     ohm_vec = list()
     kwargs  = list()
@@ -2755,15 +2792,19 @@ def test_EnsembleCarrPeltsImpliedVol():
         h   = hFunc(alpha,beta,gamma,zgrid)
         ohm = ohmFunc(alpha,beta,gamma,zgrid)
 
+        if not fixVol:
+            sig = params[(2+N)*n+Nexp*k:(2+N)*n+Nexp*k+Nexp]
+            tau = tauFunc(sig,Texp)
+        else:
+            tau = tauFunc(sig0,Texp)
+
+        tau_vec.append(tau)
         h_vec.append(h)
         ohm_vec.append(ohm)
         kwargs.append({'alpha': alpha, 'beta': beta, 'gamma': gamma, 'method': 'Loop'})
 
-    a = params[(2+N)*n:]
+    a = params[(2+N+Nexp*(1-fixVol))*n:]
     a /= sum(a)
-
-    tau     = tauFunc(sig0,Texp)
-    tau_vec = [tau]*3
 
     iv = EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, kwargs=kwargs)
     df['Fit'] = iv
@@ -2907,5 +2948,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    test_FitEnsembleCarrPelts()
-    # test_EnsembleCarrPeltsImpliedVol()
+    # test_FitEnsembleCarrPelts()
+    test_EnsembleCarrPeltsImpliedVol()
