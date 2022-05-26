@@ -317,6 +317,13 @@ def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
 
 #### Diffusion
 
+@njit(fastmath=True, cache=True)
+def HestonCharFuncFixedU_jit(u, maturity, meanRevRate, volOfVol, meanVar, currentVar, iur, d, rm, g):
+    # Slightly faster implementation for Heston charFuncFixedU (by 0.002s)
+    D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
+    C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
+    return np.exp(iur*maturity+C*meanVar+D*currentVar)
+
 def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, riskFreeRate=0, curry=False):
     # Characteristic function for Heston model
     if curry:
@@ -333,6 +340,7 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, risk
                 D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
                 C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
                 return np.exp(iur*maturity+C*meanVar+D*currentVar)
+                # return HestonCharFuncFixedU_jit(u, maturity, meanRevRate, volOfVol, meanVar, currentVar, iur, d, rm, g)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
