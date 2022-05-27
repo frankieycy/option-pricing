@@ -3,7 +3,7 @@ import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
 from time import time
-from numba import njit
+from numba import njit, float64, vectorize
 from scipy.stats import norm
 from scipy.special import ndtr
 from scipy.optimize import minimize, minimize_scalar, differential_evolution
@@ -12,6 +12,49 @@ from pricer import BlackScholesFormula, BlackScholesVega
 plt.switch_backend("Agg")
 
 #### Black-Scholes #############################################################
+
+INVROOT2PI = 0.3989422804014327
+
+@njit(float64(float64), fastmath=True, cache=True)
+def _ndtr_jit(x):
+    a1 = 0.319381530
+    a2 = -0.356563782
+    a3 = 1.781477937
+    a4 = -1.821255978
+    a5 = 1.330274429
+    g = 0.2316419
+
+    k = 1.0 / (1.0 + g * np.abs(x))
+    k2 = k * k
+    k3 = k2 * k
+    k4 = k3 * k
+    k5 = k4 * k
+
+    if x >= 0.0:
+        c = (a1 * k + a2 * k2 + a3 * k3 + a4 * k4 + a5 * k5)
+        phi = 1.0 - c * np.exp(-x*x/2.0) * INVROOT2PI
+    else:
+        phi = 1.0 - _ndtr_jit(-x)
+
+    return phi
+
+@vectorize([float64(float64)], fastmath=True, cache=True)
+def ndtr_jit(x):
+    return _ndtr_jit(x)
+
+@njit
+def BlackScholesFormula_jit(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
+    # Black Scholes formula for call/put
+    logMoneyness = np.log(spotPrice/strike)+riskFreeRate*maturity
+    totalImpVol = impliedVol*np.sqrt(maturity)
+    discountFactor = np.exp(-riskFreeRate*maturity)
+    d1 = logMoneyness/totalImpVol+totalImpVol/2
+    d2 = d1-totalImpVol
+
+    if optionType == 'call':
+        return spotPrice * ndtr_jit(d1) - discountFactor * strike * ndtr_jit(d2)
+    else:
+        return discountFactor * strike * ndtr_jit(-d2) - spotPrice * ndtr_jit(-d1)
 
 def BlackScholesFormula_fast(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType):
     # Black Scholes formula for call/put
@@ -460,10 +503,20 @@ def FitSimpleSVI(df, sviGuess=None, initParamsMode=0):
         midVar = (bid**2+ask**2)/2
         sprdVar = (ask**2-bid**2)/2
 
+        k = k.to_numpy()
+        midVar = midVar.to_numpy()
+        sprdVar = sprdVar.to_numpy()
+
+        @njit
+        def varToL2Loss(sviVar): # Fast loss computation!
+            return np.sum(((sviVar-midVar)/sprdVar)**2)
+
         def loss(params): # L2 loss
-            sviVar = svi(*params)(k)
+            # sviVar = svi(*params)(k)
+            sviVar = svi_jit(k,*params)
             # return sum((sviVar-midVar)**2)
-            return sum(((sviVar-midVar)/sprdVar)**2)
+            # return sum(((sviVar-midVar)/sprdVar)**2)
+            return varToL2Loss(sviVar)
 
         # Initial params
         if sviGuess is None:
@@ -537,8 +590,8 @@ def FitArbFreeSimpleSVI(df, sviGuess=None, initParamsMode=0, cArbPenalty=10000, 
         def l2Loss(params): # L2 loss
             # sviVar = svi(*params)(k)/T
             sviVar = svi_jit(k,*params)/T
-            # callSvi = BlackScholesFormula(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
-            callSvi = BlackScholesFormula_fast(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
+            callSvi = BlackScholesFormula_jit(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
+            # callSvi = BlackScholesFormula_fast(F,K,T,0,np.sqrt(np.abs(sviVar)),'call')
             # loss = sum(w*(callSvi-callMid)**2)
             loss = prxToL2Loss(callSvi)
             return loss
