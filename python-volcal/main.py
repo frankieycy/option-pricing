@@ -1826,7 +1826,10 @@ def test_GenVogtButterflyArbitrage():
         plt.close()
 
 def test_FitSimpleSVI():
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+
     df = pd.read_csv("spxVols20170424.csv")
+    # df = pd.read_csv("spxVols20191220.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
 
     # fit = FitSimpleSVI(df)
