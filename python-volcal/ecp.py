@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from time import time
 from numba import njit
 from statistics import NormalDist
+from scipy.special import ndtr
 from scipy.optimize import bisect, minimize, differential_evolution
 from scipy.interpolate import interp1d, InterpolatedUnivariateSpline
 from pricer import BlackScholesFormula, BlackScholesImpliedVol
@@ -91,7 +92,7 @@ def ohmFunc(alpha, beta, gamma, zgrid):
     fac2 = np.exp(gamma*beta**2/2-alpha)
     fac3 = np.sqrt(gamma)
     fac4 = np.sqrt(gamma)*beta
-    cdf = np.vectorize(NormalDist().cdf)
+    cdf = ndtr # np.vectorize(NormalDist().cdf)
     j = np.arange(N-1)
     jj = j*(j>=n)+(j+1)*(j<n)
     cdf0 = cdf((zgrid[:-1]-zgrid[jj])/fac3[:-1]+fac4[:-1])
@@ -154,7 +155,7 @@ def znegCalc(X, tauT, h, zgrid, alpha=None, beta=None, gamma=None, method='Bisec
 
 znegCalc = np.vectorize(znegCalc, excluded=(2,3,'alpha','beta','gamma','method')) # vectorize X,tauT
 
-@njit
+@njit(fastmath=True)
 def znegCalc_loop(X_vec, tauT_vec, zgrid, alpha, beta, gamma):
     # Compute zneg from X = h(z+tauT)-h(z) (very fast implementation!)
     zneg_vec = np.zeros(len(X_vec))
@@ -226,7 +227,7 @@ def CarrPeltsImpliedVol(K, T, D, F, tau, h, ohm, zgrid, X=None, tauT=None, metho
     # print(np.array([T,F,K,P,vol]).T[:200])
     return vol
 
-def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, optMethod='Gradient'):
+def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, guessCP=None, w=None, optMethod='Gradient'):
     # Fit Carr-Pelts parametrization - require trial & error and artisanal knowledge!
     # Left-skewed distribution implied by positive beta and decreasing gamma
     # Calibration: (1) calibrate alpha/beta/gamma via evolution (coarse) (2) calibrate sig via gradient (polish)
@@ -243,7 +244,8 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
     mid = (bid+ask)/2
     midVar = (bid**2+ask**2)/2
 
-    w = 1/(ask-bid)
+    if w is None:
+        w = 1/(ask-bid)
 
     zgrid = np.arange(*zgridCfg)
     N = len(zgrid)
@@ -286,6 +288,13 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
     C = df['CallMid'].to_numpy()
     X = np.log(F/K) # pre-compute
 
+    w = np.array(w)
+    mid = np.array(mid)
+
+    @njit(fastmath=True, cache=True)
+    def ivToL2Loss(iv):
+        return np.sum(w*(iv-mid)**2)
+
     if fixVol:
         tau = tauFunc(sig0,Texp)
         tauT = tau(T) # pre-compute
@@ -304,7 +313,8 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
 
             iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X,tauT, # most costly!
                 alpha=alpha,beta=beta,gamma=gamma,method='Loop')
-            L = sum(w*(iv-mid)**2)
+            # L = sum(w*(iv-mid)**2)
+            L = ivToL2Loss(iv)
 
             print(f'  loss={L}')
 
@@ -327,7 +337,8 @@ def FitCarrPelts(df, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVol=False, gues
 
             iv = CarrPeltsImpliedVol(K,T,D,F,tau,h,ohm,zgrid,X, # most costly!
                 alpha=alpha,beta=beta,gamma=gamma,method='Loop')
-            L = sum(w*(iv-mid)**2)
+            # L = sum(w*(iv-mid)**2)
+            L = ivToL2Loss(iv)
 
             print(f'  loss={L}')
 
@@ -395,7 +406,7 @@ def EnsembleCarrPeltsPrice(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None
     P = np.nan_to_num(P) # small gamma makes Dpos/neg blow up
     return P
 
-def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None, tauT_vec=None, methodIv='Bisection', kwargs=None):
+def EnsembleCarrPeltsImpliedVol(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X=None, tauT_vec=None, methodIv='Bisection_jit', kwargs=None):
     # Compute ensemble Carr-Pelts price and invert to implied vol
     P = EnsembleCarrPeltsPrice(K, T, D, F, a, tau_vec, h_vec, ohm_vec, zgrid, X, tauT_vec, kwargs)
     vol = BlackScholesImpliedVol(F, K, T, 0, P/D, 'call', methodIv)
@@ -470,6 +481,13 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
     C = df['CallMid'].to_numpy()
     X = np.log(F/K) # pre-compute
 
+    w = np.array(w)
+    mid = np.array(mid)
+
+    @njit(fastmath=True, cache=True)
+    def ivToL2Loss(iv):
+        return np.sum(w*(iv-mid)**2)
+
     if fixVol:
         tau = tauFunc(sig0,Texp)
         tauT = tau(T) # pre-compute
@@ -505,7 +523,8 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
             print(f'  a={a}')
 
             iv = EnsembleCarrPeltsImpliedVol(K,T,D,F,a,tau_vec,h_vec,ohm_vec,zgrid,X,tauT_vec,kwargs=kwargs) # most costly!
-            L = sum(w*(iv-mid)**2)
+            # L = sum(w*(iv-mid)**2)
+            L = ivToL2Loss(iv)
 
             print(f'  loss={L}')
 
@@ -545,7 +564,8 @@ def FitEnsembleCarrPelts(df, n=2, zgridCfg=(-100,150,50), gamma0Cfg=(1,1), fixVo
             print(f'  a={a}')
 
             iv = EnsembleCarrPeltsImpliedVol(K,T,D,F,a,tau_vec,h_vec,ohm_vec,zgrid,X,kwargs=kwargs) # most costly!
-            L = sum(w*(iv-mid)**2)
+            # L = sum(w*(iv-mid)**2)
+            L = ivToL2Loss(iv)
 
             print(f'  loss={L}')
 
