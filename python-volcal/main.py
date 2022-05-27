@@ -1633,18 +1633,18 @@ def test_CalibrateModels2005():
         #     "paramsKey": paramsRHPkey,
         #     "paramsBnd": paramsRHPbnd,
         # },
-        "RHPM": {
-            "CF": rHestonPoorMansCharFunc,
-            "paramsVal": paramsRHPMval,
-            "paramsKey": paramsRHPMkey,
-            "paramsBnd": paramsRHPMbnd,
-        },
-        "RHPMM": {
-            "CF": rHestonPoorMansModCharFunc,
-            "paramsVal": paramsRHPMMval,
-            "paramsKey": paramsRHPMMkey,
-            "paramsBnd": paramsRHPMMbnd,
-        },
+        # "RHPM": {
+        #     "CF": rHestonPoorMansCharFunc,
+        #     "paramsVal": paramsRHPMval,
+        #     "paramsKey": paramsRHPMkey,
+        #     "paramsBnd": paramsRHPMbnd,
+        # },
+        # "RHPMM": {
+        #     "CF": rHestonPoorMansModCharFunc,
+        #     "paramsVal": paramsRHPMMval,
+        #     "paramsKey": paramsRHPMMkey,
+        #     "paramsBnd": paramsRHPMMbnd,
+        # },
         "VG": {
             "CF": VarianceGammaCharFunc,
             "paramsVal": paramsVGval,
@@ -1709,10 +1709,10 @@ def test_CalibrateModels2005():
 
     for model in models.keys():
         if model == "RHP":
-            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution",kwargsCF={"fvFunc":fvFunc})
+            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection_jit",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution",kwargsCF={"fvFunc":fvFunc})
             impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x,fvFunc=fvFunc),optionType="call",formulaType="COS")
         else:
-            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
+            x = CalibrateModelToImpliedVolFast(k,T,iv,models[model]["CF"],models[model]["paramsVal"],models[model]["paramsKey"],bounds=models[model]["paramsBnd"],w=w,optionType="call",inversionMethod="Bisection_jit",useGlobal=True,curryCharFunc=True,formulaType="COS",optMethod="Evolution")
             impVolFunc = CharFuncImpliedVol(models[model]["CF"](*x),optionType="call",formulaType="COS")
         x = pd.DataFrame(x.reshape(1,-1), columns=models[model]["paramsKey"])
         x.to_csv(dataFolder+f"Calibration-2005/test_{model}CalibrationIv.csv", index=False)
@@ -2705,8 +2705,8 @@ def test_FitEnsembleCarrPelts():
                 1.15258598,  0.11015172,  0.14813081,  0.05307462,  0.05164228,
                 3.42524198 ]
     guessA  = [ 0.45457594,  0.47716727,  0.03878731 ]
-    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,w=w)
-    CP = FitEnsembleCarrPelts(df,n=3,fixVol=False,guessCP=guessCP,guessA=guessA,w=w)
+    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,w=w)
+    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=False,guessCP=guessCP,guessA=guessA,w=w)
 
     print(CP)
 
@@ -2867,7 +2867,7 @@ if __name__ == '__main__':
     # test_HestonSkewLewis()
     # test_CalibrateHestonModelToCallPrice()
     # test_CalibrateHestonModelToCallPricePrx()
-    test_CalibrateHestonModelToImpVol()
+    # test_CalibrateHestonModelToImpVol()
     # test_ImpVolFromHestonCalibration()
     # test_ImpVolFromHestonCalibrationPrx()
     # test_ImpVolFromHestonIvCalibration()
@@ -2968,5 +2968,5 @@ if __name__ == '__main__':
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
-    # test_FitEnsembleCarrPelts()
+    test_FitEnsembleCarrPelts()
     # test_EnsembleCarrPeltsImpliedVol()

@@ -319,7 +319,7 @@ def BlackScholesCharFunc(vol, riskFreeRate=0, curry=False):
 
 @njit(fastmath=True, cache=True)
 def HestonCharFuncFixedU_jit(u, maturity, meanRevRate, volOfVol, meanVar, currentVar, iur, d, rm, g):
-    # Slightly faster implementation for Heston charFuncFixedU (by 0.002s)
+    # Slightly faster implementation for Heston charFuncFixedU (by 0.002s for each obj evaluation)
     D = rm*(1-np.exp(-d*maturity))/(1-g*np.exp(-d*maturity))
     C = meanRevRate*(rm*maturity-2/volOfVol**2*np.log((1-g*np.exp(-d*maturity))/(1-g)))
     return np.exp(iur*maturity+C*meanVar+D*currentVar)
@@ -1111,7 +1111,8 @@ def CarrMadanFormulaFFT(charFunc, logStrike, maturity, optionType="OTM", interp=
 
 @njit(fastmath=True, cache=True)
 def COSFormula_prxMult(ftMtrxKI, cfVec):
-    return np.real(np.sum(ftMtrxKI*cfVec,axis=1))
+    # return np.real(np.sum(ftMtrxKI*cfVec,axis=1))
+    return np.real(ftMtrxKI.dot(cfVec))
 
 def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b=5, useGlobal=False, curryCharFunc=False, **kwargs):
     # COS formula for call/put
@@ -1144,7 +1145,7 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
 
         n = cosFmla_n
         expArg = cosFmla_expArg
-        cfVec = cosFmla_charFunc(cosFmla_cfArg, maturity)
+        cfVec = cosFmla_charFunc(cosFmla_cfArg, maturity) # 0.0005s (depending on form of CF)
         cosInt = cosFmla_cosInt
 
         if maturity in cosFmla_dict:
@@ -1183,7 +1184,7 @@ def COSFormula(charFunc, logStrike, maturity, optionType="call", N=4000, a=-5, b
 
     # price = np.real(ftMtrxK*cfVec).dot(cosInt) # 0.0015s
     # price = np.real(np.sum(ftMtrxKI*cfVec,axis=1)) # 0.0007s
-    price = COSFormula_prxMult(ftMtrxKI,cfVec) # 0.0005s
+    price = COSFormula_prxMult(ftMtrxKI,cfVec) # 0.0002s
     return price
 
 def COSFormulaAdpt(charFunc, logStrike, maturity, optionType="call", curryCharFunc=False, **kwargs):
