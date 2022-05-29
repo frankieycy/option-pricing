@@ -975,7 +975,8 @@ def SVIVolSurface(fit):
     # ivSurface applies to vector k & T
     Texp = fit.index.to_numpy()
     def ivSurface(k,T):
-        grid = np.array([svi(*fit.loc[t])(k) for t in Texp])
+        # grid = np.array([svi(*fit.loc[t])(k) for t in Texp])
+        grid = np.array([svi_jit(k,*fit.loc[t]) for t in Texp])
         surf = np.array([PchipInterpolator(Texp,grid[:,i])(T) for i in range(len(k))])
         surf = np.sqrt(surf/T).T
         return surf
