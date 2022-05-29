@@ -897,6 +897,13 @@ def FitExtendedSurfaceSVI(df, sviGuess=None, Tcut=0.2):
 
     return fit
 
+def FitArbFreeSimpleSVIWithSimSeed(df, initParamsMode=0, cArbPenalty=10000):
+    # Fit Simple SVI to each slice guaranteeing no static arbitrage with Simple-SVI seed
+    # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
+    guess = FitSimpleSVI(df)
+    fit = FitArbFreeSimpleSVI(df, guess, initParamsMode, cArbPenalty)
+    return fit
+
 def FitArbFreeSimpleSVIWithSqrtSeed(df, initParamsMode=0, cArbPenalty=10000, Tcut=0.2):
     # Fit Simple SVI to each slice guaranteeing no static arbitrage with Sqrt-SVI seed
     # Columns: "Expiry","Texp","Strike","Bid","Ask","Fwd","CallMid","PV"
