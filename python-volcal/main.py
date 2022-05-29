@@ -2682,11 +2682,11 @@ def test_FitEnsembleCarrPelts():
     # Suggest: fix 5 zgrids, choose n=3,4 CP surfaces
     # Interpretation of each surface?
     df = pd.read_csv("spxVols20170424.csv")
-    k = np.log(df["Strike"]/df["Fwd"])
-    k = k.to_numpy()
-    bid = df["Bid"].to_numpy()
-    ask = df["Ask"].to_numpy()
-    w = norm.pdf(k/0.5)/(ask-bid)
+    # k = np.log(df["Strike"]/df["Fwd"])
+    # k = k.to_numpy()
+    # bid = df["Bid"].to_numpy()
+    # ask = df["Ask"].to_numpy()
+    # w = norm.pdf(k/0.5)/(ask-bid)
 
     #### 5 zgrids, 2 CP surfaces
     # CP = FitEnsembleCarrPelts(df,fixVol=True,optMethod='Evolution') # brute-force an init params set
@@ -2699,14 +2699,17 @@ def test_FitEnsembleCarrPelts():
     #### 5 zgrids, 3 CP surfaces
     # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,optMethod='Evolution') # brute-force an init params set... search space much larger!
 
-    guessCP = [ 1.04747098,  1.27027123,  2.77936925,  1.73583826,  0.01      ,
-                0.01003176,  3.81457591,  0.71732888, -0.43689362,  1.82137236,
-                2.27882578,  0.3060605 ,  0.2801662 ,  1.6963499 ,  1.9211284 ,
-                1.15258598,  0.11015172,  0.14813081,  0.05307462,  0.05164228,
-                3.42524198 ]
-    guessA  = [ 0.45457594,  0.47716727,  0.03878731 ]
-    CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,w=w)
+    # guessCP = [ 1.04747098,  1.27027123,  2.77936925,  1.73583826,  0.01      ,
+    #             0.01003176,  3.81457591,  0.71732888, -0.43689362,  1.82137236,
+    #             2.27882578,  0.3060605 ,  0.2801662 ,  1.6963499 ,  1.9211284 ,
+    #             1.15258598,  0.11015172,  0.14813081,  0.05307462,  0.05164228,
+    #             3.42524198 ]
+    # guessA  = [ 0.45457594,  0.47716727,  0.03878731 ]
+    # CP = FitEnsembleCarrPelts(df,n=3,fixVol=True,guessCP=guessCP,guessA=guessA,w=w)
     # CP = FitEnsembleCarrPelts(df,n=3,fixVol=False,guessCP=guessCP,guessA=guessA,w=w)
+
+    #### 5 zgrids, 4 CP surfaces
+    CP = FitEnsembleCarrPelts(df,n=4,fixVol=True,optMethod='Evolution') # brute-force an init params set... search space much larger!
 
     print(CP)
 
