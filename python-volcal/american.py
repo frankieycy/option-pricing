@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import matplotlib.pyplot as plt
+from numba import njit
 from scipy.optimize import bisect, newton, minimize, minimize_scalar
 from pricer import BlackScholesFormula
 
@@ -56,10 +57,41 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
 
 PriceAmericanOption_vec = np.vectorize(PriceAmericanOption)
 
+@njit(fastmath=True)
+def PriceAmericanOption_jit(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impliedVol, optionType, timeSteps=2000):
+    # Price American option via Cox binomial tree (d = 1/u)
+    # Assume continuous dividend, reflected in forward price
+    S,F,K,T,r,sig,n = spotPrice,forwardPrice,strike,maturity,riskFreeRate,impliedVol,timeSteps
+    if optionType == 'call':
+        payoff = lambda St,K: np.maximum(St-K,0)
+    else:
+        payoff = lambda St,K: np.maximum(K-St,0)
+    dt = T/n
+    D = np.exp(-r*dt)
+    u = np.exp(sig*np.sqrt(dt))
+    d = 1/u
+    R = (F/S)**(1/n)
+    p = (R-d)/(u-d)
+    q = 1-p
+
+    Stree = np.zeros((n+1,n+1))
+    Otree = np.zeros((n+1,n+1))
+    for i in range(n+1):
+        Stree[i,:i+1] = S*u**np.arange(-i,i+1,2)
+
+    Otree[-1] = payoff(Stree[-1],K)
+    for i in range(n-1,-1,-1):
+        Otree[i,:i+1] = np.maximum(D*(p*Otree[i+1,1:i+2]+q*Otree[i+1,0:i+1]), payoff(Stree[i,:i+1],K))
+
+    return Otree[0,0]
+
+PriceAmericanOption_vecjit = np.vectorize(PriceAmericanOption_jit)
+
 def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps=1000, method="Bisection", **kwargs):
     # Implied flat volatility under Cox binomial tree
     def objective(impVol):
         return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, **kwargs) - priceMkt
+        # return PriceAmericanOption_jit(spotPrice, forwardPricxe, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
     impVol = 0
     try:
         if method == "Bisection":

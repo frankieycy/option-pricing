@@ -8,7 +8,9 @@ def BatchFitArbFreeSimpleSVI(dfs):
     # dfs: dict of standardized options chain df labeled by dates
     fits = dict()
     for T in dfs:
+        print('------------------------------------------')
         print(f'fitting arb-free simple SVI for T={T}')
+        print('------------------------------------------')
         fits[T] = FitArbFreeSimpleSVIWithSimSeed(dfs[T])
     return fits
 
