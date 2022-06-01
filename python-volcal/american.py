@@ -91,7 +91,7 @@ def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFree
     # Implied flat volatility under Cox binomial tree
     def objective(impVol):
         return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, **kwargs) - priceMkt
-        # return PriceAmericanOption_jit(spotPrice, forwardPricxe, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
+        # return PriceAmericanOption_jit(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
     impVol = 0
     try:
         if method == "Bisection":
@@ -227,6 +227,8 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=
                 D = np.exp(-r*T)
                 sigB = AmericanOptionImpliedVol_vec(S, F, K, T, r, bid, pc, timeSteps, **kwargs)
                 sigA = AmericanOptionImpliedVol_vec(S, F, K, T, r, ask, pc, timeSteps, **kwargs)
+                # sigB = np.array([AmericanOptionImpliedVol(S, F, K.iloc[i], T, r, bid.iloc[i], pc.iloc[i], timeSteps, **kwargs) for i in range(len(dfT))])
+                # sigA = np.array([AmericanOptionImpliedVol(S, F, K.iloc[i], T, r, ask.iloc[i], pc.iloc[i], timeSteps, **kwargs) for i in range(len(dfT))])
                 bsB = D*BlackScholesFormula(F, K, T, 0, sigB, pc)
                 bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
                 dfT['Bid'] = bsB
