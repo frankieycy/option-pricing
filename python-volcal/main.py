@@ -2264,6 +2264,17 @@ def test_PriceAmericanOption():
             print(PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',n))
         print()
 
+def test_test_PriceAmericanOption_jit():
+    np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
+    K = np.arange(0.1,2.1,0.1)
+    r = 0.05
+    D = np.exp(-r)
+    F = np.exp(r)
+    n = 1000
+    print('Am put for various K, with early-ex')
+    print(PriceAmericanOption_vecjit(1,F,K,1,r,0.2,'put',n))
+    print(D*BlackScholesFormula(F,K,1,0,0.2,'put'))
+
 def test_AmPrxConvergence():
     # Consider OTM options where pricing error is magnified due to small premium
     # Convergence at n=2^11~2000 for all T! (thus variable/adaptive dt)
@@ -2899,7 +2910,9 @@ def test_BatchFitArbFreeSimpleSVI():
     dfs = {T: pd.read_csv(f'spxVols{T}.csv').dropna() for T in ['20050509','20170424','20191220']}
     fits = BatchFitArbFreeSimpleSVI(dfs)
     for T in fits:
-        print(T)
+        print('----------')
+        print(f'T={T}')
+        print('----------')
         print(fits[T])
 
 def test_SVIVolSurfaceStats():
@@ -2908,7 +2921,9 @@ def test_SVIVolSurfaceStats():
     Texp = np.arange(0.1,2.1,0.1)
     ts = SVIVolSurfaceStats(fits,Texp)
     for T in ts:
-        print(T)
+        print('----------')
+        print(f'T={T}')
+        print('----------')
         print(ts[T])
 
 if __name__ == '__main__':
@@ -3038,6 +3053,7 @@ if __name__ == '__main__':
     # test_SVIAtmTermStructure()
     #### Am Option ####
     # test_PriceAmericanOption()
+    # test_test_PriceAmericanOption_jit()
     # test_AmPrxConvergence()
     # test_AmPrxForVariousImpVol()
     # test_AmericanOptionImpliedVol()
@@ -3045,7 +3061,7 @@ if __name__ == '__main__':
     # test_SPYAmOptionImpFwdAndRate()
     # test_SPYAmOptionImpDivAndRate()
     # test_SPYAmOptionPlotImpDivAndRate()
-    # test_DeAmericanizedOptionsChainDataset()
+    test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
@@ -3053,4 +3069,4 @@ if __name__ == '__main__':
     # test_EnsembleCarrPeltsImpliedVol()
     #### SSR ####
     # test_BatchFitArbFreeSimpleSVI()
-    test_SVIVolSurfaceStats()
+    # test_SVIVolSurfaceStats()
