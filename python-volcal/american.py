@@ -57,7 +57,7 @@ def PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate,
 
 PriceAmericanOption_vec = np.vectorize(PriceAmericanOption)
 
-@njit(fastmath=True)
+@njit
 def PriceAmericanOption_jit(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impliedVol, optionType, timeSteps=2000):
     # Price American option via Cox binomial tree (d = 1/u)
     # Assume continuous dividend, reflected in forward price
@@ -90,8 +90,8 @@ PriceAmericanOption_vecjit = np.vectorize(PriceAmericanOption_jit)
 def AmericanOptionImpliedVol(spotPrice, forwardPrice, strike, maturity, riskFreeRate, priceMkt, optionType, timeSteps=1000, method="Bisection", **kwargs):
     # Implied flat volatility under Cox binomial tree
     def objective(impVol):
-        return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, **kwargs) - priceMkt
-        # return PriceAmericanOption_jit(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
+        # return PriceAmericanOption(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps, **kwargs) - priceMkt
+        return PriceAmericanOption_jit(spotPrice, forwardPrice, strike, maturity, riskFreeRate, impVol, optionType, timeSteps) - priceMkt
     impVol = 0
     try:
         if method == "Bisection":
@@ -227,8 +227,6 @@ def DeAmericanizedOptionsChainDataset(df, spotPrice, rfRateFunc=None, timeSteps=
                 D = np.exp(-r*T)
                 sigB = AmericanOptionImpliedVol_vec(S, F, K, T, r, bid, pc, timeSteps, **kwargs)
                 sigA = AmericanOptionImpliedVol_vec(S, F, K, T, r, ask, pc, timeSteps, **kwargs)
-                # sigB = np.array([AmericanOptionImpliedVol(S, F, K.iloc[i], T, r, bid.iloc[i], pc.iloc[i], timeSteps, **kwargs) for i in range(len(dfT))])
-                # sigA = np.array([AmericanOptionImpliedVol(S, F, K.iloc[i], T, r, ask.iloc[i], pc.iloc[i], timeSteps, **kwargs) for i in range(len(dfT))])
                 bsB = D*BlackScholesFormula(F, K, T, 0, sigB, pc)
                 bsA = D*BlackScholesFormula(F, K, T, 0, sigA, pc)
                 dfT['Bid'] = bsB
