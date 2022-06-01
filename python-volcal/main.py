@@ -2359,7 +2359,7 @@ def test_AmPrxForVariousImpVol():
 def test_AmericanOptionImpliedVol():
     # Convergence at n=2^10~1000 ATM!
     np.set_printoptions(precision=7, suppress=True, linewidth=np.inf)
-    run = [3,4]
+    run = [5]
     N = 2**np.arange(6,14)
     K = np.arange(0.1,2.05,0.05)
     # print(N)
@@ -2395,6 +2395,15 @@ def test_AmericanOptionImpliedVol():
         D = np.exp(-r)
         F = np.exp(r)
         P0 = PriceAmericanOption_vec(1,F,K,1,r,0.2,'put',8000)
+        iv = AmericanOptionImpliedVol_vec(1,F,K,1,r,P0,'put',1000)
+        print('Am put vol for various K, with early-ex')
+        print(P0)
+        print(iv)
+    if 5 in run:
+        r = 0.05
+        D = np.exp(-r)
+        F = np.exp(r)
+        P0 = PriceAmericanOption_vecjit(1,F,K,1,r,0.2,'put',1000)
         iv = AmericanOptionImpliedVol_vec(1,F,K,1,r,P0,'put',1000)
         print('Am put vol for various K, with early-ex')
         print(P0)
