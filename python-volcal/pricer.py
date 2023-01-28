@@ -466,6 +466,24 @@ def VarianceGammaCharFunc(vol, drift, timeChgVar, riskFreeRate=0, curry=False):
             return np.exp(1j*u*(riskFreeRate+1/timeChgVar*np.log(1-(drift+vol**2/2)*timeChgVar))*maturity)*(1-1j*u*drift*timeChgVar+u**2*vol**2*timeChgVar/2)**(-maturity/timeChgVar)
     return charFunc
 
+def MixtureVarianceGammaCharFunc(p, vol1, drift1, timeChgVar1, vol2, drift2, timeChgVar2, riskFreeRate=0, curry=False):
+    # Characteristic function for Mixture Variance-Gamma model (Brownian parametrization)
+    # Xt+ = drift1*gamma(t;1,timeChgVar1) + vol1*W(gamma(t;1,timeChgVar1))
+    # Xt- = drift2*gamma(t;1,timeChgVar2) + vol2*W(gamma(t;1,timeChgVar2))
+    # Xt = M*(Xt+)+(1-M)*(Xt-)
+    # Ref: Ressel, W-shaped Implied Volatility Curves in a Variance-Gamma Mixture Model
+    if curry:
+        def charFunc(u):
+            chExp1 = 1j*u*(riskFreeRate+1/timeChgVar1*np.nan_to_num(np.log(1-(drift1+vol1**2/2)*timeChgVar1)))-np.log(1-1j*u*drift1*timeChgVar1+u**2*vol1**2*timeChgVar1/2)/timeChgVar1
+            chExp2 = 1j*u*(riskFreeRate+1/timeChgVar2*np.nan_to_num(np.log(1-(drift2+vol2**2/2)*timeChgVar2)))-np.log(1-1j*u*drift2*timeChgVar2+u**2*vol2**2*timeChgVar2/2)/timeChgVar2
+            def charFuncFixedU(u, maturity): # u is dummy
+                return p*np.exp(chExp1*maturity)+(1-p)*np.exp(chExp2*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return p*np.exp(1j*u*(riskFreeRate+1/timeChgVar1*np.log(1-(drift1+vol1**2/2)*timeChgVar1))*maturity)*(1-1j*u*drift1*timeChgVar1+u**2*vol1**2*timeChgVar1/2)**(-maturity/timeChgVar1)+(1-p)*np.exp(1j*u*(riskFreeRate+1/timeChgVar2*np.log(1-(drift2+vol2**2/2)*timeChgVar2))*maturity)*(1-1j*u*drift2*timeChgVar2+u**2*vol2**2*timeChgVar2/2)**(-maturity/timeChgVar2)
+    return charFunc
+
 def VarianceGammaLevyCharFunc(C, G, M, riskFreeRate=0, curry=False):
     # Characteristic function for Variance-Gamma model (Levy measure parametrization)
     # Levy measure k(x) = C*exp(G*x)/|x| for x<0, C*exp(-M*x)/x for x>0

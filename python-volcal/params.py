@@ -28,6 +28,12 @@ paramsVGLkey = list(paramsVGL.keys())
 paramsVGLval = list(paramsVGL.values())
 paramsVGLbnd = ((0.001,50), (1.005,100), (1.005,100))
 
+paramsMVG = {"p": 0.7, "vol1": 0.1, "drift1": -0.8, "timeChgVar1": 0.2,
+             "vol2": 0.1, "drift2": 0.8, "timeChgVar2": 0.2}
+paramsMVGkey = list(paramsMVG.keys())
+paramsMVGval = list(paramsMVG.values())
+paramsMVGbnd = ((0.5,1), (0.01,1), (-10,10), (0.0001,1), (0.01,1), (-10,10), (0.0001,1))
+
 #### CGMY ######################################################################
 # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
 # paramsCGMY = {"C": 0.005, "G": 10, "M": 10, "Y": 1.7}
