@@ -161,6 +161,9 @@ def test_PlotImpliedVol2019():
     PlotImpliedVol(pd.read_csv("spxVols20191220.csv").dropna(), dataFolder+"test_SPXimpliedvol2019.png")
     PlotImpliedVol(pd.read_csv("vixVols20191220.csv").dropna(), dataFolder+"test_VIXimpliedvol2019.png")
 
+def test_PlotImpliedVol2022():
+    PlotImpliedVol(pd.read_csv("spxVols20221107.csv").dropna(), dataFolder+"test_SPXimpliedvol2022.png", ncol=10, atmBar=True, baBar=True)
+
 def test_PlotImpliedVolSPY2022():
     # PlotImpliedVol(pd.read_csv("spyVols20220414.csv").dropna(), dataFolder+"test_SPYimpliedvol2022.png")
     PlotImpliedVol(pd.read_csv("spyVols20220414_corr.csv").dropna(), dataFolder+"test_SPYimpliedvol2022_corr.png")
@@ -898,6 +901,52 @@ def test_ImpVolFromSVJJIvCalibration():
     PlotImpliedVol(dfnew, dataFolder+"test_SVJJImpliedVolIv.png")
 
 #### VGamma ####################################################################
+
+def test_MixtureVGSmile():
+    impVolFunc = CharFuncImpliedVol(MixtureVarianceGammaCharFunc(**paramsMVG),optionType="call",formulaType="COS")
+    k = np.arange(-1.5,1.5,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("Mixture VG 1-Year Smile (MVG Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_MVGSmile.png")
+    plt.close()
+
+def test_CalibrateMVGModelToImpVolSlice():
+    df = pd.read_csv("spxVols20221107.csv").dropna()
+    Texp = df["Texp"].unique()
+    X = list()
+    for T in Texp:
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
+        w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
+        iv = dfT[["Bid","Ask"]]
+        x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureVarianceGammaCharFunc,paramsMVGval,paramsMVGkey,bounds=paramsMVGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+        x = pd.DataFrame(x.reshape(1,-1), columns=paramsMVGkey)
+        X.append(x)
+    X = pd.concat(X)
+    X.to_csv(dataFolder+"test_MVGCalibrationIv.csv", index=False)
+
+def test_ImpVolFromMVGIvCalibration():
+    cal = pd.read_csv(dataFolder+"test_MVGCalibrationIv.csv")
+    df = pd.read_csv("spxVols20170424.csv")
+    df = df.drop(df.columns[0], axis=1)
+    Texp = df["Texp"].unique()
+    dfnew = list()
+    for i,T in enumerate(Texp):
+        params = cal[paramsMVGkey].iloc[i].to_dict()
+        impVolFunc = CharFuncImpliedVol(VarianceGammaCharFunc(**params),FFT=True)
+        dfT = df[df["Texp"]==T].copy()
+        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+        iv = impVolFunc(k,T)
+        dfT["Fit"] = iv
+        dfnew.append(dfT)
+    dfnew = pd.concat(dfnew)
+    PlotImpliedVol(dfnew, dataFolder+"test_MVGImpliedVolIv.png")
 
 def test_CalibrateVGModelToImpVol():
     df = pd.read_csv("spxVols20170424.csv")
@@ -2950,6 +2999,7 @@ if __name__ == '__main__':
     # test_BlackScholesImpliedVol_jitBisect()
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
+    # test_PlotImpliedVol2022()
     # test_PlotImpliedVolSPY2022()
     # test_PlotImpliedVolQQQ2022()
     #### Var Curve ####
@@ -2996,6 +3046,9 @@ if __name__ == '__main__':
     # test_CalibrateSVJJModelToImpVol()
     # test_ImpVolFromSVJJIvCalibration()
     #### VGamma ####
+    test_MixtureVGSmile()
+    # test_CalibrateMVGModelToImpVolSlice()
+    # test_ImpVolFromMVGIvCalibration()
     # test_CalibrateVGModelToImpVol()
     # test_ImpVolFromVGIvCalibration()
     # test_CalibrateVGLModelToImpVol()
@@ -3070,7 +3123,7 @@ if __name__ == '__main__':
     # test_SPYAmOptionImpFwdAndRate()
     # test_SPYAmOptionImpDivAndRate()
     # test_SPYAmOptionPlotImpDivAndRate()
-    test_DeAmericanizedOptionsChainDataset()
+    # test_DeAmericanizedOptionsChainDataset()
     #### Carr-Pelts ####
     # test_FitCarrPelts()
     # test_CarrPeltsImpliedVol()
