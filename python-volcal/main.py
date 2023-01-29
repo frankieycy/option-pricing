@@ -918,14 +918,15 @@ def test_MixtureVGSmile():
 def test_CalibrateMVGModelToImpVolSingleSlice():
     df = pd.read_csv("spxVols20221107.csv").dropna()
     Texp = df["Texp"].unique()
-    T = Texp[25]
+    T = Texp[10]
 
     dfT = df[df["Texp"]==T].copy()
     k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
     mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
     w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
     iv = dfT[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureVarianceGammaCharFunc,paramsMVGval,paramsMVGkey,bounds=paramsMVGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureVarianceGammaCharFunc,paramsMVGval,paramsMVGkey,bounds=paramsMVGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureVarianceGammaCharFunc,paramsMVGval,paramsMVGkey,bounds=paramsMVGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMVGkey).iloc[0]
     impVolFunc = CharFuncImpliedVol(MixtureVarianceGammaCharFunc(**x),optionType="call",formulaType="COS")
 
@@ -1204,14 +1205,16 @@ def test_MixtureBGSmile():
 def test_CalibrateMBGModelToImpVolSingleSlice():
     df = pd.read_csv("spxVols20221107.csv").dropna()
     Texp = df["Texp"].unique()
-    T = Texp[25]
+    T = Texp[45]
 
     dfT = df[df["Texp"]==T].copy()
     k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
     mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
     w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
     iv = dfT[["Bid","Ask"]]
-    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGTimeIndepCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
     x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey).iloc[0]
     impVolFunc = CharFuncImpliedVol(MixtureBGCharFunc(**x),optionType="call",formulaType="COS")
 
@@ -3186,9 +3189,9 @@ if __name__ == '__main__':
     #### BG ####
     # test_BGSmile()
     # test_MixtureBGSmile()
-    # test_CalibrateMBGModelToImpVolSingleSlice()
+    test_CalibrateMBGModelToImpVolSingleSlice()
     # test_MixtureBGLargeTSmile()
-    test_MixtureBGLargeTExactSmile()
+    # test_MixtureBGLargeTExactSmile()
     #### SA ####
     # test_CalibrateVGSAModelToImpVol()
     # test_ImpVolFromVGSAIvCalibration()
