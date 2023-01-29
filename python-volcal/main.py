@@ -1219,6 +1219,59 @@ def test_CalibrateMBGModelToImpVolSingleSlice():
     dfT["Fit"] = iv
     PlotImpliedVol(dfT, dataFolder+f"test_MBGImpliedVolIv_T={np.round(T,3)}.png", atmBar=True, baBar=True)
 
+def test_MixtureBGLargeTSmile():
+    impVolFunc = CharFuncImpliedVol(MixtureBGCharFunc(**paramsMBG),optionType="call",formulaType="COS")
+    T = 1
+    x = np.arange(-1,1,0.01)
+    iv = impVolFunc(x*T,T)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(x, 100*iv, c='k', s=5)
+    plt.title(f"MBG {T}-Year Smile (MBG Params)")
+    plt.xlabel("time-scaled log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_MBGLargeTSmile.png")
+    plt.close()
+
+def test_MixtureBGLargeTExactSmile():
+    # df = pd.read_csv("spxVols20221107.csv").dropna()
+    # Texp = df["Texp"].unique()
+    # dfT = df[df["Texp"]==T[25]].copy()
+
+    Ap1,Am1,Lp1,Lm1 = paramsMBG['Ap1'],paramsMBG['Am1'],paramsMBG['Lp1'],paramsMBG['Lm1']
+    Ap2,Am2,Lp2,Lm2 = paramsMBG['Ap2'],paramsMBG['Am2'],paramsMBG['Lp2'],paramsMBG['Lm2']
+    def BGw(Ap,Am,Lp,Lm):
+        Lp0 = Lp-0.5
+        Lm0 = Lm+0.5
+        K = Ap*np.log(Lp/(Lp-1))+Am*np.log(Lm/(Lm+1))
+        u = -0.5*((Ap+Am)/(K+x)+Lm0-Lp0)+0.5*(1*(x>-K)-1*(x<-K))*np.sqrt(4*Ap*Am/(K+x)**2+(Lp+Lm-(Ap-Am)/(K+x))**2)
+        w = lambda x: (K/2-Ap*np.log(Lp/Lp0)-Am*np.log(Lm/Lm0)-(Ap+Am)/2)-(Lm0-Lp0)/2*(K+x)+np.sqrt(Ap*Am+((Lp0+Lm0)/2*(K+x)-(Ap-Am)/2)**2)+Ap*np.log(1-u/Lp0)+Am*np.log(1+u/Lm0)
+        return w
+    x = np.arange(-2,2,0.001)
+    w1 = BGw(Ap1,Am1,Lp1,Lm1)
+    w2 = BGw(Ap2,Am2,Lp2,Lm2)
+    w = np.minimum(w1(x),w2(x))
+    vm = 4*(w-np.sqrt(w**2-x**2/4))
+    vp = 4*(w+np.sqrt(w**2-x**2/4))
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(x, np.sqrt(vm), c='r', s=1)
+    plt.scatter(x, np.sqrt(vp), c='b', s=1)
+    plt.title("MBG Large-Time Imp Vol")
+    plt.xlabel("time-scaled log-strike $x$")
+    plt.ylabel("$\sigma(x)$")
+    plt.ylim([0.2,1])
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_MBGLargeTImpVol.png")
+    plt.close()
+    # fig = plt.figure(figsize=(6,4))
+    # plt.scatter(x, w, c='k', s=1)
+    # plt.title("MBG Var Qty")
+    # plt.xlabel("time-scaled log-strike $x$")
+    # plt.ylabel("$\omega(x)$")
+    # fig.tight_layout()
+    # plt.savefig(dataFolder+"test_MBGVarQty.png")
+    # plt.close()
+
 #### SA ########################################################################
 
 def test_CalibrateVGSAModelToImpVol():
@@ -3132,8 +3185,10 @@ if __name__ == '__main__':
     # test_ImpVolFromNIGIvCalibration()
     #### BG ####
     # test_BGSmile()
-    test_MixtureBGSmile()
+    # test_MixtureBGSmile()
     # test_CalibrateMBGModelToImpVolSingleSlice()
+    # test_MixtureBGLargeTSmile()
+    test_MixtureBGLargeTExactSmile()
     #### SA ####
     # test_CalibrateVGSAModelToImpVol()
     # test_ImpVolFromVGSAIvCalibration()
