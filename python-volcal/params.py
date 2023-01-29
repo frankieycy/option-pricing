@@ -32,7 +32,7 @@ paramsMVG = {"p": 0.7, "vol1": 0.1, "drift1": -0.8, "timeChgVar1": 0.2,
              "vol2": 0.1, "drift2": 0.8, "timeChgVar2": 0.2}
 paramsMVGkey = list(paramsMVG.keys())
 paramsMVGval = list(paramsMVG.values())
-paramsMVGbnd = ((0,1), (0.01,1), (-10,0), (0.0001,1), (0.01,1), (0,10), (0.0001,1))
+paramsMVGbnd = ((0,1), (0.01,10), (-10,0), (0.00001,1), (0.01,10), (0,10), (0.00001,1))
 
 #### CGMY ######################################################################
 # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
@@ -66,17 +66,15 @@ paramsNIGbnd = ((0.01,1), (-1,1), (0.01,50))
 paramsBG = {"Ap": 10, "Am": 0.6, "Lp": 35, "Lm": 5}
 paramsBGkey = list(paramsBG.keys())
 paramsBGval = list(paramsBG.values())
-paramsBGbnd = ((0,1000), (0,1000), (0,500), (0,500))
+paramsBGbnd = ((0,100), (0,100), (1,100), (1,100))
 
-# paramsMBG = {"p": 0.5, "Ap1": 10, "Am1": 0.6, "Lp1": 35, "Lm1": 5,
-#             "Ap2": 10, "Am2": 1, "Lp2": 35, "Lm2": 1}
-# paramsMBG = {"p": 0.5, "Ap1": 10, "Am1": 1, "Lp1": 40, "Lm1": 2,
+# paramsMBG = {"p": 0.6, "Ap1": 20, "Am1": 1, "Lp1": 40, "Lm1": 2,
 #             "Ap2": 1, "Am2": 2, "Lp2": 3, "Lm2": 10}
-paramsMBG = {"p": 0.6, "Ap1": 20, "Am1": 1, "Lp1": 40, "Lm1": 2,
-            "Ap2": 1, "Am2": 2, "Lp2": 3, "Lm2": 10}
+paramsMBG = {"p": 0.813, "Ap1": 0.399, "Am1": 22.746, "Lp1": 15.477, "Lm1": 20.773,
+             "Ap2": 75.997, "Am2": 0.714, "Lp2": 77.598, "Lm2": 1.904}
 paramsMBGkey = list(paramsMBG.keys())
 paramsMBGval = list(paramsMBG.values())
-paramsMBGbnd = ((0,1), (0,1000), (0,1000), (1,500), (0,500), (0,1000), (0,1000), (1,500), (0,500))
+paramsMBGbnd = ((0,1), (0,100), (0,100), (1,100), (1,100), (0,100), (0,100), (1,100), (1,100))
 
 #### SA ########################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes

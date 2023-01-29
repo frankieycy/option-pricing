@@ -584,18 +584,37 @@ def MixtureBGCharFunc(p, Ap1, Am1, Lp1, Lm1, Ap2, Am2, Lp2, Lm2, riskFreeRate=0,
     # Characteristic function for Mixture BG model
     # Levy measure k(x) = Am*exp(Lm*x)/|x| for x<0, Ap*exp(-Ap*x)/x for x>0
     # Xt = M*(Xt+)+(1-M)*(Xt-)
-    K1 = Ap1*np.log(Lp1/(Lp1-1))+Am1*np.log(Lm1/(Lm1+1))
-    K2 = Ap2*np.log(Lp2/(Lp2-1))+Am2*np.log(Lm2/(Lm2+1))
+    K1 = np.nan_to_num(Ap1*np.log(Lp1/(Lp1-1))+Am1*np.log(Lm1/(Lm1+1)))
+    K2 = np.nan_to_num(Ap2*np.log(Lp2/(Lp2-1))+Am2*np.log(Lm2/(Lm2+1)))
     if curry:
         def charFunc(u):
             chExp1 = 1j*u*riskFreeRate+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1
             chExp2 = 1j*u*riskFreeRate+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2
             def charFuncFixedU(u, maturity): # u is dummy
-                return np.nan_to_num(p*np.exp(chExp1*maturity)+(1-p)*np.exp(chExp2*maturity))
+                return p*np.exp(chExp1*maturity)+(1-p)*np.exp(chExp2*maturity)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.nan_to_num(p*np.exp((1j*u*riskFreeRate+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1)*maturity)+(1-p)*np.exp((1j*u*riskFreeRate+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2)*maturity))
+            return p*np.exp((1j*u*riskFreeRate+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1)*maturity)+(1-p)*np.exp((1j*u*riskFreeRate+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2)*maturity)
+    return charFunc
+
+def MixtureBGTimeIndepCharFunc(p, Ap1, Am1, Lp1, Lm1, Ap2, Am2, Lp2, Lm2, riskFreeRate=0, curry=False):
+    # Characteristic function for Mixture BG model, time-dependence absorbed in Ap Am
+    # Levy measure k(x) = Am*exp(Lm*x)/|x| for x<0, Ap*exp(-Ap*x)/x for x>0
+    # Xt = M*(Xt+)+(1-M)*(Xt-)
+    K1 = np.nan_to_num(Ap1*np.log(Lp1/(Lp1-1))+Am1*np.log(Lm1/(Lm1+1)))
+    K2 = np.nan_to_num(Ap2*np.log(Lp2/(Lp2-1))+Am2*np.log(Lm2/(Lm2+1)))
+    if curry:
+        def charFunc(u):
+            iur = 1j*u*riskFreeRate
+            chExp1 = Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1
+            chExp2 = Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2
+            def charFuncFixedU(u, maturity): # u is dummy
+                return p*np.exp(iur*maturity+chExp1)+(1-p)*np.exp(iur*maturity+chExp2)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return p*np.exp(1j*u*riskFreeRate*maturity+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1)+(1-p)*np.exp(1j*u*riskFreeRate*maturity+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2)
     return charFunc
 
 #### Stochastic-arrival
