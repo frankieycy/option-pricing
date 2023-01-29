@@ -68,8 +68,12 @@ paramsBGkey = list(paramsBG.keys())
 paramsBGval = list(paramsBG.values())
 paramsBGbnd = ((0,1000), (0,1000), (0,500), (0,500))
 
-paramsMBG = {"p": 0.7, "Ap1": 10, "Am1": 0.6, "Lp1": 35, "Lm1": 5,
-            "Ap2": 1, "Am2": 50, "Lp2": 5, "Lm2": 35}
+# paramsMBG = {"p": 0.5, "Ap1": 10, "Am1": 0.6, "Lp1": 35, "Lm1": 5,
+#             "Ap2": 10, "Am2": 1, "Lp2": 35, "Lm2": 1}
+# paramsMBG = {"p": 0.5, "Ap1": 10, "Am1": 1, "Lp1": 40, "Lm1": 2,
+#             "Ap2": 1, "Am2": 2, "Lp2": 3, "Lm2": 10}
+paramsMBG = {"p": 0.6, "Ap1": 20, "Am1": 1, "Lp1": 40, "Lm1": 2,
+            "Ap2": 1, "Am2": 2, "Lp2": 3, "Lm2": 10}
 paramsMBGkey = list(paramsMBG.keys())
 paramsMBGval = list(paramsMBG.values())
 paramsMBGbnd = ((0,1), (0,1000), (0,1000), (1,500), (0,500), (0,1000), (0,1000), (1,500), (0,500))
