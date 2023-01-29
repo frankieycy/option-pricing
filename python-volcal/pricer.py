@@ -504,30 +504,34 @@ def CGMYCharFunc(C, G, M, Y, riskFreeRate=0, curry=False):
     # Levy measure k(x) = C*exp(G*x)/|x|^(Y+1) for x<0, C*exp(-M*x)/x^Y for x>0
     # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
     gammaY = sp.special.gamma(-Y)
+    K1 = M**Y+G**Y
+    K2 = (M-1)**Y-M**Y+(G+1)**Y-G**Y
     if curry:
         def charFunc(u):
-            chExp = 1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
+            chExp = 1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-K1-1j*u*K2)
             def charFuncFixedU(u, maturity): # u is dummy
                 return np.exp(chExp*maturity)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.exp((1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
+            return np.exp((1j*u*riskFreeRate+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-K1-1j*u*K2))*maturity)
     return charFunc
 
 def eCGMYCharFunc(vol, C, G, M, Y, riskFreeRate=0, curry=False):
     # Characteristic function for extended CGMY model
     # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
     gammaY = sp.special.gamma(-Y)
+    K1 = M**Y+G**Y
+    K2 = (M-1)**Y-M**Y+(G+1)**Y-G**Y
     if curry:
         def charFunc(u):
-            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y)
+            chExp = 1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-K1-1j*u*K2)
             def charFuncFixedU(u, maturity): # u is dummy
                 return np.exp(chExp*maturity)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-(M-1)**Y-(G+1)**Y))*maturity)
+            return np.exp((1j*u*riskFreeRate-vol**2/2*u*(u+1j)+C*gammaY*((M-1j*u)**Y+(G+1j*u)**Y-K1-1j*u*K2)*maturity))
     return charFunc
 
 def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
@@ -538,13 +542,13 @@ def pnCGMYCharFunc(C, CRatio, G, M, Yp, Yn, riskFreeRate=0, curry=False):
     gammaYn = sp.special.gamma(-Yn)
     if curry:
         def charFunc(u):
-            chExp = 1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-(M-1)**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-(G+1)**Yn))
+            chExp = 1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-M**Yp-1j*u*((M-1)**Yp-M**Yp))+CRatio*gammaYn*((G+1j*u)**Yn-G**Yn-1j*u*((G+1)**Yn-G**Yn)))
             def charFuncFixedU(u, maturity): # u is dummy
                 return np.exp(chExp*maturity)
             return charFuncFixedU
     else:
         def charFunc(u, maturity):
-            return np.exp((1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-(M-1)**Yp)+CRatio*gammaYn*((G+1j*u)**Yn-(G+1)**Yn)))*maturity)
+            return np.exp((1j*u*riskFreeRate+C*(gammaYp*((M-1j*u)**Yp-M**Yp-1j*u*((M-1)**Yp-M**Yp))+CRatio*gammaYn*((G+1j*u)**Yn-G**Yn-1j*u*((G+1)**Yn-G**Yn))))*maturity)
     return charFunc
 
 def NIGCharFunc(vol, drift, timeChgDrift, riskFreeRate=0, curry=False):
@@ -559,6 +563,39 @@ def NIGCharFunc(vol, drift, timeChgDrift, riskFreeRate=0, curry=False):
     else:
         def charFunc(u, maturity):
             return np.exp((1j*u*riskFreeRate+np.sqrt(timeChgDrift**2-2*drift-vol**2)-np.sqrt(timeChgDrift**2-2*drift*1j*u+vol**2*u**2))*maturity)
+    return charFunc
+
+def BGCharFunc(Ap, Am, Lp, Lm, riskFreeRate=0, curry=False):
+    # Characteristic function for BG model
+    # Levy measure k(x) = Am*exp(Lm*x)/|x| for x<0, Ap*exp(-Ap*x)/x for x>0
+    K = np.nan_to_num(Ap*np.log(Lp/(Lp-1))+Am*np.log(Lm/(Lm+1)))
+    if curry:
+        def charFunc(u):
+            chExp = 1j*u*riskFreeRate+Ap*np.log(Lp/(Lp-1j*u))+Am*np.log(Lm/(Lm+1j*u))-1j*u*K
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.exp(chExp*maturity)
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.exp((1j*u*riskFreeRate+Ap*np.log(Lp/(Lp-1j*u))+Am*np.log(Lm/(Lm+1j*u))-1j*u*K)*maturity)
+    return charFunc
+
+def MixtureBGCharFunc(p, Ap1, Am1, Lp1, Lm1, Ap2, Am2, Lp2, Lm2, riskFreeRate=0, curry=False):
+    # Characteristic function for Mixture BG model
+    # Levy measure k(x) = Am*exp(Lm*x)/|x| for x<0, Ap*exp(-Ap*x)/x for x>0
+    # Xt = M*(Xt+)+(1-M)*(Xt-)
+    K1 = Ap1*np.log(Lp1/(Lp1-1))+Am1*np.log(Lm1/(Lm1+1))
+    K2 = Ap2*np.log(Lp2/(Lp2-1))+Am2*np.log(Lm2/(Lm2+1))
+    if curry:
+        def charFunc(u):
+            chExp1 = 1j*u*riskFreeRate+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1
+            chExp2 = 1j*u*riskFreeRate+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2
+            def charFuncFixedU(u, maturity): # u is dummy
+                return np.nan_to_num(p*np.exp(chExp1*maturity)+(1-p)*np.exp(chExp2*maturity))
+            return charFuncFixedU
+    else:
+        def charFunc(u, maturity):
+            return np.nan_to_num(p*np.exp((1j*u*riskFreeRate+Ap1*np.log(Lp1/(Lp1-1j*u))+Am1*np.log(Lm1/(Lm1+1j*u))-1j*u*K1)*maturity)+(1-p)*np.exp((1j*u*riskFreeRate+Ap2*np.log(Lp2/(Lp2-1j*u))+Am2*np.log(Lm2/(Lm2+1j*u))-1j*u*K2)*maturity))
     return charFunc
 
 #### Stochastic-arrival

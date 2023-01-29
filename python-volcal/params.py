@@ -32,7 +32,7 @@ paramsMVG = {"p": 0.7, "vol1": 0.1, "drift1": -0.8, "timeChgVar1": 0.2,
              "vol2": 0.1, "drift2": 0.8, "timeChgVar2": 0.2}
 paramsMVGkey = list(paramsMVG.keys())
 paramsMVGval = list(paramsMVG.values())
-paramsMVGbnd = ((0.5,1), (0.01,1), (-10,10), (0.0001,1), (0.01,1), (-10,10), (0.0001,1))
+paramsMVGbnd = ((0,1), (0.01,1), (-10,0), (0.0001,1), (0.01,1), (0,10), (0.0001,1))
 
 #### CGMY ######################################################################
 # Ref: CGMY, The Fine Structure of Asset Returns: An Empirical Investigation
@@ -54,12 +54,25 @@ paramsPNCGMYkey = list(paramsPNCGMY.keys())
 paramsPNCGMYval = list(paramsPNCGMY.values())
 paramsPNCGMYbnd = ((0.001,10), (1,5), (1.005,20), (1.005,20), (0.01,1.99), (0.01,1.99))
 
-#### NIG ######################################################################
+#### NIG #######################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes
 paramsNIG = {"vol": 0.426, "drift": 0.190, "timeChgDrift": 23.761} # converged
 paramsNIGkey = list(paramsNIG.keys())
 paramsNIGval = list(paramsNIG.values())
 paramsNIGbnd = ((0.01,1), (-1,1), (0.01,50))
+
+#### BG ########################################################################
+
+paramsBG = {"Ap": 10, "Am": 0.6, "Lp": 35, "Lm": 5}
+paramsBGkey = list(paramsBG.keys())
+paramsBGval = list(paramsBG.values())
+paramsBGbnd = ((0,1000), (0,1000), (0,500), (0,500))
+
+paramsMBG = {"p": 0.7, "Ap1": 10, "Am1": 0.6, "Lp1": 35, "Lm1": 5,
+            "Ap2": 1, "Am2": 50, "Lp2": 5, "Lm2": 35}
+paramsMBGkey = list(paramsMBG.keys())
+paramsMBGval = list(paramsMBG.values())
+paramsMBGbnd = ((0,1), (0,1000), (0,1000), (1,500), (0,500), (0,1000), (0,1000), (1,500), (0,500))
 
 #### SA ########################################################################
 # Ref: CGMY, Stochastic Volatility for Levy Processes

@@ -915,6 +915,24 @@ def test_MixtureVGSmile():
     plt.savefig(dataFolder+"test_MVGSmile.png")
     plt.close()
 
+def test_CalibrateMVGModelToImpVolSingleSlice():
+    df = pd.read_csv("spxVols20221107.csv").dropna()
+    Texp = df["Texp"].unique()
+    T = Texp[25]
+
+    dfT = df[df["Texp"]==T].copy()
+    k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+    mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
+    w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
+    iv = dfT[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureVarianceGammaCharFunc,paramsMVGval,paramsMVGkey,bounds=paramsMVGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsMVGkey).iloc[0]
+    impVolFunc = CharFuncImpliedVol(MixtureVarianceGammaCharFunc(**x),optionType="call",formulaType="COS")
+
+    iv = impVolFunc(k,T)
+    dfT["Fit"] = iv
+    PlotImpliedVol(dfT, dataFolder+f"test_MVGImpliedVolIv_T={np.round(T,3)}.png", atmBar=True, baBar=True)
+
 def test_CalibrateMVGModelToImpVolSlice():
     df = pd.read_csv("spxVols20221107.csv").dropna()
     Texp = df["Texp"].unique()
@@ -933,20 +951,20 @@ def test_CalibrateMVGModelToImpVolSlice():
 
 def test_ImpVolFromMVGIvCalibration():
     cal = pd.read_csv(dataFolder+"test_MVGCalibrationIv.csv")
-    df = pd.read_csv("spxVols20170424.csv")
+    df = pd.read_csv("spxVols20221107.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
     dfnew = list()
     for i,T in enumerate(Texp):
         params = cal[paramsMVGkey].iloc[i].to_dict()
-        impVolFunc = CharFuncImpliedVol(VarianceGammaCharFunc(**params),FFT=True)
+        impVolFunc = CharFuncImpliedVol(MixtureVarianceGammaCharFunc(**params),FFT=True)
         dfT = df[df["Texp"]==T].copy()
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         iv = impVolFunc(k,T)
         dfT["Fit"] = iv
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
-    PlotImpliedVol(dfnew, dataFolder+"test_MVGImpliedVolIv.png")
+    PlotImpliedVol(dfnew, dataFolder+"test_MVGImpliedVolIv.png", ncol=10, atmBar=True, baBar=True)
 
 def test_CalibrateVGModelToImpVol():
     df = pd.read_csv("spxVols20170424.csv")
@@ -1154,6 +1172,52 @@ def test_ImpVolFromNIGIvCalibration():
         dfnew.append(dfT)
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_NIGImpliedVolIv.png")
+
+#### BG #######################################################################
+
+def test_BGSmile():
+    impVolFunc = CharFuncImpliedVol(BGCharFunc(**paramsBG),optionType="call",formulaType="COS")
+    k = np.arange(-1.2,1.2,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("BG 1-Year Smile (BG Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_BGSmile.png")
+    plt.close()
+
+def test_MixtureBGSmile():
+    impVolFunc = CharFuncImpliedVol(MixtureBGCharFunc(**paramsMBG),optionType="call",formulaType="COS")
+    k = np.arange(-1.2,1.2,0.02)
+    iv = impVolFunc(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("MBG 1-Year Smile (MBG Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_MBGSmile.png")
+    plt.close()
+
+def test_CalibrateMBGModelToImpVolSingleSlice():
+    df = pd.read_csv("spxVols20221107.csv").dropna()
+    Texp = df["Texp"].unique()
+    T = Texp[25]
+
+    dfT = df[df["Texp"]==T].copy()
+    k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+    mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
+    w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
+    iv = dfT[["Bid","Ask"]]
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey).iloc[0]
+    impVolFunc = CharFuncImpliedVol(MixtureBGCharFunc(**x),optionType="call",formulaType="COS")
+
+    iv = impVolFunc(k,T)
+    dfT["Fit"] = iv
+    PlotImpliedVol(dfT, dataFolder+f"test_MBGImpliedVolIv_T={np.round(T,3)}.png", atmBar=True, baBar=True)
 
 #### SA ########################################################################
 
@@ -3046,7 +3110,8 @@ if __name__ == '__main__':
     # test_CalibrateSVJJModelToImpVol()
     # test_ImpVolFromSVJJIvCalibration()
     #### VGamma ####
-    test_MixtureVGSmile()
+    # test_MixtureVGSmile()
+    # test_CalibrateMVGModelToImpVolSingleSlice()
     # test_CalibrateMVGModelToImpVolSlice()
     # test_ImpVolFromMVGIvCalibration()
     # test_CalibrateVGModelToImpVol()
@@ -3065,6 +3130,10 @@ if __name__ == '__main__':
     # test_NIGSmile_COS()
     # test_CalibrateNIGModelToImpVol()
     # test_ImpVolFromNIGIvCalibration()
+    #### BG ####
+    # test_BGSmile()
+    test_MixtureBGSmile()
+    # test_CalibrateMBGModelToImpVolSingleSlice()
     #### SA ####
     # test_CalibrateVGSAModelToImpVol()
     # test_ImpVolFromVGSAIvCalibration()
