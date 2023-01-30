@@ -1203,26 +1203,25 @@ def test_MixtureBGSmile():
     plt.close()
 
 def test_CalibrateMBGModelToImpVolSingleSlice():
+    cal = pd.read_csv(dataFolder+"test_MBGCalibrationIv.csv")
     df = pd.read_csv("spxVols20221107.csv").dropna()
     Texp = df["Texp"].unique()
+    T = Texp[10]
 
-    for i in [5,15,25,35,45]:
-        T = Texp[i]
+    dfT = df[df["Texp"]==T].copy()
+    k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
+    mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
+    w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
+    iv = dfT[["Bid","Ask"]]
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
+    # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
+    x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGTimeIndepCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
+    x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey).iloc[0]
+    impVolFunc = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**x),optionType="call",formulaType="COS")
 
-        dfT = df[df["Texp"]==T].copy()
-        k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
-        mid = (dfT["CallMid"]/dfT["Fwd"]).to_numpy()
-        w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
-        iv = dfT[["Bid","Ask"]]
-        # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True)
-        # x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
-        x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGTimeIndepCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
-        x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey).iloc[0]
-        impVolFunc = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**x),optionType="call",formulaType="COS")
-
-        iv = impVolFunc(k,T)
-        dfT["Fit"] = iv
-        PlotImpliedVol(dfT, dataFolder+f"test_MBGImpliedVolIv_T={np.round(T,3)}.png", atmBar=True, baBar=True)
+    iv = impVolFunc(k,T)
+    dfT["Fit"] = iv
+    PlotImpliedVol(dfT, dataFolder+f"test_MBGImpliedVolIv_T={np.round(T,3)}.png", atmBar=True, baBar=True)
 
 def test_CalibrateMBGModelToImpVolSlice():
     df = pd.read_csv("spxVols20221107.csv").dropna()
@@ -1235,19 +1234,18 @@ def test_CalibrateMBGModelToImpVolSlice():
         w = 1/(dfT["Ask"]-dfT["Bid"]).to_numpy()
         iv = dfT[["Bid","Ask"]]
         x = CalibrateModelToImpliedVolFast(k,T,iv,MixtureBGTimeIndepCharFunc,paramsMBGval,paramsMBGkey,bounds=paramsMBGbnd,w=w,optionType="call",useGlobal=True,curryCharFunc=True,optMethod="Evolution")
-        x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey)
+        x = pd.DataFrame(x.reshape(1,-1), columns=paramsMBGkey, index=[T])
         X.append(x)
-        pd.concat(X).to_csv(dataFolder+"test_MBGCalibrationIv.csv", index=False)
+    pd.concat(X).to_csv(dataFolder+"test_MBGCalibrationIv.csv")
 
 def test_ImpVolFromMBGIvCalibration():
-    cal = pd.read_csv(dataFolder+"test_MBGCalibrationIv.csv")
+    cal = pd.read_csv(dataFolder+"test_MBGCalibrationIv.csv", index_col=0)
     df = pd.read_csv("spxVols20221107.csv").dropna()
     df = df.drop(df.columns[0], axis=1)
     Texp = df["Texp"].unique()
     dfnew = list()
-    for i,T in enumerate(Texp[[0,3,12,23,29,34,42,46,48,49]]):
-        params = cal[paramsMBGkey].iloc[i].to_dict()
-        impVolFunc = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**params),FFT=True)
+    for T,row in cal.iterrows():
+        impVolFunc = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**row),optionType="call",formulaType="COS")
         dfT = df[df["Texp"]==T].copy()
         k = np.log(dfT["Strike"]/dfT["Fwd"]).to_numpy()
         iv = impVolFunc(k,T)
@@ -1308,6 +1306,28 @@ def test_MixtureBGLargeTExactSmile():
     # fig.tight_layout()
     # plt.savefig(dataFolder+"test_MBGVarQty.png")
     # plt.close()
+
+def test_MixtureBGCalendarArb():
+    paramsMBG1 = {"p": 0.8, "Ap1": 0.4, "Am1": 20, "Lp1": 15, "Lm1": 20,
+                 "Ap2": 75, "Am2": 0.7, "Lp2": 75, "Lm2": 2}
+    paramsMBG2 = {"p": 0, "Ap1": 0.4, "Am1": 20, "Lp1": 15, "Lm1": 20,
+                 "Ap2": 75, "Am2": 0.7, "Lp2": 75, "Lm2": 2}
+    impVolFunc1 = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**paramsMBG1),optionType="call",formulaType="COS")
+    impVolFunc2 = CharFuncImpliedVol(MixtureBGTimeIndepCharFunc(**paramsMBG2),optionType="call",formulaType="COS")
+    T1,T2 = 1,1
+    k = np.arange(-2,2,0.02)
+    iv1 = impVolFunc1(k,T1)
+    iv2 = impVolFunc2(k,T2)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, iv1**2*T1, c='r', s=1, label=f'MBG1 T1={T1}')
+    plt.scatter(k, iv2**2*T2, c='b', s=1, label=f'MBG2 T2={T2}')
+    plt.title("MBG Variance Smiles")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied var")
+    plt.legend()
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_MBGVarSmile.png")
+    plt.close()
 
 #### SA ########################################################################
 
@@ -3224,10 +3244,11 @@ if __name__ == '__main__':
     # test_BGSmile()
     # test_MixtureBGSmile()
     # test_CalibrateMBGModelToImpVolSingleSlice()
-    test_CalibrateMBGModelToImpVolSlice()
+    # test_CalibrateMBGModelToImpVolSlice()
     test_ImpVolFromMBGIvCalibration()
     # test_MixtureBGLargeTSmile()
     # test_MixtureBGLargeTExactSmile()
+    # test_MixtureBGCalendarArb()
     #### SA ####
     # test_CalibrateVGSAModelToImpVol()
     # test_ImpVolFromVGSAIvCalibration()
