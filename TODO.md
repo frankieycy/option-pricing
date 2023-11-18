@@ -55,3 +55,9 @@
 * pricing under execution costs
 * joint calibration with VIX derivs
 * fast Monte-Carlo for exotics pricing
+
+## To-Do List (2023 Winter)
+
+* Research, American and European implied vol
+* Research, Event-modeling
+* Trading, Earnings bet
