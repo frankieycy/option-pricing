@@ -2,6 +2,8 @@
 
 * last update: 220104
 * C++ option pricing library that implements the classical models
+* Python vol-surface calibration libraty
+* Miscellaneous quantitative research on volatility
 
 ## Single-Asset Option Pricing Examples
 
