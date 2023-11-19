@@ -4,21 +4,60 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from numba import njit
+from copy import copy
 from scipy.sparse import diags
 from scipy.sparse.linalg import splu, spsolve
 from scipy.interpolate import interp1d
 plt.switch_backend('Agg')
 
 #### Note ######################################################################
-# - Attributes in all classes are freely accessible, i.e. no encapsulation (getter/setter)
+# 1. Attributes in all classes are freely accessible, i.e. no encapsulation (getter/setter)
+
+#### Consts ####################################################################
+
+MIN_TTX  = 1e-4         # minimum time-to-expiry to avoid blow-up in SviPowerLaw
+MAX_LVAR = 10           # maximum local-var to avoid blow-up in SolveLattice
 
 #### Vol Surface ###############################################################
 
-MIN_TTX  = 1e-4
-MAX_LVAR = 10
+class VolSurface:
+    def __init__(self):
+        self.IVolFunc = self.ImpliedVolFunc() # implied-vol function
+        self.LVolFunc = self.LocalVolFunc()   # local-vol function
+        self.LVarFunc = self.LocalVarFunc()   # local-var function
 
-class SviPowerLaw:
+    def __repr__(self):
+        return f'VolSurface()'
+
+    def ImpliedVolFunc(self):
+        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+
+    def LocalVolFunc(self):
+        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+
+    def LocalVarFunc(self):
+        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+
+class FlatVol(VolSurface):
+    def __init__(self, sig):
+        VolSurface.__init__(self)
+        self.sig = sig
+
+    def __repr__(self):
+        return f'FlatVol(sig={self.sig})'
+
+    def ImpliedVolFunc(self):
+        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+
+    def LocalVolFunc(self):
+        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+
+    def LocalVarFunc(self):
+        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+
+class SviPowerLaw(VolSurface):
     def __init__(self, v0, v1, v2, k1, k2, rho, eta, gam):
+        VolSurface.__init__(self)
         self.v0  = v0  # base variance
         self.v1  = v1  # short-term variance
         self.v2  = v2  # long-term variance
@@ -27,9 +66,9 @@ class SviPowerLaw:
         self.rho = rho # smile asymmetry
         self.eta = eta # skew magnitude
         self.gam = gam # skew decay
-        self.IVolFunc = self.ImpliedVolFunc() # implied-vol function
-        self.LVolFunc = self.LocalVolFunc()   # local-vol function
-        self.LVarFunc = self.LocalVarFunc()   # local-var function
+
+    def __repr__(self):
+        return f'SviPowerLaw(v0={self.v0}, v1={self.v1}, v2={self.v2}, k1={self.k1}, k2={self.k2}, rho={self.rho}, eta={self.eta}, gam={self.gam})'
 
     def HestonTermStructureKernel(self):
         def w0(T):
@@ -37,6 +76,7 @@ class SviPowerLaw:
         return w0
 
     def HestonTermStructureKernelTimeDeriv(self):
+        # Term-structure kernel derivative wrt. T
         def dw0dT(T):
             return self.v0+(self.v1-self.v0)*np.exp(-self.k1*T)+(self.v2-self.v0)*self.k1/(self.k1-self.k2)*(np.exp(-self.k2*T)-np.exp(-self.k1*T))
         return dw0dT
@@ -47,11 +87,13 @@ class SviPowerLaw:
         return sk0
 
     def PowerLawSkewKernelVarDeriv(self):
+        # Skew kernel derivative wrt. w
         def dsk0dw(w):
             return -self.eta*self.gam/w**(self.gam+1)
         return dsk0dw
 
     def TotalImpliedVarFunc(self):
+        # SviPowerLaw surface parametrization
         w0  = self.HestonTermStructureKernel()
         sk0 = self.PowerLawSkewKernel()
         def sviIVarFunc(k, T):
@@ -62,6 +104,7 @@ class SviPowerLaw:
         return sviIVarFunc
 
     def LocalVarFunc(self):
+        # SviPowerLaw analytic local-var
         w0     = self.HestonTermStructureKernel()
         sk0    = self.PowerLawSkewKernel()
         dw0dT  = self.HestonTermStructureKernelTimeDeriv()
@@ -108,26 +151,31 @@ class Option:
         self.pxGridEu = None # price-grid under local-vol
         self.pxGridAm = None # price-grid under flat local-vol
         self.gridX    = None # space-grid in log-spot
+        self.gridS    = None # space-grid in spot
         self.gridT    = None # time-grid in time-to-expiry
+
+    def __repr__(self):
+        return f'Option(K={self.K}, T={self.T}, pc={self.pc}, ex={self.ex}, ivEu={self.ivEu}, ivAm={self.ivAm}, lvEu={self.lvEu})'
 
     def Payoff(self, S):
         return np.maximum((self.K-S) if self.pc=='P' else (S-self.K),0)
 
 class Spot:
-    def __init__(self, S0, r, q, impVolFunc, locVolFunc, locVarFunc, div=None):
-        self.S0 = S0 # initial spot
-        self.r  = r  # risk-free rate
-        self.q  = q  # dividend yield
-        self.IVolFunc = impVolFunc # implied-vol function
-        self.LVolFunc = locVolFunc # local-vol function
-        self.LVarFunc = locVarFunc # local-var function
+    def __init__(self, S0, r, q, vs, div=None):
+        self.S0  = S0  # initial spot
+        self.r   = r   # risk-free rate
+        self.q   = q   # dividend yield
+        self.vs  = vs  # vol surface
         self.div = div # TODO: discrete dividend, use pd.Series? relative/absolute?
+
+    def __repr__(self):
+        return f'Spot(S0={self.S0}, r={self.r}, q={self.q}, div={self.div}, vs={self.vs})'
 
     def ForwardFunc(self, T):
         return np.exp((self.r-self.q)*T)
 
 class LatticeConfig:
-    def __init__(self, S0, nX, nT, rangeX, rangeT, centerValue, center='strike', scheme='implicit', boundary='value', interpBdry=False):
+    def __init__(self, S0, nX, nT, rangeX, rangeT, centerValue, center='strike', scheme='implicit', invMethod='splu', boundary='value', interpBdry=False):
         self.S0          = S0          # initial spot
         self.nX          = nX          # number of space-grids
         self.nT          = nT          # number of time-grids
@@ -136,6 +184,7 @@ class LatticeConfig:
         self.centerValue = centerValue # grid-center in spot (S0 or K)
         self.center      = center      # grid-center (spot or strike)
         self.scheme      = scheme      # PDE solver scheme (explicit, implicit or crank-nicolson)
+        self.invMethod   = invMethod   # sparse matrix inversion method
         self.boundary    = boundary    # PDE grid boundary method (value or gamma)
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
         self.SetRangeS()
@@ -144,6 +193,9 @@ class LatticeConfig:
         self.dT = (rangeT[1]-rangeT[0])/nT # time-grid size
         self.gridX = np.linspace(rangeX[0],rangeX[1],nX+1) # space-grid in log-spot
         self.gridT = np.linspace(rangeT[0],rangeT[1],nT+1) # time-grid in time-to-expiry
+
+    def __repr__(self):
+        return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry})'
 
     def XToS(self, X):
         return self.centerValue*np.exp(X)
@@ -161,14 +213,20 @@ class LatticeConfig:
 
 class LatticePricer:
     def __init__(self, spot):
-        self.spot = spot
+        self.spot   = spot # true spot
+        self.spotAm = None # auxiliary spot used in de-Americanization
 
-    def SolveLattice(self, option, config):
+    def __repr__(self):
+        return f'LatticePricer(spot={self.spot})'
+
+    def SolveLattice(self, option, config, isImpliedVolCalc=False):
+        # Solve PDE lattice for option price
+        spot = self.spotAm if isImpliedVolCalc else self.spot
         K  = option.K
         T  = option.T
-        r  = self.spot.r
-        q  = self.spot.q
-        S0 = self.spot.S0
+        r  = spot.r
+        q  = spot.q
+        S0 = spot.S0
         x  = config.gridX
         t  = config.gridT
         dx = config.dX
@@ -176,7 +234,7 @@ class LatticePricer:
         S  = config.XToS(x)
         x0 = config.SToX(S0)
         xx,tt  = np.meshgrid(x,t)
-        varL   = self.spot.LVarFunc(xx,np.maximum(T-tt,MIN_TTX))
+        varL   = spot.vs.LVarFunc(xx,np.maximum(T-tt,MIN_TTX))
         varL   = np.minimum(varL,MAX_LVAR)
         pxGrid = np.zeros((len(t),len(x)))
         pxGrid[0] = option.Payoff(S)
@@ -188,8 +246,8 @@ class LatticePricer:
             else:
                 pxGrid[:,0]  = 0
                 pxGrid[:,-1] = S[-1]*np.exp(-q*t)-K*np.exp(-r*t)
-            V0 = np.zeros(len(x)-2)
-            for i in range(len(t)-1):
+            V0 = np.zeros(len(x)-2) # offset in implicit scheme
+            for i in range(len(t)-1): # forward in time-to-expiry
                 if config.scheme == 'explicit':
                     v = varL[i,1:-1]
                     a = -(r-q-v/2)*dt/(2*dx)+v*dt/(2*dx**2)
@@ -207,8 +265,10 @@ class LatticePricer:
                     D = diags([a[1:],b,c[:-1]],[-1,0,1]).tocsc()
                     V0[0]  = a[0]*pxGrid[i+1,0]
                     V0[-1] = c[-1]*pxGrid[i+1,-1]
-                    pxGrid[i+1,1:-1] = splu(D).solve(pxGrid[i,1:-1]-V0)
-                    # pxGrid[i+1,1:-1] = spsolve(D,pxGrid[i,1:-1]-V0)
+                    if config.invMethod == 'splu':
+                        pxGrid[i+1,1:-1] = splu(D).solve(pxGrid[i,1:-1]-V0)
+                    else:
+                        pxGrid[i+1,1:-1] = spsolve(D,pxGrid[i,1:-1]-V0)
                 elif config.scheme == 'crank-nicolson':
                     # TODO: Crank-Nicolson scheme
                     pass
@@ -227,20 +287,37 @@ class LatticePricer:
             pass
         pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
         px     = pxFunc(x0)
-        pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
-        exBdry = pd.Series(exBdry,index=t)
-        option.px       = px
-        option.pxFunc   = pxFunc
-        option.ivEu     = self.spot.IVolFunc(x0,T)
-        option.lvEu     = self.spot.LVolFunc(x0,T)
-        option.exBdryEu = exBdry
-        option.pxGridEu = pxGrid
-        option.gridX    = x
-        option.gridT    = t
+        if isImpliedVolCalc:
+            option.ivAm     = spot.vs.IVolFunc(x0,T)
+            option.exBdryAm = exBdry
+            option.pxGridAm = pxGrid
+        else:
+            pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
+            exBdry = pd.Series(exBdry,index=t)
+            option.px       = px
+            option.pxFunc   = pxFunc
+            option.ivEu     = spot.vs.IVolFunc(x0,T)
+            option.lvEu     = spot.vs.LVolFunc(x0,T)
+            option.exBdryEu = exBdry
+            option.pxGridEu = pxGrid
+            option.gridX    = x
+            option.gridS    = S
+            option.gridT    = t
         return px
 
     def DeAmericanize(self, option, config):
-        pass
+        # TODO: De-Americanize option by flat local-vol assumption
+        K  = option.K
+        T  = option.T
+        S0 = self.spot.S0
+        x0 = config.SToX(S0)
+        px = option.px
+        sig0 = self.spot.vs.IVolFunc(x0,T)
+        self.spotAm = copy(self.spot)
+        def loss(sig):
+            self.spotAm.vs = FlatVol(sig)
+            return self.SolveLattice(option,config,True)-px
+        print(loss(sig0))
 
 #### Helper Functions ##########################################################
 
@@ -251,9 +328,10 @@ def VolSurfaceMatrixToDataFrame(m, k, T, idx_name='Expiry', col_name='Log-strike
     df.columns.name = col_name
     return df
 
-def PlotImpliedVol(df, dfLVol=None, figname=None, ncol=6, scatterFit=False, atmBar=False, xlim=None, ylim=None):
+def PlotImpliedVol(df, dfLVol=None, figname=None, title=None, ncol=7, scatter=False, atmBar=False, xlim=None, ylim=None):
     # Plot implied volatilities based on df
     # df: Columns -- Log-strike, Index -- Expiry
+    # TODO: add legend -- implied/local vol
     if not figname:
         figname = 'impliedvol.png'
     Texp = df.index
@@ -277,7 +355,7 @@ def PlotImpliedVol(df, dfLVol=None, figname=None, ncol=6, scatterFit=False, atmB
             ax_idx.set_title(rf'$T={np.round(T,3)}$')
             ax_idx.set_xlabel('log-strike')
             ax_idx.set_ylabel('vol (%)')
-            if scatterFit:
+            if scatter:
                 ax_idx.scatter(k,vol,c='k',s=5,label='implied')
                 if dfLVol is not None:
                     volL = 100*dfLVol.loc[T]
@@ -290,7 +368,7 @@ def PlotImpliedVol(df, dfLVol=None, figname=None, ncol=6, scatterFit=False, atmB
             if atmBar:
                 ax_idx.axvline(x=0,c='grey',ls='--',lw=1)
             if xlim is not None:
-                ax_idx.set_ylim(xlim)
+                ax_idx.set_xlim(xlim)
             if ylim is not None:
                 ax_idx.set_ylim(ylim)
         else:
@@ -299,3 +377,10 @@ def PlotImpliedVol(df, dfLVol=None, figname=None, ncol=6, scatterFit=False, atmB
     fig.tight_layout()
     plt.savefig(figname)
     plt.close()
+
+def PlotPxGrid(df, T, figname=None, title=None, ncol=7, scatter=False, atmBar=False, xlim=None, ylim=None):
+    # TODO: Plot option prices based on df
+    # df: Columns -- Spot, Index -- time-to-expiry
+    if not figname:
+        figname = 'optionpx.png'
+    pass
