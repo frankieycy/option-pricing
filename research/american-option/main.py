@@ -18,7 +18,7 @@ def test_SviPowerLaw():
     sigL = VolSurfaceMatrixToDataFrame(sigL,k,T)
     print(sigI)
     print(sigL)
-    PlotImpliedVol(sigI, sigL)
+    PlotImpliedVol(sigI,sigL,figname='out/impliedvol.png')
 
 def test_LatticePricer():
     svi = SviPowerLaw(**SVI_PARAMS)
@@ -30,14 +30,15 @@ def test_LatticePricer():
     nT = 200
     x0 = -2
     x1 = 2
-    O = Option(K,T,'P','E')
+    O = Option(K,T,'P','A')
     S = Spot(S0,r,0,svi.IVolFunc,svi.LVolFunc,svi.LVarFunc)
     C = LatticeConfig(S0,nX,nT,[x0,x1],[0,T],K,scheme='implicit')
     L = LatticePricer(S)
     L.SolveLattice(O,C)
-    df = pd.DataFrame(O.pxGridEu,index=C.gridT,columns=C.gridX)
-    df.to_csv('lattice.csv')
-    print(df)
+    print(O.px)
+    print(O.ivEu)
+    print(O.exBdryEu)
+    print(O.pxGridEu)
 
 if __name__ == '__main__':
     # test_SviPowerLaw()
