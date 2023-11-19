@@ -43,10 +43,10 @@ def test_LatticePricer():
     print(S)
     print(C)
     print(L)
-    print('O.exBdryEu')
-    print(O.exBdryEu)
-    print('O.pxGridEu')
-    print(O.pxGridEu)
+    print('O.exBdryLV')
+    print(O.exBdryLV)
+    print('O.pxGridLV')
+    print(O.pxGridLV)
 
 def test_DeAmericanize():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -64,8 +64,13 @@ def test_DeAmericanize():
     L = LatticePricer(S)
     L.SolveLattice(O,C)
     L.DeAmericanize(O,C)
+    print(O)
+    print('O.exBdryLV')
+    print(O.exBdryLV)
+    print('O.exBdryFV')
+    print(O.exBdryFV)
 
 if __name__ == '__main__':
     # test_SviPowerLaw()
-    # test_LatticePricer()
-    test_DeAmericanize()
+    test_LatticePricer()
+    # test_DeAmericanize()

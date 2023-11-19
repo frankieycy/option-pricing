@@ -7,6 +7,7 @@ from numba import njit
 from copy import copy
 from scipy.sparse import diags
 from scipy.sparse.linalg import splu, spsolve
+from scipy.optimize import fsolve
 from scipy.interpolate import interp1d
 plt.switch_backend('Agg')
 
@@ -53,7 +54,7 @@ class FlatVol(VolSurface):
         return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
 
     def LocalVarFunc(self):
-        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+        return (lambda k,T: np.full(k.shape,self.sig**2) if isinstance(k,np.ndarray) else self.sig**2)
 
 class SviPowerLaw(VolSurface):
     def __init__(self, v0, v1, v2, k1, k2, rho, eta, gam):
@@ -136,26 +137,26 @@ class SviPowerLaw(VolSurface):
 #### American Option ###########################################################
 
 class Option:
-    def __init__(self, K, T, pc, ex, px=None, ivEu=None, ivAm=None, lvEu=None):
+    def __init__(self, K, T, pc, ex, px=None, ivLV=None, ivFV=None, lvLV=None):
         self.K        = K    # strike
         self.T        = T    # expiry
         self.pc       = pc   # P or C
         self.ex       = ex   # E or A
         self.px       = px   # price
         self.pxFunc   = None # price as function of spot
-        self.ivEu     = ivEu # European vol (curved local-vol)
-        self.ivAm     = ivAm # de-Americanized vol (flat local-vol)
-        self.lvEu     = lvEu # local-vol at (K,T)
-        self.exBdryEu = None # ex-boundary under local-vol
-        self.exBdryAm = None # ex-boundary under flat local-vol
-        self.pxGridEu = None # price-grid under local-vol
-        self.pxGridAm = None # price-grid under flat local-vol
+        self.ivLV     = ivLV # European vol (curved local-vol)
+        self.ivFV     = ivFV # de-Americanized vol (flat local-vol)
+        self.lvLV     = lvLV # local-vol at (K,T)
+        self.exBdryLV = None # ex-boundary under local-vol
+        self.exBdryFV = None # ex-boundary under flat local-vol
+        self.pxGridLV = None # price-grid under local-vol
+        self.pxGridFV = None # price-grid under flat local-vol
         self.gridX    = None # space-grid in log-spot
         self.gridS    = None # space-grid in spot
         self.gridT    = None # time-grid in time-to-expiry
 
     def __repr__(self):
-        return f'Option(K={self.K}, T={self.T}, pc={self.pc}, ex={self.ex}, ivEu={self.ivEu}, ivAm={self.ivAm}, lvEu={self.lvEu})'
+        return f'Option(K={self.K}, T={self.T}, pc={self.pc}, ex={self.ex}, ivLV={self.ivLV}, ivFV={self.ivFV}, lvLV={self.lvLV})'
 
     def Payoff(self, S):
         return np.maximum((self.K-S) if self.pc=='P' else (S-self.K),0)
@@ -214,14 +215,14 @@ class LatticeConfig:
 class LatticePricer:
     def __init__(self, spot):
         self.spot   = spot # true spot
-        self.spotAm = None # auxiliary spot used in de-Americanization
+        self.spotFV = None # auxiliary spot used in de-Americanization
 
     def __repr__(self):
         return f'LatticePricer(spot={self.spot})'
 
     def SolveLattice(self, option, config, isImpliedVolCalc=False):
         # Solve PDE lattice for option price
-        spot = self.spotAm if isImpliedVolCalc else self.spot
+        spot = self.spotFV if isImpliedVolCalc else self.spot
         K  = option.K
         T  = option.T
         r  = spot.r
@@ -287,37 +288,43 @@ class LatticePricer:
             pass
         pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
         px     = pxFunc(x0)
+        pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
+        exBdry = pd.Series(exBdry,index=t)
         if isImpliedVolCalc:
-            option.ivAm     = spot.vs.IVolFunc(x0,T)
-            option.exBdryAm = exBdry
-            option.pxGridAm = pxGrid
+            option.ivFV     = spot.vs.IVolFunc(x0,T)
+            option.exBdryFV = exBdry
+            option.pxGridFV = pxGrid
         else:
-            pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
-            exBdry = pd.Series(exBdry,index=t)
             option.px       = px
             option.pxFunc   = pxFunc
-            option.ivEu     = spot.vs.IVolFunc(x0,T)
-            option.lvEu     = spot.vs.LVolFunc(x0,T)
-            option.exBdryEu = exBdry
-            option.pxGridEu = pxGrid
+            option.ivLV     = spot.vs.IVolFunc(x0,T)
+            option.lvLV     = spot.vs.LVolFunc(x0,T)
+            option.exBdryLV = exBdry
+            option.pxGridLV = pxGrid
             option.gridX    = x
             option.gridS    = S
             option.gridT    = t
         return px
 
     def DeAmericanize(self, option, config):
-        # TODO: De-Americanize option by flat local-vol assumption
+        # De-Americanize option by flat local-vol assumption
         K  = option.K
         T  = option.T
         S0 = self.spot.S0
         x0 = config.SToX(S0)
         px = option.px
         sig0 = self.spot.vs.IVolFunc(x0,T)
-        self.spotAm = copy(self.spot)
-        def loss(sig):
-            self.spotAm.vs = FlatVol(sig)
+        self.spotFV = copy(self.spot)
+        def obj(sig):
+            self.spotFV.vs = FlatVol(sig)
             return self.SolveLattice(option,config,True)-px
-        print(loss(sig0))
+        obj = np.vectorize(obj)
+        ivFV = fsolve(obj,sig0)
+        return ivFV
+
+class AmericanVolSurface(VolSurface):
+    def __init__(self):
+        VolSurface.__init__()
 
 #### Helper Functions ##########################################################
 
