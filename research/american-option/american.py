@@ -31,13 +31,13 @@ class VolSurface:
         return f'VolSurface()'
 
     def ImpliedVolFunc(self):
-        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+        return np.vectorize(lambda k,T: 0)
 
     def LocalVolFunc(self):
-        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+        return np.vectorize(lambda k,T: 0)
 
     def LocalVarFunc(self):
-        return (lambda k,T: np.zeros(k.shape) if isinstance(k,np.ndarray) else 0)
+        return np.vectorize(lambda k,T: 0)
 
 class FlatVol(VolSurface):
     def __init__(self, sig):
@@ -48,13 +48,13 @@ class FlatVol(VolSurface):
         return f'FlatVol(sig={self.sig})'
 
     def ImpliedVolFunc(self):
-        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+        return np.vectorize(lambda k,T: self.sig)
 
     def LocalVolFunc(self):
-        return (lambda k,T: np.full(k.shape,self.sig) if isinstance(k,np.ndarray) else self.sig)
+        return np.vectorize(lambda k,T: self.sig)
 
     def LocalVarFunc(self):
-        return (lambda k,T: np.full(k.shape,self.sig**2) if isinstance(k,np.ndarray) else self.sig**2)
+        return np.vectorize(lambda k,T: self.sig**2)
 
 class SviPowerLaw(VolSurface):
     def __init__(self, v0, v1, v2, k1, k2, rho, eta, gam):
@@ -156,7 +156,7 @@ class Option:
         self.gridT    = None # time-grid in time-to-expiry
 
     def __repr__(self):
-        return f'Option(K={self.K}, T={self.T}, pc={self.pc}, ex={self.ex}, ivLV={self.ivLV}, ivFV={self.ivFV}, lvLV={self.lvLV})'
+        return f'Option(K={self.K}, T={self.T}, pc={self.pc}, ex={self.ex}, px={self.px}, ivLV={self.ivLV}, ivFV={self.ivFV}, lvLV={self.lvLV})'
 
     def Payoff(self, S):
         return np.maximum((self.K-S) if self.pc=='P' else (S-self.K),0)
@@ -190,10 +190,7 @@ class LatticeConfig:
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
         self.SetRangeS()
         self.AdjustRangeX()
-        self.dX = (rangeX[1]-rangeX[0])/nX # space-grid size
-        self.dT = (rangeT[1]-rangeT[0])/nT # time-grid size
-        self.gridX = np.linspace(rangeX[0],rangeX[1],nX+1) # space-grid in log-spot
-        self.gridT = np.linspace(rangeT[0],rangeT[1],nT+1) # time-grid in time-to-expiry
+        self.SetGridParams()
 
     def __repr__(self):
         return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry})'
@@ -207,10 +204,24 @@ class LatticeConfig:
     def SetRangeS(self):
         self.rangeS = (self.XToS(self.rangeX[0]),self.XToS(self.rangeX[1]))
 
+    def SetGridParams(self):
+        self.dX = (self.rangeX[1]-self.rangeX[0])/self.nX # space-grid size
+        self.dT = (self.rangeT[1]-self.rangeT[0])/self.nT # time-grid size
+        self.gridX = np.linspace(self.rangeX[0],self.rangeX[1],self.nX+1) # space-grid in log-spot
+        self.gridT = np.linspace(self.rangeT[0],self.rangeT[1],self.nT+1) # time-grid in time-to-expiry
+
     def AdjustRangeX(self):
         x0 = self.SToX(self.S0)
         self.rangeX[0] = np.minimum(x0,self.rangeX[0])
         self.rangeX[1] = np.maximum(x0,self.rangeX[1])
+
+    def ResetKT(self, K, T):
+        if self.center == 'strike':
+            self.centerValue = K
+        self.rangeT[1] = T
+        self.SetRangeS()
+        self.AdjustRangeX()
+        self.SetGridParams()
 
 class LatticePricer:
     def __init__(self, spot):
@@ -308,11 +319,11 @@ class LatticePricer:
 
     def DeAmericanize(self, option, config):
         # De-Americanize option by flat local-vol assumption
-        K  = option.K
-        T  = option.T
-        S0 = self.spot.S0
-        x0 = config.SToX(S0)
-        px = option.px
+        K    = option.K
+        T    = option.T
+        S0   = self.spot.S0
+        x0   = config.SToX(S0)
+        px   = option.px
         sig0 = self.spot.vs.IVolFunc(x0,T)
         self.spotFV = copy(self.spot)
         def obj(sig):
@@ -323,8 +334,39 @@ class LatticePricer:
         return ivFV
 
 class AmericanVolSurface(VolSurface):
-    def __init__(self):
-        VolSurface.__init__()
+    def __init__(self, spot, config):
+        VolSurface.__init__(self)
+        self.spot   = spot                 # spot for fetching true European vols
+        self.config = config               # reference config with K,T subject to modification
+        self.latt   = LatticePricer(spot)  # American lattice pricer
+        self.log    = []                   # log for computed options
+
+    def __repr__(self):
+        return f'AmericanVolSurface(spot={self.spot})'
+
+    def clearLog(self):
+        self.log = []
+
+    def getConfig(self, K, T):
+        config = copy(self.config)
+        config.ResetKT(K,T)
+        return config
+
+    def ImpliedVolFunc(self):
+        # DEBUG: First option duplicate
+        # DEBUG: American vol very off from European vol
+        def amIVolFunc(k, T):
+            F  = self.spot.ForwardFunc(T)
+            K  = F*np.exp(k)
+            pc = 'P' if k<=0 else 'C'
+            O  = Option(K,T,pc,'A')
+            C  = self.getConfig(K,T)
+            L  = self.latt
+            L.SolveLattice(O,C)
+            L.DeAmericanize(O,C)
+            self.log.append(O)
+            return O.ivFV
+        return np.vectorize(amIVolFunc)
 
 #### Helper Functions ##########################################################
 

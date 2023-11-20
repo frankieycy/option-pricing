@@ -70,7 +70,31 @@ def test_DeAmericanize():
     print('O.exBdryFV')
     print(O.exBdryFV)
 
+def test_AmericanVolSurface():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0.05
+    nX = 200
+    nT = 200
+    x0 = -2
+    x1 = 2
+    S = Spot(S0,r,0,svi)
+    C = LatticeConfig(S0,nX,nT,[x0,x1],[0,T],K,scheme='implicit')
+    A = AmericanVolSurface(S,C)
+    k = np.arange(-0.5,0.6,0.1)
+    sigI = svi.IVolFunc(k,T)
+    sigA = A.IVolFunc(k,T)
+    print('sigI')
+    print(pd.Series(sigI,index=k))
+    print('sigA')
+    print(pd.Series(sigA,index=k))
+    print('A.log')
+    print(A.log)
+
 if __name__ == '__main__':
     # test_SviPowerLaw()
-    test_LatticePricer()
+    # test_LatticePricer()
     # test_DeAmericanize()
+    test_AmericanVolSurface()
