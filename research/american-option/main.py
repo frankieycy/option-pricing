@@ -43,6 +43,8 @@ def test_LatticePricer():
     print(S)
     print(C)
     print(L)
+    print('C.rangeS')
+    print(C.rangeS)
     print('O.exBdryLV')
     print(O.exBdryLV)
     print('O.pxGridLV')
