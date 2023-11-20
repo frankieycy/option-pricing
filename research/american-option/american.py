@@ -5,14 +5,16 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from numba import njit
 from copy import copy
+from scipy.special import ndtr
 from scipy.sparse import diags
 from scipy.sparse.linalg import splu, spsolve
 from scipy.optimize import fsolve
-from scipy.interpolate import interp1d
+from scipy.interpolate import pchip, interp1d
 plt.switch_backend('Agg')
 
 #### Note ######################################################################
-# 1. Attributes in all classes are freely accessible, i.e. no encapsulation (getter/setter)
+# 1. Attributes in all classes are freely accessible, i.e. no encapsulation (getter/setter).
+# 2. The study requires fast and accurate PDE pricing of American option. Test PDE solver first.
 
 #### Consts ####################################################################
 
@@ -20,6 +22,21 @@ MIN_TTX  = 1e-6         # minimum time-to-expiry to avoid blow-up in SviPowerLaw
 MAX_LVAR = 10           # maximum local-var to avoid blow-up in SolveLattice
 
 #### Vol Surface ###############################################################
+
+def BlackScholesPrice(sig,K,T,D,F,pc):
+    k = np.log(K/F)
+    v = sig*np.sqrt(T)
+    d1 = -k/v+v/2
+    d2 = d1-v
+    if pc == 'P':
+        return D*(K*ndtr(-d2)-F*ndtr(-d1))
+    else:
+        return D*(F*ndtr(d1)-K*ndtr(d2))
+
+def BlackScholesImpliedVol(px,K,T,D,F,pc,sig0):
+    def obj(sig):
+        return BlackScholesPrice(sig,K,T,D,F,pc)-px
+    return fsolve(obj,sig0)
 
 class VolSurface:
     def __init__(self):
@@ -176,30 +193,44 @@ class Spot:
         return np.exp((self.r-self.q)*T)
 
 class LatticeConfig:
-    def __init__(self, S0, nX, nT, rangeX, rangeT, centerValue, center='strike', scheme='implicit', invMethod='splu', boundary='value', interpBdry=False):
+    def __init__(self, S0, scheme='implicit', invMethod='splu', boundary='value', interpBdry=False):
         self.S0          = S0          # initial spot
-        self.nX          = nX          # number of space-grids
-        self.nT          = nT          # number of time-grids
-        self.rangeX      = rangeX      # range of space-grid
-        self.rangeT      = rangeT      # range of time-grid
-        self.centerValue = centerValue # grid-center in spot (S0 or K)
-        self.center      = center      # grid-center (spot or strike)
         self.scheme      = scheme      # PDE solver scheme (explicit, implicit or crank-nicolson)
         self.invMethod   = invMethod   # sparse matrix inversion method
         self.boundary    = boundary    # PDE grid boundary method (value or gamma)
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
-        self.AdjustRangeX()
-        self.SetRangeS()
-        self.SetGridParams()
+        self.nX          = None        # number of space-grids
+        self.nT          = None        # number of time-grids
+        self.rangeX      = None        # range of space-grid
+        self.rangeT      = None        # range of time-grid
+        self.centerValue = None        # grid-center in spot (S0 or K)
+        self.center      = None        # grid-center (spot or strike)
 
     def __repr__(self):
         return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry})'
+
+    def initGrid(self, nX, nT, rangeX, rangeT, centerValue, center='strike'):
+        self.nX          = nX
+        self.nT          = nT
+        self.rangeX      = rangeX
+        self.rangeT      = rangeT
+        self.centerValue = centerValue
+        self.center      = center
+        self.AdjustRangeX()
+        self.SetRangeS()
+        self.SetGridParams()
 
     def XToS(self, X):
         return self.centerValue*np.exp(X)
 
     def SToX(self, S):
         return np.log(S/self.centerValue)
+
+    def AdjustRangeX(self):
+        xmin = self.SToX(0.95*self.S0)
+        xmax = self.SToX(1.05*self.S0)
+        self.rangeX[0] = np.minimum(xmin,self.rangeX[0])
+        self.rangeX[1] = np.maximum(xmax,self.rangeX[1])
 
     def SetRangeS(self):
         self.rangeS = (self.XToS(self.rangeX[0]),self.XToS(self.rangeX[1]))
@@ -209,20 +240,6 @@ class LatticeConfig:
         self.dT = (self.rangeT[1]-self.rangeT[0])/self.nT # time-grid size
         self.gridX = np.linspace(self.rangeX[0],self.rangeX[1],self.nX+1) # space-grid in log-spot
         self.gridT = np.linspace(self.rangeT[0],self.rangeT[1],self.nT+1) # time-grid in time-to-expiry
-
-    def AdjustRangeX(self):
-        xmin = self.SToX(0.95*self.S0)
-        xmax = self.SToX(1.05*self.S0)
-        self.rangeX[0] = np.minimum(xmin,self.rangeX[0])
-        self.rangeX[1] = np.maximum(xmax,self.rangeX[1])
-
-    def ResetKT(self, K, T):
-        if self.center == 'strike':
-            self.centerValue = K
-        self.rangeT[1] = T
-        self.AdjustRangeX()
-        self.SetRangeS()
-        self.SetGridParams()
 
 class LatticePricer:
     def __init__(self, spot):
@@ -234,6 +251,8 @@ class LatticePricer:
 
     def SolveLattice(self, option, config, isImpliedVolCalc=False):
         # Solve PDE lattice for option price
+        # TODO: speed profiling
+        #### 1. Grid initialization
         spot = self.spotFV if isImpliedVolCalc else self.spot
         K    = option.K
         T    = option.T
@@ -251,12 +270,13 @@ class LatticePricer:
         xF   = config.SToX(F)
         xF0  = xF[0]
         xx,tt  = np.meshgrid(x,t)
-        varL   = spot.vs.LVarFunc(xx-xF[:,None],np.maximum(T-tt,MIN_TTX))
+        varL   = spot.vs.LVarFunc(xx-xF[:,None],np.maximum(T-tt,MIN_TTX)) # local-var fetched at log(S/F)=log(S/C)-log(F/C)=xx-xF
         varL   = np.minimum(varL,MAX_LVAR)
         pxGrid = np.zeros((len(t),len(x)))
         intrinsic = option.Payoff(S)
         pxGrid[0] = intrinsic
         exBdry = np.concatenate([[K],[config.rangeS[0] if option.pc=='P' else config.rangeS[1]]*(len(t)-1)])
+        #### 2. Forward iteration
         if config.boundary == 'value':
             if option.pc == 'P':
                 pxGrid[:,0]  = K*np.exp(-r*t)-S[0]*np.exp(-q*t) if option.ex=='E' else intrinsic[0]
@@ -301,10 +321,13 @@ class LatticePricer:
         elif config.boundary == 'gamma':
             # TODO: zero-gamma boundary
             pass
-        pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
+        #### 3. Post-processing
+        # pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
+        pxFunc = pchip(x,pxGrid[-1])
         px     = pxFunc(x0)
         pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
         exBdry = pd.Series(exBdry,index=t)
+        # implied/local-vol fetched at log(K/F)=log(K/C)-log(F/C)=k-xF0
         if isImpliedVolCalc:
             option.ivFV     = spot.vs.IVolFunc(k-xF0,T)
             option.exBdryFV = exBdry
@@ -339,10 +362,13 @@ class LatticePricer:
         return ivFV
 
 class AmericanVolSurface(VolSurface):
-    def __init__(self, spot, config):
+    def __init__(self, spot, config, nX=200, nT=200, rangeX=[-2,2]):
         VolSurface.__init__(self)
+        self.nX     = nX                   # number of space-grids
+        self.nT     = nT                   # number of time-grids
+        self.rangeX = rangeX               # range of space-grid
         self.spot   = spot                 # spot for fetching true European vols
-        self.config = config               # reference config with K,T subject to modification
+        self.config = config               # template config with K,T subject to modification
         self.latt   = LatticePricer(spot)  # American lattice pricer
         self.log    = []                   # log for computed options
 
@@ -354,12 +380,10 @@ class AmericanVolSurface(VolSurface):
 
     def getConfig(self, K, T):
         config = copy(self.config)
-        config.ResetKT(K,T)
+        config.initGrid(self.nX,self.nT,self.rangeX,[0,T],K,'strike')
         return config
 
     def ImpliedVolFunc(self):
-        # DEBUG: First option duplicate
-        # DEBUG: American vol very off from European vol
         def amIVolFunc(k, T):
             F  = self.spot.ForwardFunc(T)
             K  = F*np.exp(k)
@@ -371,7 +395,7 @@ class AmericanVolSurface(VolSurface):
             L.DeAmericanize(O,C)
             self.log.append(O)
             return O.ivFV
-        return np.vectorize(amIVolFunc)
+        return np.vectorize(amIVolFunc,otypes=[float])
 
 #### Helper Functions ##########################################################
 
