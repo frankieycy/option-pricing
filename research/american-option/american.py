@@ -16,7 +16,7 @@ plt.switch_backend('Agg')
 
 #### Consts ####################################################################
 
-MIN_TTX  = 1e-4         # minimum time-to-expiry to avoid blow-up in SviPowerLaw
+MIN_TTX  = 1e-6         # minimum time-to-expiry to avoid blow-up in SviPowerLaw
 MAX_LVAR = 10           # maximum local-var to avoid blow-up in SolveLattice
 
 #### Vol Surface ###############################################################
@@ -188,8 +188,8 @@ class LatticeConfig:
         self.invMethod   = invMethod   # sparse matrix inversion method
         self.boundary    = boundary    # PDE grid boundary method (value or gamma)
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
-        self.SetRangeS()
         self.AdjustRangeX()
+        self.SetRangeS()
         self.SetGridParams()
 
     def __repr__(self):
@@ -211,16 +211,17 @@ class LatticeConfig:
         self.gridT = np.linspace(self.rangeT[0],self.rangeT[1],self.nT+1) # time-grid in time-to-expiry
 
     def AdjustRangeX(self):
-        x0 = self.SToX(self.S0)
-        self.rangeX[0] = np.minimum(x0,self.rangeX[0])
-        self.rangeX[1] = np.maximum(x0,self.rangeX[1])
+        xmin = self.SToX(0.95*self.S0)
+        xmax = self.SToX(1.05*self.S0)
+        self.rangeX[0] = np.minimum(xmin,self.rangeX[0])
+        self.rangeX[1] = np.maximum(xmax,self.rangeX[1])
 
     def ResetKT(self, K, T):
         if self.center == 'strike':
             self.centerValue = K
         self.rangeT[1] = T
-        self.SetRangeS()
         self.AdjustRangeX()
+        self.SetRangeS()
         self.SetGridParams()
 
 class LatticePricer:
@@ -234,30 +235,35 @@ class LatticePricer:
     def SolveLattice(self, option, config, isImpliedVolCalc=False):
         # Solve PDE lattice for option price
         spot = self.spotFV if isImpliedVolCalc else self.spot
-        K  = option.K
-        T  = option.T
-        r  = spot.r
-        q  = spot.q
-        S0 = spot.S0
-        x  = config.gridX
-        t  = config.gridT
-        dx = config.dX
-        dt = config.dT
-        S  = config.XToS(x)
-        x0 = config.SToX(S0)
+        K    = option.K
+        T    = option.T
+        r    = spot.r
+        q    = spot.q
+        S0   = spot.S0
+        x    = config.gridX
+        t    = config.gridT
+        dx   = config.dX
+        dt   = config.dT
+        S    = config.XToS(x)
+        k    = config.SToX(K)
+        x0   = config.SToX(S0)
+        F    = spot.ForwardFunc(T-t)
+        xF   = config.SToX(F)
+        xF0  = xF[0]
         xx,tt  = np.meshgrid(x,t)
-        varL   = spot.vs.LVarFunc(xx,np.maximum(T-tt,MIN_TTX))
+        varL   = spot.vs.LVarFunc(xx-xF[:,None],np.maximum(T-tt,MIN_TTX))
         varL   = np.minimum(varL,MAX_LVAR)
         pxGrid = np.zeros((len(t),len(x)))
-        pxGrid[0] = option.Payoff(S)
+        intrinsic = option.Payoff(S)
+        pxGrid[0] = intrinsic
         exBdry = np.concatenate([[K],[config.rangeS[0] if option.pc=='P' else config.rangeS[1]]*(len(t)-1)])
         if config.boundary == 'value':
             if option.pc == 'P':
-                pxGrid[:,0]  = K*np.exp(-r*t)-S[0]*np.exp(-q*t)
+                pxGrid[:,0]  = K*np.exp(-r*t)-S[0]*np.exp(-q*t) if option.ex=='E' else intrinsic[0]
                 pxGrid[:,-1] = 0
             else:
                 pxGrid[:,0]  = 0
-                pxGrid[:,-1] = S[-1]*np.exp(-q*t)-K*np.exp(-r*t)
+                pxGrid[:,-1] = S[-1]*np.exp(-q*t)-K*np.exp(-r*t) if option.ex=='E' else intrinsic[-1]
             V0 = np.zeros(len(x)-2) # offset in implicit scheme
             for i in range(len(t)-1): # forward in time-to-expiry
                 if config.scheme == 'explicit':
@@ -285,15 +291,13 @@ class LatticePricer:
                     # TODO: Crank-Nicolson scheme
                     pass
                 if option.ex == 'A':
-                    intrinsic = option.Payoff(S)
                     if option.pc == 'P':
                         idxEx = np.argmax(intrinsic<pxGrid[i+1])
-                        exBdry[i+1] = S[idxEx]
-                        pxGrid[i+1][:idxEx] = intrinsic[:idxEx]
                     else:
                         idxEx = np.argmax(intrinsic>pxGrid[i+1])
-                        exBdry[i+1] = S[idxEx]
-                        pxGrid[i+1][idxEx:] = intrinsic[idxEx:]
+                        idxEx = -1 if idxEx==0 else idxEx
+                    exBdry[i+1] = S[idxEx]
+                    pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1])
         elif config.boundary == 'gamma':
             # TODO: zero-gamma boundary
             pass
@@ -302,14 +306,14 @@ class LatticePricer:
         pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
         exBdry = pd.Series(exBdry,index=t)
         if isImpliedVolCalc:
-            option.ivFV     = spot.vs.IVolFunc(x0,T)
+            option.ivFV     = spot.vs.IVolFunc(k-xF0,T)
             option.exBdryFV = exBdry
             option.pxGridFV = pxGrid
         else:
             option.px       = px
             option.pxFunc   = pxFunc
-            option.ivLV     = spot.vs.IVolFunc(x0,T)
-            option.lvLV     = spot.vs.LVolFunc(x0,T)
+            option.ivLV     = spot.vs.IVolFunc(k-xF0,T)
+            option.lvLV     = spot.vs.LVolFunc(k-xF0,T)
             option.exBdryLV = exBdry
             option.pxGridLV = pxGrid
             option.gridX    = x
@@ -321,10 +325,11 @@ class LatticePricer:
         # De-Americanize option by flat local-vol assumption
         K    = option.K
         T    = option.T
-        S0   = self.spot.S0
-        x0   = config.SToX(S0)
+        F    = self.spot.ForwardFunc(T)
+        k    = config.SToX(K)
+        xF0  = config.SToX(F)
         px   = option.px
-        sig0 = self.spot.vs.IVolFunc(x0,T)
+        sig0 = self.spot.vs.IVolFunc(k-xF0,T)
         self.spotFV = copy(self.spot)
         def obj(sig):
             self.spotFV.vs = FlatVol(sig)
