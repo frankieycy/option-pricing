@@ -38,7 +38,7 @@ def test_LatticePricer():
     ex = 'E'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,'crank-nicolson')
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
@@ -137,11 +137,11 @@ def test_LatticePricerAccuracy_FlatVol():
     ex = 'E'
     kk = np.arange(-0.5,0.55,0.05)
     TT = np.arange(0.1,1.1,0.1)
-    m  = 'implicit'
+    m  = 'crank-nicolson'
     S  = Spot(S0,r,0,svi)
     C  = LatticeConfig(S0,m)
     L  = LatticePricer(S)
-    with open(f'out/lattice_eu_acc_flatvol_nX={nX}_nT={nT}.csv','w') as f:
+    with open(f'out/lattice_eu_acc_flatvol_nX={nX}_nT={nT}_dk={kk[1]-kk[0]}_m={m}.csv','w') as f:
         f.write(f'#S0={S0},r={r},nX={nX},nT={nT},x0={x0},x1={x1},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
@@ -174,11 +174,11 @@ def test_LatticePricerAccuracy_SpxVol():
     ex = 'E'
     kk = np.arange(-0.5,0.52,0.02)
     TT = np.arange(0.1,1.1,0.1)
-    m  = 'implicit'
+    m  = 'crank-nicolson'
     S  = Spot(S0,r,0,svi)
     C  = LatticeConfig(S0,m)
     L  = LatticePricer(S)
-    with open(f'out/lattice_eu_acc_spxvol_nX={nX}_nT={nT}.csv','w') as f:
+    with open(f'out/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_dk={kk[1]-kk[0]}_m={m}.csv','w') as f:
         f.write(f'#S0={S0},r={r},nX={nX},nT={nT},x0={x0},x1={x1},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
@@ -200,6 +200,55 @@ def test_LatticePricerAccuracy_SpxVol():
                 sigErr  = sigLatt-sigTrue
                 f.write(f'{k},{K},{T},{ex},{pc},{pxTrue},{pxLatt},{sigTrue},{sigLatt},{sigLV},{sigErr}\n')
 
+def test_LatticePricer_ATMEuPut():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0.05
+    nX = 1000
+    nT = 1000
+    x0 = -2
+    x1 = 2
+    pc = 'P'
+    ex = 'E'
+    O = Option(K,T,pc,ex)
+    S = Spot(S0,r,0,svi)
+    C = LatticeConfig(S0,'implicit')
+    L = LatticePricer(S)
+    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    L.SolveLattice(O,C)
+    pxGrid = O.pxGridLV
+    exBdry = O.exBdryLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv('out/atm_eu_put_pxgrid.csv')
+    exBdry.to_csv('out/atm_eu_put_exbdry.csv')
+
+def test_LatticePricer_ATMEuCall():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0
+    q  = 0.05
+    nX = 1000
+    nT = 1000
+    x0 = -2
+    x1 = 2
+    pc = 'C'
+    ex = 'E'
+    O = Option(K,T,pc,ex)
+    S = Spot(S0,r,q,svi)
+    C = LatticeConfig(S0,'implicit')
+    L = LatticePricer(S)
+    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    L.SolveLattice(O,C)
+    pxGrid = O.pxGridLV
+    exBdry = O.exBdryLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv('out/atm_eu_call_pxgrid.csv')
+    exBdry.to_csv('out/atm_eu_call_exbdry.csv')
+
 def test_LatticePricer_ATMAmPut():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
     K  = 1
@@ -218,9 +267,36 @@ def test_LatticePricer_ATMAmPut():
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
+    pxGrid = O.pxGridLV
+    exBdry = O.exBdryLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv('out/atm_am_put_pxgrid.csv')
+    exBdry.to_csv('out/atm_am_put_exbdry.csv')
 
 def test_LatticePricer_ATMAmCall():
-    pass
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0
+    q  = 0.05
+    nX = 1000
+    nT = 1000
+    x0 = -2
+    x1 = 2
+    pc = 'C'
+    ex = 'A'
+    O = Option(K,T,pc,ex)
+    S = Spot(S0,r,q,svi)
+    C = LatticeConfig(S0,'implicit')
+    L = LatticePricer(S)
+    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    L.SolveLattice(O,C)
+    pxGrid = O.pxGridLV
+    exBdry = O.exBdryLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv('out/atm_am_call_pxgrid.csv')
+    exBdry.to_csv('out/atm_am_call_exbdry.csv')
 
 def test_LatticePricer_CrankNicolson():
     pass
@@ -230,5 +306,9 @@ if __name__ == '__main__':
     # test_LatticePricer()
     # test_DeAmericanize()
     # test_AmericanVolSurface()
-    # test_LatticePricerAccuracy_FlatVol()
+    test_LatticePricerAccuracy_FlatVol()
     test_LatticePricerAccuracy_SpxVol()
+    # test_LatticePricer_ATMEuPut()
+    # test_LatticePricer_ATMEuCall()
+    # test_LatticePricer_ATMAmPut()
+    # test_LatticePricer_ATMAmCall()
