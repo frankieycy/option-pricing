@@ -379,11 +379,11 @@ class LatticePricer:
         return fsolve(obj,sig0)
 
 class AmericanVolSurface(VolSurface):
-    def __init__(self, spot, config, nX=200, nT=200, rangeX=[-2,2]):
+    def __init__(self, spot, config, nX=200, nT=200, G=5):
         VolSurface.__init__(self)
         self.nX     = nX                   # number of space-grids
         self.nT     = nT                   # number of time-grids
-        self.rangeX = rangeX               # range of space-grid
+        self.G      = G                    # number of std-dev away from center in rangeX bounds
         self.spot   = spot                 # spot for fetching true European vols
         self.config = config               # template config with K,T subject to modification
         self.latt   = LatticePricer(spot)  # American lattice pricer
@@ -395,9 +395,12 @@ class AmericanVolSurface(VolSurface):
     def clearLog(self):
         self.log = []
 
-    def getConfig(self, K, T):
+    def getConfig(self, k, K, T):
+        sig0 = self.spot.vs.LVolFunc(k,T)
+        x0   = -self.G*sig0*np.sqrt(T)
+        x1   = self.G*sig0*np.sqrt(T)
         config = copy(self.config)
-        config.initGrid(self.nX,self.nT,self.rangeX,[0,T],K,'strike')
+        config.initGrid(self.nX,self.nT,[x0,x1],[0,T],K,'strike')
         return config
 
     def ImpliedVolFunc(self):
@@ -406,7 +409,7 @@ class AmericanVolSurface(VolSurface):
             K  = F*np.exp(k)
             pc = 'P' if k<=0 else 'C'
             O  = Option(K,T,pc,'A')
-            C  = self.getConfig(K,T)
+            C  = self.getConfig(k,K,T)
             L  = self.latt
             L.SolveLattice(O,C)
             L.DeAmericanize(O,C)
