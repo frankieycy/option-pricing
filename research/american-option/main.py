@@ -22,7 +22,7 @@ def test_SviPowerLaw():
     print(sigI)
     print('---sigL---')
     print(sigL)
-    PlotImpliedVol(sigI,sigL,xlim=(-1,1),ylim=(12,100),figname='out/impliedvol.png')
+    PlotImpliedVol(sigI,sigL,xlim=(-1,1),ylim=(12,100),figname='test/impliedvol.png')
 
 def test_LatticePricer():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -111,12 +111,11 @@ def test_AmericanVolSurface():
     r  = 0.05
     nX = 200
     nT = 200
-    x0 = -2
-    x1 = 2
-    S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,'implicit')
-    A = AmericanVolSurface(S,C,nX,nT,[x0,x1])
-    k = np.arange(-0.5,0.6,0.1)
+    G  = 6
+    S  = Spot(S0,r,0,svi)
+    C  = LatticeConfig(S0,'implicit')
+    A  = AmericanVolSurface(S,C,nX,nT,G)
+    k  = np.arange(-0.5,0.6,0.1)
     sigI = svi.IVolFunc(k,T)
     sigA = A.IVolFunc(k,T)
     print('---sigI---')
@@ -132,8 +131,7 @@ def test_LatticePricerAccuracy_FlatVol():
     r  = 0.05
     nX = 1000
     nT = 1000
-    x0 = -2
-    x1 = 2
+    G  = 6
     ex = 'E'
     kk = np.arange(-0.5,0.55,0.05)
     TT = np.arange(0.1,1.1,0.1)
@@ -141,8 +139,8 @@ def test_LatticePricerAccuracy_FlatVol():
     S  = Spot(S0,r,0,svi)
     C  = LatticeConfig(S0,m)
     L  = LatticePricer(S)
-    with open(f'out/lattice_eu_acc_flatvol_nX={nX}_nT={nT}_dk={kk[1]-kk[0]}_m={m}.csv','w') as f:
-        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},x0={x0},x1={x1},m={m},vs={svi}\n')
+    with open(f'test/lattice_eu_acc_flatvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}.csv','w') as f:
+        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
             T = round(T,2)
@@ -150,6 +148,9 @@ def test_LatticePricerAccuracy_FlatVol():
             D = np.exp(-r*T)
             F = S.ForwardFunc(T)
             for k in tqdm(kk):
+                sig0 = svi.LVolFunc(k,T)
+                x0 = -G*sig0*np.sqrt(T)
+                x1 = G*sig0*np.sqrt(T)
                 K  = F*np.exp(k)
                 pc = 'P' if k<=0 else 'C'
                 O  = Option(K,T,pc,ex)
@@ -169,8 +170,7 @@ def test_LatticePricerAccuracy_SpxVol():
     r  = 0.05
     nX = 1000
     nT = 1000
-    x0 = -2
-    x1 = 2
+    G  = 5
     ex = 'E'
     kk = np.arange(-0.5,0.52,0.02)
     TT = np.arange(0.1,1.1,0.1)
@@ -178,8 +178,8 @@ def test_LatticePricerAccuracy_SpxVol():
     S  = Spot(S0,r,0,svi)
     C  = LatticeConfig(S0,m)
     L  = LatticePricer(S)
-    with open(f'out/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_dk={kk[1]-kk[0]}_m={m}.csv','w') as f:
-        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},x0={x0},x1={x1},m={m},vs={svi}\n')
+    with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}.csv','w') as f:
+        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
             T = round(T,2)
@@ -187,6 +187,9 @@ def test_LatticePricerAccuracy_SpxVol():
             D = np.exp(-r*T)
             F = S.ForwardFunc(T)
             for k in tqdm(kk):
+                sig0 = svi.LVolFunc(k,T)
+                x0 = -G*sig0*np.sqrt(T)
+                x1 = G*sig0*np.sqrt(T)
                 K  = F*np.exp(k)
                 pc = 'P' if k<=0 else 'C'
                 O  = Option(K,T,pc,ex)
@@ -221,8 +224,8 @@ def test_LatticePricer_ATMEuPut():
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('out/atm_eu_put_pxgrid.csv')
-    exBdry.to_csv('out/atm_eu_put_exbdry.csv')
+    pxGrid.to_csv('test/atm_eu_put_pxgrid.csv')
+    exBdry.to_csv('test/atm_eu_put_exbdry.csv')
 
 def test_LatticePricer_ATMEuCall():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -246,8 +249,8 @@ def test_LatticePricer_ATMEuCall():
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('out/atm_eu_call_pxgrid.csv')
-    exBdry.to_csv('out/atm_eu_call_exbdry.csv')
+    pxGrid.to_csv('test/atm_eu_call_pxgrid.csv')
+    exBdry.to_csv('test/atm_eu_call_exbdry.csv')
 
 def test_LatticePricer_ATMAmPut():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -270,8 +273,8 @@ def test_LatticePricer_ATMAmPut():
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('out/atm_am_put_pxgrid.csv')
-    exBdry.to_csv('out/atm_am_put_exbdry.csv')
+    pxGrid.to_csv('test/atm_am_put_pxgrid.csv')
+    exBdry.to_csv('test/atm_am_put_exbdry.csv')
 
 def test_LatticePricer_ATMAmCall():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -295,8 +298,8 @@ def test_LatticePricer_ATMAmCall():
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('out/atm_am_call_pxgrid.csv')
-    exBdry.to_csv('out/atm_am_call_exbdry.csv')
+    pxGrid.to_csv('test/atm_am_call_pxgrid.csv')
+    exBdry.to_csv('test/atm_am_call_exbdry.csv')
 
 def test_LatticePricer_CrankNicolson():
     pass
