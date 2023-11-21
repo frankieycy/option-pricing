@@ -285,6 +285,7 @@ class LatticePricer:
                 pxGrid[:,0]  = 0
                 pxGrid[:,-1] = S[-1]*np.exp(-q*t)-K*np.exp(-r*t) if option.ex=='E' else intrinsic[-1]
             V0 = np.zeros(len(x)-2) # offset in implicit scheme
+            V1 = np.zeros(len(x)-2) # offset in crank-nicolson scheme
             for i in range(len(t)-1): # forward in time-to-expiry
                 if config.scheme == 'explicit':
                     v = varL[i,1:-1]
@@ -309,7 +310,24 @@ class LatticePricer:
                         pxGrid[i+1,1:-1] = spsolve(D,pxGrid[i,1:-1]-V0)
                 elif config.scheme == 'crank-nicolson':
                     # TODO: Crank-Nicolson scheme
-                    pass
+                    v0 = varL[i,1:-1]
+                    a0 = -(r-q-v0/2)*dt/(4*dx)+v0*dt/(4*dx**2)
+                    b0 = 1-r*dt/2-v0*dt/(2*dx**2)
+                    c0 = (r-q-v0/2)*dt/(4*dx)+v0*dt/(4*dx**2)
+                    D0 = diags([a0[1:],b0,c0[:-1]],[-1,0,1]).tocsc()
+                    v1 = varL[i+1,1:-1]
+                    a1 = (r-q-v1/2)*dt/(4*dx)-v1*dt/(4*dx**2)
+                    b1 = 1+r*dt/2+v1*dt/(2*dx**2)
+                    c1 = -(r-q-v1/2)*dt/(4*dx)-v1*dt/(4*dx**2)
+                    D1 = diags([a1[1:],b1,c1[:-1]],[-1,0,1]).tocsc()
+                    V0[0]  = a0[0]*pxGrid[i,0]
+                    V0[-1] = c0[-1]*pxGrid[i,-1]
+                    V1[0]  = a1[0]*pxGrid[i+1,0]
+                    V1[-1] = c1[-1]*pxGrid[i+1,-1]
+                    if config.invMethod == 'splu':
+                        pxGrid[i+1,1:-1] = splu(D1).solve(D0@pxGrid[i,1:-1]+V0-V1)
+                    else:
+                        pxGrid[i+1,1:-1] = spsolve(D1,D0@pxGrid[i,1:-1]+V0-V1)
                 if option.ex == 'A':
                     if option.pc == 'P':
                         idxEx = np.argmax(intrinsic<pxGrid[i+1])
@@ -317,13 +335,13 @@ class LatticePricer:
                         idxEx = np.argmax(intrinsic>pxGrid[i+1])
                         idxEx = -1 if idxEx==0 else idxEx
                     exBdry[i+1] = S[idxEx]
-                    pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1])
+                    pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1]) # TODO: speedup using idxEx
         elif config.boundary == 'gamma':
             # TODO: zero-gamma boundary
             pass
         #### 3. Post-processing
         # pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
-        pxFunc = pchip(x,pxGrid[-1])
+        pxFunc = pchip(x,pxGrid[-1]) # monotonic spline
         px     = pxFunc(x0)
         pxGrid = pd.DataFrame(pxGrid,index=t,columns=x)
         exBdry = pd.Series(exBdry,index=t)
@@ -348,18 +366,17 @@ class LatticePricer:
         # De-Americanize option by flat local-vol assumption
         K    = option.K
         T    = option.T
+        px   = option.px
         F    = self.spot.ForwardFunc(T)
         k    = config.SToX(K)
         xF0  = config.SToX(F)
-        px   = option.px
-        sig0 = self.spot.vs.IVolFunc(k-xF0,T)
+        sig0 = self.spot.vs.IVolFunc(k-xF0,T) # implied-vol fetched at log(K/F)
         self.spotFV = copy(self.spot)
         def obj(sig):
             self.spotFV.vs = FlatVol(sig)
             return self.SolveLattice(option,config,True)-px
         obj = np.vectorize(obj)
-        ivFV = fsolve(obj,sig0)
-        return ivFV
+        return fsolve(obj,sig0)
 
 class AmericanVolSurface(VolSurface):
     def __init__(self, spot, config, nX=200, nT=200, rangeX=[-2,2]):
