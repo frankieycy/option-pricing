@@ -131,15 +131,16 @@ def test_LatticePricerAccuracy_FlatVol():
     r  = 0.05
     nX = 1000
     nT = 1000
-    G  = 6
+    G  = 5
     ex = 'E'
     kk = np.arange(-0.5,0.55,0.05)
     TT = np.arange(0.1,1.1,0.1)
     m  = 'crank-nicolson'
+    b  = 'gamma'
     S  = Spot(S0,r,0,svi)
-    C  = LatticeConfig(S0,m)
+    C  = LatticeConfig(S0,m,b)
     L  = LatticePricer(S)
-    with open(f'test/lattice_eu_acc_flatvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}.csv','w') as f:
+    with open(f'test/lattice_eu_acc_flatvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}_b={b}.csv','w') as f:
         f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
@@ -175,10 +176,11 @@ def test_LatticePricerAccuracy_SpxVol():
     kk = np.arange(-0.5,0.52,0.02)
     TT = np.arange(0.1,1.1,0.1)
     m  = 'crank-nicolson'
+    b  = 'gamma'
     S  = Spot(S0,r,0,svi)
-    C  = LatticeConfig(S0,m)
+    C  = LatticeConfig(S0,m,b)
     L  = LatticePricer(S)
-    with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}.csv','w') as f:
+    with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}_b={b}.csv','w') as f:
         f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
@@ -215,17 +217,19 @@ def test_LatticePricer_ATMEuPut():
     x1 = 2
     pc = 'P'
     ex = 'E'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('test/atm_eu_put_pxgrid.csv')
-    exBdry.to_csv('test/atm_eu_put_exbdry.csv')
+    pxGrid.to_csv(f'test/atm_eu_put_pxgrid_m={m}_b={b}.csv')
+    exBdry.to_csv(f'test/atm_eu_put_exbdry_m={m}_b={b}.csv')
 
 def test_LatticePricer_ATMEuCall():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -240,17 +244,19 @@ def test_LatticePricer_ATMEuCall():
     x1 = 2
     pc = 'C'
     ex = 'E'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,q,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('test/atm_eu_call_pxgrid.csv')
-    exBdry.to_csv('test/atm_eu_call_exbdry.csv')
+    pxGrid.to_csv(f'test/atm_eu_call_pxgrid_m={m}_b={b}.csv')
+    exBdry.to_csv(f'test/atm_eu_call_exbdry_m={m}_b={b}.csv')
 
 def test_LatticePricer_ATMAmPut():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -264,17 +270,19 @@ def test_LatticePricer_ATMAmPut():
     x1 = 2
     pc = 'P'
     ex = 'A'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('test/atm_am_put_pxgrid.csv')
-    exBdry.to_csv('test/atm_am_put_exbdry.csv')
+    pxGrid.to_csv(f'test/atm_am_put_pxgrid_m={m}_b={b}.csv')
+    exBdry.to_csv(f'test/atm_am_put_exbdry_m={m}_b={b}.csv')
 
 def test_LatticePricer_ATMAmCall():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -289,29 +297,28 @@ def test_LatticePricer_ATMAmCall():
     x1 = 2
     pc = 'C'
     ex = 'A'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,q,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
     C.initGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
     pxGrid.columns = C.XToS(pxGrid.columns)
-    pxGrid.to_csv('test/atm_am_call_pxgrid.csv')
-    exBdry.to_csv('test/atm_am_call_exbdry.csv')
-
-def test_LatticePricer_CrankNicolson():
-    pass
+    pxGrid.to_csv(f'test/atm_am_call_pxgrid_m={m}_b={b}.csv')
+    exBdry.to_csv(f'test/atm_am_call_exbdry_m={m}_b={b}.csv')
 
 if __name__ == '__main__':
     # test_SviPowerLaw()
     # test_LatticePricer()
     # test_DeAmericanize()
     # test_AmericanVolSurface()
-    test_LatticePricerAccuracy_FlatVol()
-    test_LatticePricerAccuracy_SpxVol()
+    # test_LatticePricerAccuracy_FlatVol()
+    # test_LatticePricerAccuracy_SpxVol()
     # test_LatticePricer_ATMEuPut()
     # test_LatticePricer_ATMEuCall()
-    # test_LatticePricer_ATMAmPut()
-    # test_LatticePricer_ATMAmCall()
+    test_LatticePricer_ATMAmPut()
+    test_LatticePricer_ATMAmCall()

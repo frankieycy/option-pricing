@@ -193,11 +193,11 @@ class Spot:
         return np.exp((self.r-self.q)*T)
 
 class LatticeConfig:
-    def __init__(self, S0, scheme='implicit', invMethod='splu', boundary='value', interpBdry=False):
+    def __init__(self, S0, scheme='implicit', boundary='value', invMethod='splu', interpBdry=False):
         self.S0          = S0          # initial spot
         self.scheme      = scheme      # PDE solver scheme (explicit, implicit or crank-nicolson)
-        self.invMethod   = invMethod   # sparse matrix inversion method
         self.boundary    = boundary    # PDE grid boundary method (value or gamma)
+        self.invMethod   = invMethod   # sparse matrix inversion method
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
         self.nX          = None        # number of space-grids
         self.nT          = None        # number of time-grids
@@ -309,7 +309,6 @@ class LatticePricer:
                     else:
                         pxGrid[i+1,1:-1] = spsolve(D,pxGrid[i,1:-1]-V0)
                 elif config.scheme == 'crank-nicolson':
-                    # TODO: Crank-Nicolson scheme
                     v0 = varL[i,1:-1]
                     a0 = -(r-q-v0/2)*dt/(4*dx)+v0*dt/(4*dx**2)
                     b0 = 1-r*dt/2-v0*dt/(2*dx**2)
@@ -337,8 +336,45 @@ class LatticePricer:
                     exBdry[i+1] = S[idxEx]
                     pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1]) # TODO: speedup using idxEx
         elif config.boundary == 'gamma':
-            # TODO: zero-gamma boundary
-            pass
+            for i in range(len(t)-1): # forward in time-to-expiry
+                if config.scheme == 'explicit':
+                    pass
+                elif config.scheme == 'implicit':
+                    pass
+                elif config.scheme == 'crank-nicolson':
+                    v0 = varL[i,1:-1]
+                    a0 = -(r-q-v0/2)*dt/(4*dx)+v0*dt/(4*dx**2)
+                    b0 = 1-r*dt/2-v0*dt/(2*dx**2)
+                    c0 = (r-q-v0/2)*dt/(4*dx)+v0*dt/(4*dx**2)
+                    b0[0]  += 2*a0[0]
+                    c0[0]  -= a0[0]
+                    a0[-1] -= c0[-1]
+                    b0[-1] += 2*c0[-1]
+                    D0 = diags([a0[1:],b0,c0[:-1]],[-1,0,1]).tocsc()
+                    v1 = varL[i+1,1:-1]
+                    a1 = (r-q-v1/2)*dt/(4*dx)-v1*dt/(4*dx**2)
+                    b1 = 1+r*dt/2+v1*dt/(2*dx**2)
+                    c1 = -(r-q-v1/2)*dt/(4*dx)-v1*dt/(4*dx**2)
+                    b1[0]  += 2*a1[0]
+                    c1[0]  -= a1[0]
+                    a1[-1] -= c1[-1]
+                    b1[-1] += 2*c1[-1]
+                    D1 = diags([a1[1:],b1,c1[:-1]],[-1,0,1]).tocsc()
+                    if config.invMethod == 'splu':
+                        pxGrid[i+1,1:-1] = splu(D1).solve(D0@pxGrid[i,1:-1])
+                    else:
+                        pxGrid[i+1,1:-1] = spsolve(D1,D0@pxGrid[i,1:-1])
+                if option.ex == 'A':
+                    if option.pc == 'P':
+                        idxEx = np.argmax(intrinsic<pxGrid[i+1])
+                    else:
+                        idxEx = np.argmax(intrinsic>pxGrid[i+1])
+                        idxEx = -1 if idxEx==0 else idxEx
+                    exBdry[i+1] = S[idxEx]
+                    pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1]) # TODO: speedup using idxEx
+                pxGrid[i+1,0]  = 2*pxGrid[i+1,1]-pxGrid[i+1,2]
+                pxGrid[i+1,-1] = 2*pxGrid[i+1,-2]-pxGrid[i+1,-3]
+                pxGrid[i+1]    = np.maximum(pxGrid[i+1],0)
         #### 3. Post-processing
         # pxFunc = interp1d(x,pxGrid[-1],kind='cubic')
         pxFunc = pchip(x,pxGrid[-1]) # monotonic spline
