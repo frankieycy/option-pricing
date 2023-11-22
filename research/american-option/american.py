@@ -6,7 +6,8 @@ from tqdm import tqdm
 from numba import njit
 from copy import copy
 from scipy.special import ndtr
-from scipy.sparse import diags
+from scipy.linalg import solve_banded
+from scipy.sparse import diags, spdiags
 from scipy.sparse.linalg import splu, spsolve
 from scipy.optimize import fsolve
 from scipy.interpolate import pchip, interp1d
@@ -193,23 +194,32 @@ class Spot:
         return np.exp((self.r-self.q)*T)
 
 class LatticeConfig:
-    def __init__(self, S0, scheme='implicit', boundary='value', invMethod='splu', interpBdry=False):
+    def __init__(self, S0, scheme='implicit', boundary='value', invMethod='splu', interpBdry=False, fast=False):
         self.S0          = S0          # initial spot
         self.scheme      = scheme      # PDE solver scheme (explicit, implicit or crank-nicolson)
         self.boundary    = boundary    # PDE grid boundary method (value or gamma)
         self.invMethod   = invMethod   # sparse matrix inversion method
         self.interpBdry  = interpBdry  # TODO: interp early ex-boundary
+        self.fast        = fast        # use optimized forward iteration
         self.nX          = None        # number of space-grids
         self.nT          = None        # number of time-grids
         self.rangeX      = None        # range of space-grid
         self.rangeT      = None        # range of time-grid
         self.centerValue = None        # grid-center in spot (S0 or K)
         self.center      = None        # grid-center (spot or strike)
+        self.SetFast(fast)
 
     def __repr__(self):
         return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry})'
 
-    def initGrid(self, nX, nT, rangeX, rangeT, centerValue, center='strike'):
+    def SetFast(self, fast):
+        if fast:
+            self.fast      = True
+            self.scheme    = 'crank-nicolson'
+            self.boundary  = 'gamma'
+            self.invMethod = 'splu'
+
+    def InitGrid(self, nX, nT, rangeX, rangeT, centerValue, center='strike'):
         self.nX          = nX
         self.nT          = nT
         self.rangeX      = rangeX
@@ -253,7 +263,9 @@ class LatticePricer:
         # Solve PDE lattice for option price
         # TODO: speed profiling
         #### 1. Grid initialization
+        import time
         spot = self.spotFV if isImpliedVolCalc else self.spot
+        isFV = isinstance(spot.vs,FlatVol)
         K    = option.K
         T    = option.T
         r    = spot.r
@@ -270,14 +282,93 @@ class LatticePricer:
         xF   = config.SToX(F)
         xF0  = xF[0]
         xx,tt  = np.meshgrid(x,t)
-        varL   = spot.vs.LVarFunc(xx-xF[:,None],np.maximum(T-tt,MIN_TTX)) # local-var fetched at log(S/F)=log(S/C)-log(F/C)=xx-xF
+        if isFV and config.fast:
+            varL = spot.vs.sig**2
+        else: # local-var fetched at log(S/F)=log(S/C)-log(F/C)=xx-xF
+            varL = spot.vs.LVarFunc(xx-xF[:,None],np.maximum(T-tt,MIN_TTX))
         varL   = np.minimum(varL,MAX_LVAR)
         pxGrid = np.zeros((len(t),len(x)))
         intrinsic = option.Payoff(S)
         pxGrid[0] = intrinsic
         exBdry = np.concatenate([[K],[config.rangeS[0] if option.pc=='P' else config.rangeS[1]]*(len(t)-1)])
         #### 2. Forward iteration
-        if config.boundary == 'value':
+        if config.fast:
+            t0 = time.time()
+            dx2 = dx*dx
+            p1 = (1+dx/2)/2
+            p2 = (1-dx/2)/2
+            if isFV:
+                P1 = (r-q-varL/2)*dt/(4*dx)
+                P2 = varL*dt/(4*dx2)
+                P3 = r*dt/2+2*P2
+                A0 = np.repeat(-P1+P2,len(x)-2)
+                B0 = np.repeat(1-P3,len(x)-2)
+                C0 = np.repeat(P1+P2,len(x)-2)
+                A1 = -A0
+                B1 = np.repeat(1+P3,len(x)-2)
+                C1 = -C0
+                B0[0]  += A0[0]/p1
+                C0[0]  -= p2/p1*A0[0]
+                A0[-1] -= p1/p2*C0[-1]
+                B0[-1] += C0[:1]/p2
+                B1[0]  += A1[0]/p1
+                C1[0]  -= p2/p1*A1[0]
+                A1[-1] -= p1/p2*C1[-1]
+                B1[-1] += C1[-1]/p2
+            else:
+                P1 = (r-q-varL[:,1:-1]/2)*dt/(4*dx)
+                P2 = varL[:,1:-1]*dt/(4*dx2)
+                P3 = r*dt/2+2*P2
+                A0 = -P1+P2
+                B0 = 1-P3
+                C0 = P1+P2
+                A1 = -A0
+                B1 = 1+P3
+                C1 = -C0
+                B0[:,0]  += A0[:,0]/p1
+                C0[:,0]  -= p2/p1*A0[:,0]
+                A0[:,-1] -= p1/p2*C0[:,-1]
+                B0[:,-1] += C0[:,-1]/p2
+                B1[:,0]  += A1[:,0]/p1
+                C1[:,0]  -= p2/p1*A1[:,0]
+                A1[:,-1] -= p1/p2*C1[:,-1]
+                B1[:,-1] += C1[:,-1]/p2
+            for i in range(len(t)-1): # forward in time-to-expiry
+                if isFV:
+                    D0 = spdiags([A0,B0,C0],[1,0,-1],m=B0.shape[0],n=B0.shape[0]).T
+                    D1 = np.vstack([
+                        np.concatenate([[0],C1[:-1]]),
+                        B1,
+                        np.concatenate([A1[1:],[0]])
+                    ])
+                    # D1 = spdiags([A1,B1,C1],[1,0,-1],m=len(B1),n=len(B1)).T
+                    # D0 = diags([A0[1:],B0,C0[:-1]],[-1,0,1],format='csc')
+                    # D1 = diags([A1[1:],B1,C1[:-1]],[-1,0,1],format='csc')
+                    pxGrid[i+1,1:-1] = solve_banded((1,1),D1,D0@pxGrid[i,1:-1])
+                else:
+                    D0 = spdiags([A0[i],B0[i],C0[i]],[1,0,-1],m=B0.shape[1],n=B0.shape[1]).T
+                    D1 = np.vstack([
+                        np.concatenate([[0],C1[i+1,:-1]]),
+                        B1[i+1],
+                        np.concatenate([A1[i+1,1:],[0]])
+                    ])
+                    pxGrid[i+1,1:-1] = solve_banded((1,1),D1,D0@pxGrid[i,1:-1])
+                    # D0 = diags([A0[i,1:],B0[i],C0[i,:-1]],[-1,0,1],format='csc')
+                    # D1 = diags([A1[i+1,1:],B1[i+1],C1[i+1,:-1]],[-1,0,1],format='csc')
+                    # pxGrid[i+1,1:-1] = splu(D1).solve(D0@pxGrid[i,1:-1])
+                if option.ex == 'A':
+                    if option.pc == 'P':
+                        idxEx = np.argmax(intrinsic<pxGrid[i+1])
+                    else:
+                        idxEx = np.argmax(intrinsic>pxGrid[i+1])
+                        idxEx = -1 if idxEx==0 else idxEx
+                    exBdry[i+1] = S[idxEx]
+                    pxGrid[i+1] = np.maximum(intrinsic,pxGrid[i+1])
+                else:
+                    pxGrid[i+1] = np.maximum(pxGrid[i+1],0)
+                pxGrid[i+1,0]  = max(pxGrid[i+1,1]/p1-p2/p1*pxGrid[i+1,2],0)
+                pxGrid[i+1,-1] = max(pxGrid[i+1,-2]/p2-p1/p2*pxGrid[i+1,-3],0)
+        elif config.boundary == 'value':
             if option.pc == 'P':
                 pxGrid[:,0]  = K*np.exp(-r*t)-S[0]*np.exp(-q*t) if option.ex=='E' else intrinsic[0]
                 pxGrid[:,-1] = 0
@@ -436,7 +527,7 @@ class AmericanVolSurface(VolSurface):
         x0   = -self.G*sig0*np.sqrt(T)
         x1   = self.G*sig0*np.sqrt(T)
         config = copy(self.config)
-        config.initGrid(self.nX,self.nT,[x0,x1],[0,T],K,'strike')
+        config.InitGrid(self.nX,self.nT,[x0,x1],[0,T],K,'strike')
         return config
 
     def ImpliedVolFunc(self):

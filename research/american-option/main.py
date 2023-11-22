@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -40,7 +41,7 @@ def test_LatticePricer():
     S = Spot(S0,r,0,svi)
     C = LatticeConfig(S0,'crank-nicolson')
     L = LatticePricer(S)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     print(O)
     print(S)
@@ -70,19 +71,21 @@ def test_DeAmericanize():
     T  = 1
     S0 = 1
     r  = 0.05
-    nX = 200
-    nT = 200
+    nX = 1000
+    nT = 1000
     x0 = -2
     x1 = 2
     pc = 'P'
     ex = 'E'
+    m = 'crank-nicolson'
+    b = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,'implicit')
+    C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
     F = S.ForwardFunc(T)
     k = np.log(K/F)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     L.DeAmericanize(O,C)
     print(O)
@@ -155,7 +158,7 @@ def test_LatticePricerAccuracy_FlatVol():
                 K  = F*np.exp(k)
                 pc = 'P' if k<=0 else 'C'
                 O  = Option(K,T,pc,ex)
-                C.initGrid(nX,nT,[x0,x1],[0,T],K)
+                C.InitGrid(nX,nT,[x0,x1],[0,T],K)
                 L.SolveLattice(O,C)
                 pxTrue  = BlackScholesPrice(O.ivLV,K,T,D,F,pc)
                 pxLatt  = O.px
@@ -195,7 +198,7 @@ def test_LatticePricerAccuracy_SpxVol():
                 K  = F*np.exp(k)
                 pc = 'P' if k<=0 else 'C'
                 O  = Option(K,T,pc,ex)
-                C.initGrid(nX,nT,[x0,x1],[0,T],K)
+                C.InitGrid(nX,nT,[x0,x1],[0,T],K)
                 L.SolveLattice(O,C)
                 pxTrue  = BlackScholesPrice(O.ivLV,K,T,D,F,pc)
                 pxLatt  = O.px
@@ -223,7 +226,7 @@ def test_LatticePricer_ATMEuPut():
     S = Spot(S0,r,0,svi)
     C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
@@ -250,7 +253,7 @@ def test_LatticePricer_ATMEuCall():
     S = Spot(S0,r,q,svi)
     C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
@@ -276,7 +279,7 @@ def test_LatticePricer_ATMAmPut():
     S = Spot(S0,r,0,svi)
     C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
@@ -303,7 +306,7 @@ def test_LatticePricer_ATMAmCall():
     S = Spot(S0,r,q,svi)
     C = LatticeConfig(S0,m,b)
     L = LatticePricer(S)
-    C.initGrid(nX,nT,[x0,x1],[0,T],K)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
     L.SolveLattice(O,C)
     pxGrid = O.pxGridLV
     exBdry = O.exBdryLV
@@ -312,7 +315,45 @@ def test_LatticePricer_ATMAmCall():
     exBdry.to_csv(f'test/atm_am_call_exbdry_m={m}_b={b}.csv')
 
 def test_LatticePricer_Speedup():
-    pass
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    # svi = FlatVol(0.2)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0.05
+    q  = 0
+    nX = 1000
+    nT = 1000
+    x0 = -2
+    x1 = 2
+    pc = 'P'
+    ex = 'A'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
+    O = Option(K,T,pc,ex)
+    S = Spot(S0,r,q,svi)
+    C = LatticeConfig(S0,m,b)
+    L = LatticePricer(S)
+    C.InitGrid(nX,nT,[x0,x1],[0,T],K)
+    t0 = time.time()
+    L.SolveLattice(O,C)
+    t1 = time.time()
+    dt1 = t1-t0
+    px1 = O.px
+    pxGrid = O.pxGridLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv(f'test/speed_pxgrid_reg.csv')
+    C.SetFast(True)
+    t0 = time.time()
+    L.SolveLattice(O,C)
+    t1 = time.time()
+    dt2 = t1-t0
+    px2 = O.px
+    pxGrid = O.pxGridLV
+    pxGrid.columns = C.XToS(pxGrid.columns)
+    pxGrid.to_csv(f'test/speed_pxgrid_opt.csv')
+    print(f'regular mode : price={px1} time={dt1}')
+    print(f'fast mode    : price={px2} time={dt2}')
 
 if __name__ == '__main__':
     # test_SviPowerLaw()
