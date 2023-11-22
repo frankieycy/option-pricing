@@ -311,6 +311,9 @@ def test_LatticePricer_ATMAmCall():
     pxGrid.to_csv(f'test/atm_am_call_pxgrid_m={m}_b={b}.csv')
     exBdry.to_csv(f'test/atm_am_call_exbdry_m={m}_b={b}.csv')
 
+def test_LatticePricer_Speedup():
+    pass
+
 if __name__ == '__main__':
     # test_SviPowerLaw()
     # test_LatticePricer()
@@ -320,5 +323,6 @@ if __name__ == '__main__':
     # test_LatticePricerAccuracy_SpxVol()
     # test_LatticePricer_ATMEuPut()
     # test_LatticePricer_ATMEuCall()
-    test_LatticePricer_ATMAmPut()
-    test_LatticePricer_ATMAmCall()
+    # test_LatticePricer_ATMAmPut()
+    # test_LatticePricer_ATMAmCall()
+    test_LatticePricer_Speedup()
