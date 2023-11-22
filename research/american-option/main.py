@@ -81,7 +81,7 @@ def test_DeAmericanize():
     b = 'gamma'
     O = Option(K,T,pc,ex)
     S = Spot(S0,r,0,svi)
-    C = LatticeConfig(S0,m,b)
+    C = LatticeConfig(S0,m,b,fast=True)
     L = LatticePricer(S)
     F = S.ForwardFunc(T)
     k = np.log(K/F)
@@ -114,17 +114,25 @@ def test_AmericanVolSurface():
     r  = 0.05
     nX = 200
     nT = 200
-    G  = 6
+    G  = 5
+    m = 'crank-nicolson'
+    b = 'gamma'
     S  = Spot(S0,r,0,svi)
-    C  = LatticeConfig(S0,'implicit')
+    C  = LatticeConfig(S0,m,b,fast=True)
     A  = AmericanVolSurface(S,C,nX,nT,G)
-    k  = np.arange(-0.5,0.6,0.1)
-    sigI = svi.IVolFunc(k,T)
-    sigA = A.IVolFunc(k,T)
+    k  = np.arange(-0.5,0.52,0.02)
+    T = np.arange(0.1,1.05,0.05)
+    kk,TT = np.meshgrid(k,T)
+    sigI = svi.IVolFunc(kk,TT)
+    sigA = A.IVolFunc(kk,TT)
+    sigI = pd.DataFrame(sigI,index=T,columns=k)
+    sigA = pd.DataFrame(sigA,index=T,columns=k)
+    sigI.to_csv('deAm_vol_eu.csv')
+    sigA.to_csv('deAm_vol_am.csv')
     print('---sigI---')
-    print(pd.Series(sigI,index=k))
+    print(sigI)
     print('---sigA---')
-    print(pd.Series(sigA,index=k))
+    print(sigA)
     print('---A.log---')
     print(A.log)
 
@@ -185,6 +193,46 @@ def test_LatticePricerAccuracy_SpxVol():
     L  = LatticePricer(S)
     with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_G={G}_dk={round(kk[1]-kk[0],2)}_m={m}_b={b}.csv','w') as f:
         f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
+        f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
+        for T in TT:
+            T = round(T,2)
+            print(f'Running lattice at T={T} ...')
+            D = np.exp(-r*T)
+            F = S.ForwardFunc(T)
+            for k in tqdm(kk):
+                sig0 = svi.LVolFunc(k,T)
+                x0 = -G*sig0*np.sqrt(T)
+                x1 = G*sig0*np.sqrt(T)
+                K  = F*np.exp(k)
+                pc = 'P' if k<=0 else 'C'
+                O  = Option(K,T,pc,ex)
+                C.InitGrid(nX,nT,[x0,x1],[0,T],K)
+                L.SolveLattice(O,C)
+                pxTrue  = BlackScholesPrice(O.ivLV,K,T,D,F,pc)
+                pxLatt  = O.px
+                sigTrue = O.ivLV
+                sigLatt = BlackScholesImpliedVol(O.px,K,T,D,F,pc,O.ivLV)[0]
+                sigLV   = O.lvLV
+                sigErr  = sigLatt-sigTrue
+                f.write(f'{k},{K},{T},{ex},{pc},{pxTrue},{pxLatt},{sigTrue},{sigLatt},{sigLV},{sigErr}\n')
+
+def test_LatticePricerAccuracy_SpxVol_finetune():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    S0 = 1
+    r  = 0.05
+    nX = 1000
+    nT = 1000
+    G  = 5
+    ex = 'E'
+    kk = np.arange(-0.5,0.52,0.02)
+    TT = np.arange(0.1,1.1,0.1)
+    m  = 'crank-nicolson'
+    b  = 'gamma'
+    S  = Spot(S0,r,0,svi)
+    C  = LatticeConfig(S0,m,b,fast=True)
+    L  = LatticePricer(S)
+    with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}_TTX={MIN_TTX}_LVAR={MAX_LVAR}.csv','w') as f:
+        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi},MIN_TTX={MIN_TTX},MAX_LVAR={MAX_LVAR}\n')
         f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigLV,sigErr\n')
         for T in TT:
             T = round(T,2)
@@ -359,11 +407,12 @@ if __name__ == '__main__':
     # test_SviPowerLaw()
     # test_LatticePricer()
     # test_DeAmericanize()
-    # test_AmericanVolSurface()
+    test_AmericanVolSurface()
     # test_LatticePricerAccuracy_FlatVol()
     # test_LatticePricerAccuracy_SpxVol()
+    # test_LatticePricerAccuracy_SpxVol_finetune()
     # test_LatticePricer_ATMEuPut()
     # test_LatticePricer_ATMEuCall()
     # test_LatticePricer_ATMAmPut()
     # test_LatticePricer_ATMAmCall()
-    test_LatticePricer_Speedup()
+    # test_LatticePricer_Speedup()
