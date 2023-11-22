@@ -210,7 +210,7 @@ class LatticeConfig:
         self.SetFast(fast)
 
     def __repr__(self):
-        return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry})'
+        return f'LatticeConfig(S0={self.S0}, nX={self.nX}, nT={self.nT}, rangeX={self.rangeX}, rangeT={self.rangeT}, centerValue={self.centerValue}, center={self.center}, scheme={self.scheme}, invMethod={self.invMethod}, boundary={self.boundary}, interpBdry={self.interpBdry}, fast={self.fast})'
 
     def SetFast(self, fast):
         if fast:
@@ -532,6 +532,7 @@ class AmericanVolSurface(VolSurface):
 
     def ImpliedVolFunc(self):
         def amIVolFunc(k, T):
+            print(f'Running American implied vol for k={k}, T={T} ...')
             F  = self.spot.ForwardFunc(T)
             K  = F*np.exp(k)
             pc = 'P' if k<=0 else 'C'
