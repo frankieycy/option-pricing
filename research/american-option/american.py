@@ -261,9 +261,8 @@ class LatticePricer:
 
     def SolveLattice(self, option, config, isImpliedVolCalc=False):
         # Solve PDE lattice for option price
-        # TODO: speed profiling
+        # Time-consumer: 1. LVarFunc, 2. spdiags, 3. solve_banded
         #### 1. Grid initialization
-        import time
         spot = self.spotFV if isImpliedVolCalc else self.spot
         isFV = isinstance(spot.vs,FlatVol)
         K    = option.K
@@ -293,7 +292,6 @@ class LatticePricer:
         exBdry = np.concatenate([[K],[config.rangeS[0] if option.pc=='P' else config.rangeS[1]]*(len(t)-1)])
         #### 2. Forward iteration
         if config.fast:
-            t0 = time.time()
             dx2 = dx*dx
             p1 = (1+dx/2)/2
             p2 = (1-dx/2)/2
