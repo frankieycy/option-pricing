@@ -66,17 +66,17 @@ def test_DeAmericanize():
     # sigI and sigA should converge for nX and nT large enough
     # Implicit scheme requires nT~1000
     # Can Crank-Nicolson achieve accuracy with nT~200?
-    svi = SviPowerLaw(**SVI_PARAMS_FLAT)
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
     K  = 1
     T  = 1
     S0 = 1
-    r  = 0.05
+    r  = 0
     nX = 1000
     nT = 1000
     x0 = -2
     x1 = 2
     pc = 'P'
-    ex = 'E'
+    ex = 'A'
     m = 'crank-nicolson'
     b = 'gamma'
     O = Option(K,T,pc,ex)
@@ -111,30 +111,31 @@ def test_AmericanVolSurface():
     K  = 1
     T  = 1
     S0 = 1
-    r  = 0.05
-    nX = 200
-    nT = 200
+    nX = 1000
+    nT = 1000
     G  = 5
     m = 'crank-nicolson'
     b = 'gamma'
-    S  = Spot(S0,r,0,svi)
-    C  = LatticeConfig(S0,m,b,fast=True)
-    A  = AmericanVolSurface(S,C,nX,nT,G)
-    k  = np.arange(-0.5,0.52,0.02)
-    T = np.arange(0.1,1.05,0.05)
-    kk,TT = np.meshgrid(k,T)
-    sigI = svi.IVolFunc(kk,TT)
-    sigA = A.IVolFunc(kk,TT)
-    sigI = pd.DataFrame(sigI,index=T,columns=k)
-    sigA = pd.DataFrame(sigA,index=T,columns=k)
-    sigI.to_csv('deAm_vol_eu.csv')
-    sigA.to_csv('deAm_vol_am.csv')
-    print('---sigI---')
-    print(sigI)
-    print('---sigA---')
-    print(sigA)
-    print('---A.log---')
-    print(A.log)
+    for r in [0,0.02,0.05,0.1]:
+        print(f'Running for r={r} ...')
+        S  = Spot(S0,r,0,svi)
+        C  = LatticeConfig(S0,m,b,fast=True)
+        A  = AmericanVolSurface(S,C,nX,nT,G)
+        k  = np.arange(-0.5,0.52,0.02)
+        T = np.arange(0.1,1.05,0.05)
+        kk,TT = np.meshgrid(k,T)
+        sigI = svi.IVolFunc(kk,TT)
+        sigA = A.IVolFunc(kk,TT)
+        sigI = pd.DataFrame(sigI,index=T,columns=k)
+        sigA = pd.DataFrame(sigA,index=T,columns=k)
+        sigI.to_csv(f'test/deAm_vol_eu_r={r}.csv')
+        sigA.to_csv(f'test/deAm_vol_am_r={r}.csv')
+        print('---sigI---')
+        print(sigI)
+        print('---sigA---')
+        print(sigA)
+        # print('---A.log---')
+        # print(A.log)
 
 def test_LatticePricerAccuracy_FlatVol():
     svi = SviPowerLaw(**SVI_PARAMS_FLAT)
@@ -255,6 +256,50 @@ def test_LatticePricerAccuracy_SpxVol_finetune():
                 sigLV   = O.lvLV
                 sigErr  = sigLatt-sigTrue
                 f.write(f'{k},{K},{T},{ex},{pc},{pxTrue},{pxLatt},{sigTrue},{sigLatt},{sigLV},{sigErr}\n')
+
+def test_LatticePricerAccuracy_SpxVol_deAm():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    S0 = 1
+    r  = 0
+    nX = 1000
+    nT = 1000
+    G  = 5
+    ex = 'A'
+    kk = np.arange(-0.5,0.52,0.02)
+    TT = np.arange(0.1,1.1,0.1)
+    m  = 'crank-nicolson'
+    b  = 'gamma'
+    S  = Spot(S0,r,0,svi)
+    C  = LatticeConfig(S0,m,b,fast=True)
+    L  = LatticePricer(S)
+    with open(f'test/lattice_eu_acc_spxvol_nX={nX}_nT={nT}.csv','w') as f:
+        f.write(f'#S0={S0},r={r},nX={nX},nT={nT},G={G},m={m},vs={svi}\n')
+        f.write('k,K,T,ex,pc,pxTrue,pxLatt,sigTrue,sigLatt,sigDeAm,sigLV,sigErr,sigErrA\n')
+        for T in TT:
+            T = round(T,2)
+            print(f'Running lattice at T={T} ...')
+            D = np.exp(-r*T)
+            F = S.ForwardFunc(T)
+            for k in kk:
+                sig0 = svi.LVolFunc(k,T)
+                x0 = -G*sig0*np.sqrt(T)
+                x1 = G*sig0*np.sqrt(T)
+                K  = F*np.exp(k)
+                pc = 'P' if k<=0 else 'C'
+                O  = Option(K,T,pc,ex)
+                C.InitGrid(nX,nT,[x0,x1],[0,T],K)
+                L.SolveLattice(O,C)
+                L.DeAmericanize(O,C)
+                pxTrue  = BlackScholesPrice(O.ivLV,K,T,D,F,pc)
+                pxLatt  = O.px
+                sigTrue = O.ivLV
+                sigLatt = BlackScholesImpliedVol(O.px,K,T,D,F,pc,O.ivLV)[0]
+                sigDeAm = O.ivFV
+                sigLV   = O.lvLV
+                sigErr  = sigLatt-sigTrue
+                sigErrA = sigDeAm-sigTrue
+                print(f'Finished k={k}, T={T} ... sigErr={sigErr} sigErrA={sigErrA}')
+                f.write(f'{k},{K},{T},{ex},{pc},{pxTrue},{pxLatt},{sigTrue},{sigLatt},{sigDeAm},{sigLV},{sigErr},{sigErrA}\n')
 
 def test_LatticePricer_ATMEuPut():
     svi = SviPowerLaw(**SVI_PARAMS_SPX)
@@ -411,6 +456,7 @@ if __name__ == '__main__':
     # test_LatticePricerAccuracy_FlatVol()
     # test_LatticePricerAccuracy_SpxVol()
     # test_LatticePricerAccuracy_SpxVol_finetune()
+    # test_LatticePricerAccuracy_SpxVol_deAm()
     # test_LatticePricer_ATMEuPut()
     # test_LatticePricer_ATMEuCall()
     # test_LatticePricer_ATMAmPut()
