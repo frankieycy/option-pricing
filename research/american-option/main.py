@@ -114,8 +114,8 @@ def test_AmericanVolSurface():
     nX = 1000
     nT = 1000
     G  = 5
-    m = 'crank-nicolson'
-    b = 'gamma'
+    m  = 'crank-nicolson'
+    b  = 'gamma'
     for r in [0,0.02,0.05,0.1]:
         print(f'Running for r={r} ...')
         S  = Spot(S0,r,0,svi)
@@ -136,6 +136,67 @@ def test_AmericanVolSurface():
         print(sigA)
         # print('---A.log---')
         # print(A.log)
+
+def test_AmericanVolSurface_data():
+    svi = SviPowerLaw(**SVI_PARAMS_SPX)
+    K  = 1
+    T  = 1
+    S0 = 1
+    r  = 0.05
+    nX = 1000
+    nT = 1000
+    G  = 5
+    m  = 'crank-nicolson'
+    b  = 'gamma'
+    S  = Spot(S0,r,0,svi)
+    C  = LatticeConfig(S0,m,b,fast=True)
+    A  = AmericanVolSurface(S,C,nX,nT,G)
+    k  = np.arange(-0.5,0.52,0.02)
+    T  = np.arange(0.1,1.05,0.05)
+    kk,TT = np.meshgrid(k,T)
+    sigI = svi.IVolFunc(kk,TT)
+    sigA = A.IVolFunc(kk,TT)
+    sigI = pd.DataFrame(sigI,index=T,columns=k)
+    sigA = pd.DataFrame(sigA,index=T,columns=k)
+    print('---sigI---')
+    print(sigI)
+    print('---sigA---')
+    print(sigA)
+    f1 = []
+    f2 = []
+    for o in A.log:
+        K  = o.K
+        T  = o.T
+        px = o.px
+        ivLV = o.ivLV
+        ivFV = o.ivFV
+        lvLV = o.lvLV
+        exLV = o.exBdryLV
+        exFV = o.exBdryFV
+        t     = exLV.index.to_numpy()
+        E     = exLV.values
+        F     = S.ForwardFunc(T-t)
+        F0    = S.ForwardFunc(T)
+        kk    = np.log(K/F0)
+        ee    = np.log(E/F)
+        sigLV = pd.Series(svi.IVolFunc(ee,T-t)).to_dict()
+        skLV  = pd.Series(svi.ISkewFunc(ee,T-t)).to_dict()
+        exLV  = exLV.reset_index(drop=True).to_dict()
+        exFV  = exFV.reset_index(drop=True).to_dict()
+        exLV.update({'k':kk,'K':K,'T':T,'var':'Sex_LV'})
+        exFV.update({'k':kk,'K':K,'T':T,'var':'Sex_FV'})
+        sigLV.update({'k':kk,'K':K,'T':T,'var':'sig_LV'})
+        skLV.update({'k':kk,'K':K,'T':T,'var':'sk_LV'})
+        f1.append({'k':kk,'K':K,'T':T,'px':px,'ivLV':ivLV,'ivFV':ivFV,'lvLV':lvLV})
+        f2.append(exLV)
+        f2.append(exFV)
+        f2.append(sigLV)
+        f2.append(skLV)
+    f1 = pd.DataFrame(f1)
+    f2 = pd.DataFrame(f2)
+    f2 = f2[['k','K','T','var']+list(range(nT))]
+    f1.to_csv('test/deAm_data_option.csv')
+    f2.to_csv('test/deAm_data_exbdry.csv')
 
 def test_LatticePricerAccuracy_FlatVol():
     svi = SviPowerLaw(**SVI_PARAMS_FLAT)
@@ -452,7 +513,8 @@ if __name__ == '__main__':
     # test_SviPowerLaw()
     # test_LatticePricer()
     # test_DeAmericanize()
-    test_AmericanVolSurface()
+    # test_AmericanVolSurface()
+    test_AmericanVolSurface_data()
     # test_LatticePricerAccuracy_FlatVol()
     # test_LatticePricerAccuracy_SpxVol()
     # test_LatticePricerAccuracy_SpxVol_finetune()

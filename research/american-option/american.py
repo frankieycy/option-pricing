@@ -41,14 +41,18 @@ def BlackScholesImpliedVol(px,K,T,D,F,pc,sig0):
 
 class VolSurface:
     def __init__(self):
-        self.IVolFunc = self.ImpliedVolFunc() # implied-vol function
-        self.LVolFunc = self.LocalVolFunc()   # local-vol function
-        self.LVarFunc = self.LocalVarFunc()   # local-var function
+        self.IVolFunc  = self.ImpliedVolFunc() # implied-vol function
+        self.ISkewFunc = self.ImpliedSkewFunc() # implied-vol function
+        self.LVolFunc  = self.LocalVolFunc()   # local-vol function
+        self.LVarFunc  = self.LocalVarFunc()   # local-var function
 
     def __repr__(self):
         return f'VolSurface()'
 
     def ImpliedVolFunc(self):
+        return np.vectorize(lambda k,T: 0)
+
+    def ImpliedSkewFunc(self):
         return np.vectorize(lambda k,T: 0)
 
     def LocalVolFunc(self):
@@ -67,6 +71,9 @@ class FlatVol(VolSurface):
 
     def ImpliedVolFunc(self):
         return np.vectorize(lambda k,T: self.sig)
+
+    def ImpliedSkewFunc(self):
+        return np.vectorize(lambda k,T: 0)
 
     def LocalVolFunc(self):
         return np.vectorize(lambda k,T: self.sig)
@@ -121,6 +128,17 @@ class SviPowerLaw(VolSurface):
             a  = np.sqrt((sk*k+self.rho)**2+1-self.rho**2)
             return w/2*(1+self.rho*sk*k+a)
         return sviIVarFunc
+
+    def ImpliedSkewFunc(self):
+        w0  = self.HestonTermStructureKernel()
+        sk0 = self.PowerLawSkewKernel()
+        def sviISkewFunc(k, T):
+            w  = w0(T)
+            sk = sk0(w)
+            a  = np.sqrt((sk*k+self.rho)**2+1-self.rho**2)
+            ww = w/2*(1+self.rho*sk*k+a)
+            return w/(4*np.sqrt(ww))*(self.rho*sk+(sk*k+self.rho)*sk/a)
+        return sviISkewFunc
 
     def LocalVarFunc(self):
         # SviPowerLaw analytic local-var
