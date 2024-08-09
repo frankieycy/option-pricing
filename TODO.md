@@ -56,8 +56,10 @@
 * joint calibration with VIX derivs
 * fast Monte-Carlo for exotics pricing
 
-## To-Do List (2023 Winter)
+## To-Do List (2023-2024)
 
 * Research, American and European implied vol
 * Research, Event-modeling
+* Research, ThetaGamma decomposition
 * Trading, Earnings bet
+* Study, Levy process
