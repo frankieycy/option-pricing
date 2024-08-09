@@ -1556,6 +1556,22 @@ def test_ImpVolFromRHPIvCalibration():
     dfnew = pd.concat(dfnew)
     PlotImpliedVol(dfnew, dataFolder+"test_RHPImpliedVolIv.png")
 
+#### Event #####################################################################
+
+def test_HestonSmileWithEvent():
+    impVolFunc = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump))
+    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
+    k = np.arange(-0.7,0.7,0.02)
+    iv = vol(k,1)
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.title("Heston 1-Year Smile with Event (BCC Params)")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent.png")
+    plt.close()
+
 #### Speed Test ################################################################
 
 def test_CalibrationSpeed():
@@ -3270,7 +3286,7 @@ if __name__ == '__main__':
     # test_BGSmile()
     # test_MixtureBGSmile()
     # test_DoubleBGSmile()
-    test_CalibrateMBGModelToImpVolSingleSlice()
+    # test_CalibrateMBGModelToImpVolSingleSlice()
     # test_CalibrateMBGModelToImpVolSlice()
     # test_ImpVolFromMBGIvCalibration()
     # test_OrderMBGCalibrationCsv()
@@ -3291,6 +3307,8 @@ if __name__ == '__main__':
     # test_ImpVolFromRHPMMIvCalibration()
     # test_CalibrateRHPModelToImpVol()
     # test_ImpVolFromRHPIvCalibration()
+    #### Event ####
+    test_HestonSmileWithEvent()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()

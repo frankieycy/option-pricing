@@ -178,7 +178,9 @@ def BlackScholesImpliedVol(spotPrice, strike, maturity, riskFreeRate, priceMkt, 
     # Within function, optionType & maturity are cast to vectors
     # Make this very efficient!
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
-    nStrikes = len(strike) if isinstance(strike, np.ndarray) else 1
+    if not isinstance(strike, np.ndarray):
+        strike = np.array([strike])
+    nStrikes = len(strike)
     impVol = np.repeat(0., nStrikes)
 
     if isinstance(optionType, str): # Cast optionType as vector
@@ -1037,6 +1039,14 @@ def rHestonPadeCharFunc(hurstExp, correlation, volOfVol, fvFunc, dhPade=dhPade33
             dah = np.nan_to_num(dhPade(H,rho,nu)(u,x))
             return np.exp(dah.dot(xi[::-1]*w)*dt/3)
             # return np.exp(dah.dot(xi[::-1])*dt)
+    return charFunc
+
+#### Event Model
+
+def GaussianEventJumpCharFunc(spotCharFunc, eventTime, jumpUpProb, jumpUpMean, jumpUpStd, jumpDnMean, jumpDnStd):
+    # Characteristic function for Gaussian event jump model
+    def charFunc(u, maturity):
+        return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpUpProb*np.exp(1j*u*jumpUpMean-u**2*jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(1j*u*jumpDnMean-u**2*jumpDnStd**2/2))/(jumpUpProb*np.exp(jumpUpMean+jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(jumpDnMean+jumpDnStd**2/2))**(1j*u))
     return charFunc
 
 #### Pricing Formula ###########################################################

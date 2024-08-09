@@ -142,3 +142,9 @@ paramsRHP = {"hurstExp": 0.1, "correlation": -0.6, "volOfVol": 0.3}
 paramsRHPkey = list(paramsRHP.keys())
 paramsRHPval = list(paramsRHP.values())
 paramsRHPbnd = ((0,0.3), (-0.99,0.99), (0.01,1))
+
+#### Event Model ###############################################################
+paramsGaussianEventJump = {"eventTime": 1, "jumpUpProb": 0.5, "jumpUpMean": 0.15, "jumpUpStd": 0.02, "jumpDnMean": -0.15, "jumpDnStd": 0.02}
+paramsGaussianEventJumpkey = list(paramsGaussianEventJump.keys())
+paramsGaussianEventJumpval = list(paramsGaussianEventJump.values())
+paramsGaussianEventJumpbnd = ((0,1), (0.001,1), (0.001,0.2), (0.001,1), (-0.001,-0.2), (0.001,1))
