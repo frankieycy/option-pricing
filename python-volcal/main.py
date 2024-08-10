@@ -1559,17 +1559,77 @@ def test_ImpVolFromRHPIvCalibration():
 #### Event #####################################################################
 
 def test_HestonSmileWithEvent():
-    impVolFunc = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump))
-    vol = lambda K,T: np.array([impVolFunc(k,T) for k in K]).reshape(-1)
-    k = np.arange(-0.7,0.7,0.02)
-    iv = vol(k,1)
+    impVolFunc = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump),FFT=True)
+    k = np.arange(-1,1,0.02)
+    iv = impVolFunc(k,1)
     fig = plt.figure(figsize=(6,4))
-    plt.scatter(k, 100*iv, c='k', s=5)
+    plt.scatter(k,100*iv,c='k',s=5)
     plt.title("Heston 1-Year Smile with Event (BCC Params)")
     plt.xlabel("log-strike")
     plt.ylabel("implied vol (%)")
+    plt.ylim(10,40)
     fig.tight_layout()
     plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent.png")
+    plt.close()
+
+def test_GaussianEventJumpSensitivity():
+    kk = np.arange(-2,1,0.02)
+    var = ["jumpUpProb","jumpMean","jumpDnMean","jumpStd","jumpDnStd"]
+    png = ["prob","eps","epsm","sig","sigm"]
+    gej = [["jumpUpProb"],["jumpUpMean","jumpDnMean"],["jumpDnMean"],["jumpUpStd","jumpDnStd"],["jumpDnStd"]]
+    inc = [[0.1],[0.05,-0.05],[-0.05],[0.05,0.05],[0.05]]
+    for j in range(5):
+        paramsGEJnew = paramsGaussianEventJump.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year Smile {var[j]} Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("implied vol (%)")
+        for i in range(5):
+            impVolFunc = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGEJnew),FFT=True)
+            iv = impVolFunc(kk,1)
+            c = 'k' if i==0 else 'k--'
+            plt.plot(kk,100*iv,c)
+            for k in range(len(gej[j])):
+                paramsGEJnew[gej[j][k]] += inc[j][k]
+        plt.ylim(15,50)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_{png[j]}.png")
+        plt.close()
+
+        paramsGEJnew = paramsGaussianEventJump.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year EventVol {var[j]} Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("event vol (%)")
+        for i in range(5):
+            impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
+            impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGEJnew),FFT=True)
+            iv0 = impVolFunc0(kk,1)
+            iv1 = impVolFunc1(kk,1)
+            ev = np.sqrt(iv1**2-iv0**2)
+            c = 'k' if i==0 else 'k--'
+            plt.plot(kk,100*ev,c)
+            for k in range(len(gej[j])):
+                paramsGEJnew[gej[j][k]] += inc[j][k]
+        plt.ylim(3,42)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_EventVol_{png[j]}.png")
+        plt.close()
+
+def test_GaussianEventJumpEventVol():
+    impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
+    impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump),FFT=True)
+    k = np.arange(-2,1,0.02)
+    iv0 = impVolFunc0(k,1)
+    iv1 = impVolFunc1(k,1)
+    ev = np.sqrt(iv1**2-iv0**2)
+    fig = plt.figure(figsize=(6, 4))
+    plt.scatter(k,100*ev,c='k',s=5)
+    plt.title("Heston 1-Year EventVol")
+    plt.xlabel("log-strike")
+    plt.ylabel("event vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent_EventVol.png")
     plt.close()
 
 #### Speed Test ################################################################
@@ -3308,7 +3368,9 @@ if __name__ == '__main__':
     # test_CalibrateRHPModelToImpVol()
     # test_ImpVolFromRHPIvCalibration()
     #### Event ####
-    test_HestonSmileWithEvent()
+    # test_HestonSmileWithEvent()
+    # test_GaussianEventJumpSensitivity()
+    test_GaussianEventJumpEventVol()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
