@@ -1616,6 +1616,26 @@ def test_GaussianEventJumpSensitivity():
         plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_EventVol_{png[j]}.png")
         plt.close()
 
+        paramsGEJnew = paramsGaussianEventJump.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year EventVar {var[j]} Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("event var")
+        for i in range(5):
+            impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
+            impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGEJnew),FFT=True)
+            iv0 = impVolFunc0(kk,1)
+            iv1 = impVolFunc1(kk,1)
+            ev = iv0*(iv1-iv0)
+            c = 'k' if i==0 else 'k--'
+            plt.plot(kk,ev,c)
+            for k in range(len(gej[j])):
+                paramsGEJnew[gej[j][k]] += inc[j][k]
+        plt.ylim(0.0005,0.052)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_EventVar_{png[j]}.png")
+        plt.close()
+
 def test_GaussianEventJumpEventVol():
     impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
     impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump),FFT=True)
@@ -3369,8 +3389,8 @@ if __name__ == '__main__':
     # test_ImpVolFromRHPIvCalibration()
     #### Event ####
     # test_HestonSmileWithEvent()
-    # test_GaussianEventJumpSensitivity()
-    test_GaussianEventJumpEventVol()
+    test_GaussianEventJumpSensitivity()
+    # test_GaussianEventJumpEventVol()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
