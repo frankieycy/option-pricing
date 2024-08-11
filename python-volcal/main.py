@@ -1572,6 +1572,22 @@ def test_HestonSmileWithEvent():
     plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent.png")
     plt.close()
 
+def test_GaussianEventJumpEventVol():
+    impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
+    impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump),FFT=True)
+    k = np.arange(-2,1,0.02)
+    iv0 = impVolFunc0(k,1)
+    iv1 = impVolFunc1(k,1)
+    ev = np.sqrt(iv1**2-iv0**2)
+    fig = plt.figure(figsize=(6, 4))
+    plt.scatter(k,100*ev,c='k',s=5)
+    plt.title("Heston 1-Year EventVol")
+    plt.xlabel("log-strike")
+    plt.ylabel("event vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent_EventVol.png")
+    plt.close()
+
 def test_GaussianEventJumpSensitivity():
     kk = np.arange(-2,1,0.02)
     var = ["jumpUpProb","jumpMean","jumpDnMean","jumpStd","jumpDnStd"]
@@ -1636,20 +1652,72 @@ def test_GaussianEventJumpSensitivity():
         plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_EventVar_{png[j]}.png")
         plt.close()
 
-def test_GaussianEventJumpEventVol():
-    impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCC),FFT=True)
-    impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsGaussianEventJump),FFT=True)
-    k = np.arange(-2,1,0.02)
-    iv0 = impVolFunc0(k,1)
-    iv1 = impVolFunc1(k,1)
-    ev = np.sqrt(iv1**2-iv0**2)
-    fig = plt.figure(figsize=(6, 4))
-    plt.scatter(k,100*ev,c='k',s=5)
-    plt.title("Heston 1-Year EventVol")
-    plt.xlabel("log-strike")
-    plt.ylabel("event vol (%)")
+def test_GaussianEventJumpHestonSensitivity():
+    kk = np.arange(-2,1,0.02)
+    var = ["rho","eta","lambda"]
+    png = ["rho","eta","lam"]
+    bcc = ["correlation","volOfVol","meanRevRate"]
+    inc = [0.1,0.1,0.5]
+    for j in range(3):
+        paramsBCCnew = paramsBCC.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year Smile {var[j]} Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("implied vol (%)")
+        for i in range(5):
+            impVolFunc = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCCnew),**paramsGaussianEventJump),FFT=True)
+            iv = impVolFunc(kk,1)
+            c = 'k' if i==0 else 'k--'
+            plt.plot(kk,100*iv,c)
+            paramsBCCnew[bcc[j]] += inc[j]
+        plt.ylim(15,60)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_{png[j]}.png")
+        plt.close()
+
+        paramsBCCnew = paramsBCC.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year EventVol {var[j]} Sensitivity (BCC Params)")
+        plt.xlabel("log-strike")
+        plt.ylabel("event vol (%)")
+        for i in range(5):
+            impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew),FFT=True)
+            impVolFunc1 = CharFuncImpliedVol(GaussianEventJumpCharFunc(HestonCharFunc(**paramsBCCnew),**paramsGaussianEventJump),FFT=True)
+            iv0 = impVolFunc0(kk,1)
+            iv1 = impVolFunc1(kk,1)
+            ev = np.sqrt(iv1**2-iv0**2)
+            c = 'k' if i==0 else 'k--'
+            plt.plot(kk,100*ev,c)
+            paramsBCCnew[bcc[j]] += inc[j]
+        plt.ylim(7,19)
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithEvent_EventVol_{png[j]}.png")
+        plt.close()
+
+def test_GaussianEventJumpMomentDecay():
+    xx = np.arange(-5,5,0.01)
+    nn = np.arange(2,20)
+    prob = paramsGaussianEventJump['jumpUpProb']
+    epsp = paramsGaussianEventJump['jumpUpMean']
+    epsm = paramsGaussianEventJump['jumpDnMean']
+    sigp = paramsGaussianEventJump['jumpUpStd']
+    sigm = paramsGaussianEventJump['jumpDnStd']
+    density = lambda x: prob*norm.pdf((x-epsp)/sigp)+(1-prob)*norm.pdf((x-epsm)/sigm)
+    p = density(xx)
+    p /= sum(p)
+    e = np.exp(xx)
+    m = sum(p*e)
+    moment = lambda n: sum(p*(e-m)**n)/m**n
+    moments = [moment(n) for n in nn]
+    fig = plt.figure(figsize=(6,4))
+    plt.scatter(nn,moments,c='k',s=5)
+    plt.title("Gaussian Event Jump Moment Decay")
+    plt.xlabel("$n$")
+    plt.ylabel("moment")
+    plt.yscale("log")
+    plt.xticks(nn)
     fig.tight_layout()
-    plt.savefig(dataFolder+"test_HestonSmileBCCWithEvent_EventVol.png")
+    plt.savefig(dataFolder+f"test_GaussianEventJumpMomentDecay.png")
     plt.close()
 
 #### Speed Test ################################################################
@@ -3389,8 +3457,10 @@ if __name__ == '__main__':
     # test_ImpVolFromRHPIvCalibration()
     #### Event ####
     # test_HestonSmileWithEvent()
-    test_GaussianEventJumpSensitivity()
-    # test_GaussianEventJumpEventVol()
+    test_GaussianEventJumpEventVol()
+    # test_GaussianEventJumpSensitivity()
+    # test_GaussianEventJumpHestonSensitivity()
+    # test_GaussianEventJumpMomentDecay()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
