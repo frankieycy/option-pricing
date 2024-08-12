@@ -1049,6 +1049,12 @@ def GaussianEventJumpCharFunc(spotCharFunc, eventTime, jumpUpProb, jumpUpMean, j
         return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpUpProb*np.exp(1j*u*jumpUpMean-u**2*jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(1j*u*jumpDnMean-u**2*jumpDnStd**2/2))/(jumpUpProb*np.exp(jumpUpMean+jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(jumpDnMean+jumpDnStd**2/2))**(1j*u))
     return charFunc
 
+def PointEventJumpCharFunc(spotCharFunc, eventTime, jumpProb, jump):
+    # Characteristic function for Gaussian event jump model
+    def charFunc(u, maturity):
+        return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpProb*np.exp(1j*u*jump)+(1-jumpProb)*np.exp(-1j*u*jump))/(jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump))**(1j*u))
+    return charFunc
+
 #### Pricing Formula ###########################################################
 # Return prices at S0=1 given logStrike k=log(K/F) (scalar/vector) and maturity T (scalar)
 # **kwargs for deployment in Implied Vol functions

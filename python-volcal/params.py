@@ -148,3 +148,8 @@ paramsGaussianEventJump = {"eventTime": 1, "jumpUpProb": 0.5, "jumpUpMean": 0.15
 paramsGaussianEventJumpkey = list(paramsGaussianEventJump.keys())
 paramsGaussianEventJumpval = list(paramsGaussianEventJump.values())
 paramsGaussianEventJumpbnd = ((0,1), (0.001,1), (0.001,0.2), (0.001,1), (-0.001,-0.2), (0.001,1))
+
+paramsPointEventJump = {"eventTime": 1, "jumpProb": 0.5, "jump": 0.1}
+paramsPointEventJumpkey = list(paramsPointEventJump.keys())
+paramsPointEventJumpval = list(paramsPointEventJump.values())
+paramsPointEventJumpbnd = ((0,1), (0.001,1), (0.001,0.2))
