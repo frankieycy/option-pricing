@@ -152,6 +152,14 @@ def test_BlackScholesImpliedVol_jitBisect():
     impVol = BlackScholesImpliedVol(1,strike,1,0,price,"call",method="Bisection_jit")
     print(impVol)
 
+def test_BlackScholesCharFuncImpliedVol():
+    paramsBS = {"vol": 0.2}
+    impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS),formulaType="Lewis",FFT=True) # DEBUG: does NOT produce flat smile
+    # impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS), formulaType="COS", FFT=True) # DEBUG: seg fault
+    k = np.arange(-1,1,0.01)
+    iv = impVolFunc(k,1)
+    print(iv)
+
 def test_PlotImpliedVol():
     df = pd.read_csv("spxVols20170424.csv")
     df = df.drop(df.columns[0], axis=1)
@@ -1743,6 +1751,22 @@ def test_GaussianEventJumpMomentDecayForVariousSigma():
     plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
     fig.tight_layout()
     plt.savefig(dataFolder+f"test_GaussianEventJumpMomentDecayForVariousSigma.png")
+    plt.close()
+
+def test_FlatSmileWithPointEvent():
+    paramsBS = {"vol": 0.2}
+    paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.02}
+    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(BlackScholesCharFunc(**paramsBS),**paramsPEJ),FFT=True)
+    T = 1
+    k = np.arange(-0.8,0.8,0.01)
+    iv = impVolFunc(k,T)
+    fig = plt.figure(figsize=(6,4))
+    plt.plot(k,100*iv,c='k',lw=5)
+    plt.title(f"Flat {T}-Year Smile with Event")
+    plt.xlabel("log-strike")
+    plt.ylabel("implied vol (%)")
+    fig.tight_layout()
+    plt.savefig(dataFolder+"test_FlatSmileWithPointEvent.png")
     plt.close()
 
 def test_HestonSmileWithPointEvent():
@@ -3488,6 +3512,7 @@ if __name__ == '__main__':
     # test_BlackScholesImpVolRational()
     # test_BlackScholesFormula_jit()
     # test_BlackScholesImpliedVol_jitBisect()
+    test_BlackScholesCharFuncImpliedVol()
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
     # test_PlotImpliedVol2022()
@@ -3589,8 +3614,9 @@ if __name__ == '__main__':
     # test_GaussianEventJumpHestonSensitivity()
     # test_GaussianEventJumpMomentDecay()
     # test_GaussianEventJumpMomentDecayForVariousSigma()
+    # test_FlatSmileWithPointEvent()
     # test_HestonSmileWithPointEvent()
-    test_HestonSmileWithPointEventForVariousMaturities()
+    # test_HestonSmileWithPointEventForVariousMaturities()
     # test_PointEventJumpSensitivity()
     #### Speed Test ####
     # test_CalibrationSpeed()
