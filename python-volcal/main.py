@@ -153,9 +153,11 @@ def test_BlackScholesImpliedVol_jitBisect():
     print(impVol)
 
 def test_BlackScholesCharFuncImpliedVol():
+    # 1. DEBUG: Lewis method does NOT produce flat smile -- use integration upper bound B=200
+    # 2. DEBUG: COS method gives seg fault -- specify optionType=call/put
     paramsBS = {"vol": 0.2}
-    impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS),formulaType="Lewis",FFT=True) # DEBUG: does NOT produce flat smile
-    # impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS), formulaType="COS", FFT=True) # DEBUG: seg fault
+    impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS),formulaType="Lewis",FFT=True,B=200)
+    # impVolFunc = CharFuncImpliedVol(BlackScholesCharFunc(**paramsBS),formulaType="COS",FFT=True,optionType="call")
     k = np.arange(-1,1,0.01)
     iv = impVolFunc(k,1)
     print(iv)
@@ -1758,7 +1760,7 @@ def test_FlatSmileWithPointEvent():
     paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.02}
     impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(BlackScholesCharFunc(**paramsBS),**paramsPEJ),FFT=True)
     T = 1
-    k = np.arange(-0.8,0.8,0.01)
+    k = np.arange(-1,1,0.01)
     iv = impVolFunc(k,T)
     fig = plt.figure(figsize=(6,4))
     plt.plot(k,100*iv,c='k',lw=5)
@@ -1771,7 +1773,7 @@ def test_FlatSmileWithPointEvent():
 
 def test_HestonSmileWithPointEvent():
     paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.05}
-    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="Lewis",FFT=True)
+    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="COS",FFT=True,optionType="put")
     T = 0.05
     k = np.arange(-0.4,0.2,0.01)
     iv = impVolFunc(k,T)
@@ -1786,7 +1788,7 @@ def test_HestonSmileWithPointEvent():
 
 def test_HestonSmileWithPointEventForVariousMaturities():
     paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.05}
-    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="Lewis",FFT=True)
+    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="COS",FFT=True,B=200,optionType="put")
     k = np.arange(-0.4,0.2,0.01)
     fig = plt.figure(figsize=(6, 4))
     for T in np.arange(0.02,0.22,0.02):
