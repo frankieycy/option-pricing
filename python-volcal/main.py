@@ -1788,7 +1788,7 @@ def test_HestonSmileWithPointEvent():
 
 def test_HestonSmileWithPointEventForVariousMaturities():
     paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.05}
-    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="COS",FFT=True,B=200,optionType="put")
+    impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCC),**paramsPEJ),formulaType="COS",FFT=True,optionType="put")
     k = np.arange(-0.4,0.2,0.01)
     fig = plt.figure(figsize=(6, 4))
     for T in np.arange(0.02,0.22,0.02):
@@ -1804,7 +1804,7 @@ def test_HestonSmileWithPointEventForVariousMaturities():
 
 def test_PointEventJumpSensitivity():
     kk = np.arange(-2,1,0.02)
-    var = ["jumpProb","jump"]
+    var = [r"p",r"\epsilon"]
     png = ["prob","eps"]
     pej = ["jumpProb","jump"]
     inc = [0.1,0.02]
@@ -1812,7 +1812,7 @@ def test_PointEventJumpSensitivity():
     for j in range(2):
         paramsPEJnew = paramsPEJ.copy()
         fig = plt.figure(figsize=(6,4))
-        plt.title(rf"Heston 1-Year Smile {var[j]} Sensitivity")
+        plt.title(rf"Heston 1-Year Smile ${var[j]}$ Sensitivity")
         plt.xlabel("log-strike")
         plt.ylabel("implied vol (%)")
         for i in range(5):
@@ -1821,7 +1821,7 @@ def test_PointEventJumpSensitivity():
             c = 'k' if i==0 else ''
             ls = '-' if i==0 else '--'
             lw = 5 if i==0 else 3
-            plt.plot(kk,100*iv,c,ls=ls,lw=lw,label=f'{var[j]}={round(paramsPEJnew[pej[j]],2)}')
+            plt.plot(kk,100*iv,c,ls=ls,lw=lw,label=f'${var[j]}={round(paramsPEJnew[pej[j]],2)}$')
             paramsPEJnew[pej[j]] += inc[j]
         plt.ylim(15,50)
         plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
@@ -1831,7 +1831,7 @@ def test_PointEventJumpSensitivity():
 
         paramsPEJnew = paramsPEJ.copy()
         fig = plt.figure(figsize=(6,4))
-        plt.title(rf"Heston 1-Year EventVol {var[j]} Sensitivity")
+        plt.title(rf"Heston 1-Year EventVol ${var[j]}$ Sensitivity")
         plt.xlabel("log-strike")
         plt.ylabel("event vol (%)")
         for i in range(5):
@@ -1843,7 +1843,7 @@ def test_PointEventJumpSensitivity():
             c = 'k' if i==0 else ''
             ls = '-' if i==0 else '--'
             lw = 5 if i==0 else 3
-            plt.plot(kk,100*ev,c,ls=ls,lw=lw,label=f'{var[j]}={round(paramsPEJnew[pej[j]],2)}')
+            plt.plot(kk,100*ev,c,ls=ls,lw=lw,label=f'${var[j]}={round(paramsPEJnew[pej[j]],2)}$')
             paramsPEJnew[pej[j]] += inc[j]
         plt.ylim(2,25)
         plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
@@ -1853,7 +1853,7 @@ def test_PointEventJumpSensitivity():
 
         paramsPEJnew = paramsPEJ.copy()
         fig = plt.figure(figsize=(6,4))
-        plt.title(rf"Heston 1-Year EventVar {var[j]} Sensitivity")
+        plt.title(rf"Heston 1-Year EventVar ${var[j]}$ Sensitivity")
         plt.xlabel("log-strike")
         plt.ylabel("event var")
         for i in range(5):
@@ -1865,12 +1865,61 @@ def test_PointEventJumpSensitivity():
             c = 'k' if i==0 else ''
             ls = '-' if i==0 else '--'
             lw = 5 if i==0 else 3
-            plt.plot(kk,ev,c,ls=ls,lw=lw,label=f'{var[j]}={round(paramsPEJnew[pej[j]],2)}')
+            plt.plot(kk,ev,c,ls=ls,lw=lw,label=f'${var[j]}={round(paramsPEJnew[pej[j]],2)}$')
             paramsPEJnew[pej[j]] += inc[j]
         plt.ylim(0.0002,0.02)
         plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
         fig.tight_layout()
         plt.savefig(dataFolder+f"test_HestonSmileBCCWithPointEvent_EventVar_{png[j]}.png")
+        plt.close()
+
+def test_PointEventJumpHestonSensitivity():
+    kk = np.arange(-2,1,0.02)
+    var = [r"\rho",r"\eta",r"\lambda"]
+    png = ["rho","eta","lam"]
+    bcc = ["correlation","volOfVol","meanRevRate"]
+    inc = [0.1,0.05,0.5]
+    paramsPEJ = {"eventTime": 0, "jumpProb": 0.5, "jump": 0.1}
+    for j in range(3):
+        paramsBCCnew = paramsBCC.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year Smile ${var[j]}$ Sensitivity")
+        plt.xlabel("log-strike")
+        plt.ylabel("implied vol (%)")
+        for i in range(5):
+            impVolFunc = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCCnew),**paramsPEJ),FFT=True)
+            iv = impVolFunc(kk,1)
+            c = 'k' if i==0 else ''
+            ls = '-' if i==0 else '--'
+            lw = 5 if i==0 else 3
+            plt.plot(kk,100*iv,c,ls=ls,lw=lw,label=f'${var[j]}={round(paramsBCCnew[bcc[j]],2)}$')
+            paramsBCCnew[bcc[j]] += inc[j]
+        plt.ylim(15,60)
+        plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithPointEvent_{png[j]}.png")
+        plt.close()
+
+        paramsBCCnew = paramsBCC.copy()
+        fig = plt.figure(figsize=(6,4))
+        plt.title(rf"Heston 1-Year EventVol ${var[j]}$ Sensitivity")
+        plt.xlabel("log-strike")
+        plt.ylabel("event vol (%)")
+        for i in range(5):
+            impVolFunc0 = CharFuncImpliedVol(HestonCharFunc(**paramsBCCnew),FFT=True)
+            impVolFunc1 = CharFuncImpliedVol(PointEventJumpCharFunc(HestonCharFunc(**paramsBCCnew),**paramsPEJ),FFT=True)
+            iv0 = impVolFunc0(kk,1)
+            iv1 = impVolFunc1(kk,1)
+            ev = np.sqrt(iv1**2-iv0**2)
+            c = 'k' if i==0 else ''
+            ls = '-' if i==0 else '--'
+            lw = 5 if i==0 else 3
+            plt.plot(kk,100*ev,c,ls=ls,lw=lw,label=f'${var[j]}={round(paramsBCCnew[bcc[j]],2)}$')
+            paramsBCCnew[bcc[j]] += inc[j]
+        plt.ylim(4,14)
+        plt.legend(loc='center left',bbox_to_anchor=(1,0.5))
+        fig.tight_layout()
+        plt.savefig(dataFolder+f"test_HestonSmileBCCWithPointEvent_EventVol_{png[j]}.png")
         plt.close()
 
 #### Speed Test ################################################################
@@ -3514,7 +3563,7 @@ if __name__ == '__main__':
     # test_BlackScholesImpVolRational()
     # test_BlackScholesFormula_jit()
     # test_BlackScholesImpliedVol_jitBisect()
-    test_BlackScholesCharFuncImpliedVol()
+    # test_BlackScholesCharFuncImpliedVol()
     # test_PlotImpliedVol()
     # test_PlotImpliedVol2019()
     # test_PlotImpliedVol2022()
@@ -3619,7 +3668,8 @@ if __name__ == '__main__':
     # test_FlatSmileWithPointEvent()
     # test_HestonSmileWithPointEvent()
     # test_HestonSmileWithPointEventForVariousMaturities()
-    # test_PointEventJumpSensitivity()
+    test_PointEventJumpSensitivity()
+    test_PointEventJumpHestonSensitivity()
     #### Speed Test ####
     # test_CalibrationSpeed()
     # test_CharFuncSpeed()
