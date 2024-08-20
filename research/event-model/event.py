@@ -654,31 +654,32 @@ def HestonCharFunc(meanRevRate, correlation, volOfVol, meanVar, currentVar, risk
 def GaussianEventJumpCharFunc(spotCharFunc, eventTime, jumpUpProb, jumpUpMean, jumpUpStd, jumpDnMean, jumpDnStd):
     # Characteristic function for Gaussian event jump model
     def charFunc(u, maturity):
-        return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpUpProb*np.exp(1j*u*jumpUpMean-u**2*jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(1j*u*jumpDnMean-u**2*jumpDnStd**2/2))/(jumpUpProb*np.exp(jumpUpMean+jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(jumpDnMean+jumpDnStd**2/2))**(1j*u))
+        return spotCharFunc(u, maturity) * ((maturity < eventTime) + (maturity >= eventTime) * (jumpUpProb*np.exp(1j*u*jumpUpMean-u**2*jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(1j*u*jumpDnMean-u**2*jumpDnStd**2/2))/(jumpUpProb*np.exp(jumpUpMean+jumpUpStd**2/2)+(1-jumpUpProb)*np.exp(jumpDnMean+jumpDnStd**2/2))**(1j*u))
     return charFunc
 
 def PointEventJumpCharFunc(spotCharFunc, eventTime, jumpProb, jump):
     # Characteristic function for point event jump model
     def charFunc(u, maturity):
-        return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpProb*np.exp(1j*u*jump)+(1-jumpProb)*np.exp(-1j*u*jump))/(jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump))**(1j*u))
+        return spotCharFunc(u, maturity) * ((maturity < eventTime) + (maturity >= eventTime) * (jumpProb*np.exp(1j*u*jump)+(1-jumpProb)*np.exp(-1j*u*jump))/(jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump))**(1j*u))
     return charFunc
 
 #### Event Bump Expansion ######################################################
 
-def PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump):
-    meanExpJump = jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump)
-    return jumpProb * BlackScholesFormula(spotPrice*np.exp(jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType) + (1-jumpProb) * BlackScholesFormula(spotPrice*np.exp(-jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType)
+def PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, eventTime, optionType, jumpProb, jump):
+    meanExpJump = jumpProb * np.exp(jump) + (1-jumpProb) * np.exp(-jump)
+    return (maturity < eventTime) * BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType) + (maturity >= eventTime) * \
+        (jumpProb * BlackScholesFormula(spotPrice*np.exp(jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType) + (1-jumpProb) * BlackScholesFormula(spotPrice*np.exp(-jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType))
 
-def PointEventJumpOptionPriceOTM(spotPrice, strike, maturity, riskFreeRate, impliedVol, jumpProb, jump, returnOptionType=False):
+def PointEventJumpOptionPriceOTM(spotPrice, strike, maturity, riskFreeRate, impliedVol, eventTime, jumpProb, jump, returnOptionType=False):
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
     optionType = np.where(strike > forwardPrice, "call", "put")
     if returnOptionType:
-        return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump), optionType
-    return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump)
+        return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, eventTime, jumpProb, jump), optionType
+    return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, eventTime, jumpProb, jump)
 
 def PointEventJumpMoment(n, jumpProb, jump, **kwargs):
-    meanExpJump = jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump)
-    return jumpProb*(1-jumpProb)*((1-jumpProb)**(n-1)-(-jumpProb)**(n-1))*(2*np.sinh(jump)/meanExpJump)**n
+    meanExpJump = jumpProb * np.exp(jump) + (1-jumpProb) * np.exp(-jump)
+    return jumpProb * (1-jumpProb) * ((1-jumpProb)**(n-1)-(-jumpProb)**(n-1)) * (2*np.sinh(jump)/meanExpJump)**n
 
 def EventVarianceBump(logStrike, totalVar, jumpMomentFunc, n, **kwargs):
     bump = 0
