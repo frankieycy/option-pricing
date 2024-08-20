@@ -665,17 +665,22 @@ def PointEventJumpCharFunc(spotCharFunc, eventTime, jumpProb, jump):
 
 #### Event Bump Expansion ######################################################
 
-def PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, eventTime, optionType, jumpProb, jump):
+def PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVolFunc, eventTime, optionType, jumpProb, jump):
+    logStrike = np.log(strike/spotPrice) - riskFreeRate*maturity
     meanExpJump = jumpProb * np.exp(jump) + (1-jumpProb) * np.exp(-jump)
+    impliedVol = impliedVolFunc(logStrike, maturity)
+    impliedVolUp = impliedVolFunc(logStrike - np.log(np.exp(jump)/meanExpJump), maturity)
+    impliedVolDn = impliedVolFunc(logStrike - np.log(np.exp(-jump)/meanExpJump), maturity)
     return (maturity < eventTime) * BlackScholesFormula(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType) + (maturity >= eventTime) * \
-        (jumpProb * BlackScholesFormula(spotPrice*np.exp(jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType) + (1-jumpProb) * BlackScholesFormula(spotPrice*np.exp(-jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType))
+        (jumpProb * BlackScholesFormula(spotPrice*np.exp(jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVolUp, optionType) + (1-jumpProb) * BlackScholesFormula(spotPrice*np.exp(-jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVolDn, optionType))
 
-def PointEventJumpOptionPriceOTM(spotPrice, strike, maturity, riskFreeRate, impliedVol, eventTime, jumpProb, jump, returnOptionType=False):
+def PointEventJumpOptionPriceOTM(spotPrice, strike, maturity, riskFreeRate, impliedVolFunc, eventTime, jumpProb, jump, returnOptionType=False):
     forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
     optionType = np.where(strike > forwardPrice, "call", "put")
+    optionPrice = PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVolFunc, optionType, eventTime, jumpProb, jump)
     if returnOptionType:
-        return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, eventTime, jumpProb, jump), optionType
-    return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, eventTime, jumpProb, jump)
+        return optionPrice, optionType
+    return optionPrice
 
 def PointEventJumpMoment(n, jumpProb, jump, **kwargs):
     meanExpJump = jumpProb * np.exp(jump) + (1-jumpProb) * np.exp(-jump)
