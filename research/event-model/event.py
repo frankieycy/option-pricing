@@ -658,7 +658,53 @@ def GaussianEventJumpCharFunc(spotCharFunc, eventTime, jumpUpProb, jumpUpMean, j
     return charFunc
 
 def PointEventJumpCharFunc(spotCharFunc, eventTime, jumpProb, jump):
-    # Characteristic function for Gaussian event jump model
+    # Characteristic function for point event jump model
     def charFunc(u, maturity):
         return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpProb*np.exp(1j*u*jump)+(1-jumpProb)*np.exp(-1j*u*jump))/(jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump))**(1j*u))
     return charFunc
+
+#### Event Bump Expansion ######################################################
+
+def PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump):
+    meanExpJump = jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump)
+    return jumpProb * BlackScholesFormula(spotPrice*np.exp(jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType) + (1-jumpProb) * BlackScholesFormula(spotPrice*np.exp(-jump)/meanExpJump, strike, maturity, riskFreeRate, impliedVol, optionType)
+
+def PointEventJumpOptionPriceOTM(spotPrice, strike, maturity, riskFreeRate, impliedVol, jumpProb, jump, returnOptionType=False):
+    forwardPrice = spotPrice*np.exp(riskFreeRate*maturity)
+    optionType = np.where(strike > forwardPrice, "call", "put")
+    if returnOptionType:
+        return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump), optionType
+    return PointEventJumpOptionPrice(spotPrice, strike, maturity, riskFreeRate, impliedVol, optionType, jumpProb, jump)
+
+def PointEventJumpMoment(n, jumpProb, jump, **kwargs):
+    meanExpJump = jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump)
+    return jumpProb*(1-jumpProb)*((1-jumpProb)**(n-1)-(-jumpProb)**(n-1))*(2*np.sinh(jump)/meanExpJump)**n
+
+def EventVarianceBump(logStrike, totalVar, jumpMomentFunc, n, **kwargs):
+    bump = 0
+    d1 = -logStrike/np.sqrt(totalVar)+np.sqrt(totalVar)/2
+    d1n = d1/np.sqrt(totalVar)
+    if n >= 0:
+        bump += jumpMomentFunc(2,**kwargs)/np.math.factorial(2)
+    if n >= 1:
+        bump += jumpMomentFunc(3,**kwargs)/np.math.factorial(3)*(-d1n-1)
+    if n >= 2:
+        bump += jumpMomentFunc(4,**kwargs)/np.math.factorial(4)*(d1n**2+3*d1n+2-1/totalVar)
+    if n >= 3:
+        bump += jumpMomentFunc(5,**kwargs)/np.math.factorial(5)*(-d1n**3-6*d1n**2-11*d1n+3*d1n/totalVar-6+6/totalVar)
+    if n >= 4:
+        bump += jumpMomentFunc(6,**kwargs)/np.math.factorial(6)*(d1n**4+10*d1n**3+35*d1n**2-6*d1n**2/totalVar+50*d1n-30*d1n/totalVar+24-35/totalVar+3/totalVar**2)
+    return 2 * bump
+
+def EventPriceBump(logStrike, totalVar, jumpMomentFunc, n, **kwargs):
+    d1 = -logStrike/np.sqrt(totalVar)+np.sqrt(totalVar)/2
+    varVega = norm.pdf(d1)/(2*np.sqrt(totalVar))
+    varBump = EventVarianceBump(logStrike, totalVar, jumpMomentFunc, n, **kwargs)
+    return varVega * varBump
+
+def EventVarianceBump2ndOrder(logStrike, totalVar, jumpMomentFunc, n, **kwargs):
+    d1 = -logStrike/np.sqrt(totalVar)+np.sqrt(totalVar)/2
+    d2 = d1-np.sqrt(totalVar)
+    varBump = EventVarianceBump(logStrike, totalVar, jumpMomentFunc, n, **kwargs)
+    u = totalVar/(d1*d2-1)
+    return 2 * u * (np.sqrt(1+varBump/u)-1)

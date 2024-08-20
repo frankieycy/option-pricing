@@ -1048,7 +1048,7 @@ def GaussianEventJumpCharFunc(spotCharFunc, eventTime, jumpUpProb, jumpUpMean, j
     return charFunc
 
 def PointEventJumpCharFunc(spotCharFunc, eventTime, jumpProb, jump):
-    # Characteristic function for Gaussian event jump model
+    # Characteristic function for point event jump model
     def charFunc(u, maturity):
         return spotCharFunc(u, maturity) * ((maturity<eventTime) + (maturity>=eventTime) * (jumpProb*np.exp(1j*u*jump)+(1-jumpProb)*np.exp(-1j*u*jump))/(jumpProb*np.exp(jump)+(1-jumpProb)*np.exp(-jump))**(1j*u))
     return charFunc
